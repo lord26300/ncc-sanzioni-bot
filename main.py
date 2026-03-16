@@ -13,29 +13,47 @@ app = Flask(__name__)
 # =========================
 
 VIOLATIONS = {
-    "085-02": {
-        "title": "Noleggio con conducente di veicolo non adibito a tale uso - 1a violazione",
-        "article": "CdS art. 85 c. 4",
-        "pmr": "Non ammesso",
-        "reduced_30": "Non ammesso",
-        "over_60": "Non ammesso",
-        "edictal": "da € 1.812,00 a € 7.249,00",
-        "accessories": [
-            "Sospensione patente da 4 a 12 mesi",
-            "Sequestro del veicolo ai fini della confisca"
-        ],
-        "verbal_text": (
-            "Effettuava servizio di noleggio con conducente con veicolo non adibito a tale uso, "
-            "in violazione dell’art. 85, comma 4, Codice della strada. "
-            "Si procedeva altresì al sequestro del veicolo ai fini della confisca. "
-            "Non è ammesso il pagamento in misura ridotta."
-        ),
-        "notes": [
-            "Il verbale va inviato entro 10 giorni al Prefetto del luogo della violazione.",
-            "Possibili violazioni concorrenti: CAP/CQC, art. 72, art. 79, 085-05.",
-            "Non è ammesso il servizio NCC di autocarri per trasporto cose per conto terzi."
-        ]
-    },
+   "085-02": {
+    "title": "Noleggio con conducente di veicolo non adibito a tale uso - 1a violazione",
+    "article": "CdS art. 85 c. 4",
+    "pmr": "Non ammesso",
+    "reduced_30": "Non ammesso",
+    "over_60": "Non ammesso",
+    "edictal": "da € 1.812,00 a € 7.249,00",
+    "accessories": [
+        "Sospensione patente da 4 a 12 mesi",
+        "Sequestro del veicolo ai fini della confisca"
+    ],
+    "verbal_text": (
+        "Adibiva a noleggio con conducente il veicolo sopra indicato benché non destinato a tale uso "
+        "(ovvero, solo per autovetture e motocarrozzette, benché privo della prescritta autorizzazione; "
+        "ovvero, per tutti i veicoli, benché l'autorizzazione fosse sospesa o revocata). "
+        "Risultava infatti, in base alle indicazioni del documento di circolazione, che il veicolo doveva "
+        "essere adibito a diverso uso. Nella circostanza veniva accertato il trasporto di persone. "
+        "Il veicolo è sottoposto a sequestro ai fini della confisca come da separato verbale."
+    ),
+    "notes": [
+        "Il verbale va inviato entro 10 giorni al Prefetto del luogo della violazione.",
+        "Non è ammesso il pagamento in misura ridotta, essendo prevista la confisca del veicolo.",
+        "Possibili violazioni concorrenti: CAP/CQC, art. 72, art. 79, 085-05.",
+        "Non è ammesso il servizio NCC di autocarri per trasporto cose per conto terzi."
+    ],
+    "fields_to_fill": [
+        "uso risultante dalla carta di circolazione / DU",
+        "generalità di almeno un passeggero trasportato",
+        "eventuale provvedimento di sospensione/revoca autorizzazione",
+        "generalità del custode",
+        "luogo di custodia del veicolo"
+    ],
+    "short_ready_text": (
+        "Violazione accertata: noleggio con conducente con veicolo non adibito a tale uso. "
+        "Norma: art. 85, comma 4, CdS. "
+        "Sanzione edittale: da € 1.812,00 a € 7.249,00. "
+        "Pagamento in misura ridotta non ammesso. "
+        "Accessorie: sospensione patente da 4 a 12 mesi e sequestro del veicolo ai fini della confisca. "
+        "Verbale da trasmettere entro 10 giorni al Prefetto del luogo della violazione."
+    )
+},
     "085-04": {
         "title": "Noleggio con conducente di veicolo non adibito a tale uso - 2a violazione nel triennio",
         "article": "CdS art. 85 c. 4",
@@ -157,24 +175,37 @@ VIOLATIONS = {
         ]
     },
     "116-06": {
-        "title": "Guida senza CAP o CQC",
-        "article": "CdS art. 116 c. 16 e 18",
-        "pmr": "€ 408,00",
-        "reduced_30": "€ 285,60",
-        "over_60": "€ 817,00",
-        "edictal": "da € 408,00 a € 1.634,00",
-        "accessories": [
-            "Fermo veicolo per 60 giorni"
-        ],
-        "verbal_text": (
-            "Circolava alla guida del predetto veicolo adibito a servizio di noleggio con conducente "
-            "munito di patente ma non del prescritto certificato di abilitazione professionale / titolo professionale richiesto."
-        ),
-        "notes": [
-            "Da valutare concorso con 085-02/04 o 085-05 e seguenti."
-        ]
-    }
-}
+    "title": "Guida senza CAP o CQC",
+    "article": "CdS art. 116 c. 16 e 18",
+    "pmr": "€ 408,00",
+    "reduced_30": "€ 285,60",
+    "over_60": "€ 817,00",
+    "edictal": "da € 408,00 a € 1.634,00",
+    "accessories": [
+        "Fermo veicolo per 60 giorni"
+    ],
+    "verbal_text": (
+        "Circolava alla guida del predetto veicolo adibito a servizio di noleggio con conducente "
+        "munito di patente ma non del prescritto certificato di abilitazione professionale / titolo "
+        "professionale richiesto per il servizio svolto."
+    ),
+    "notes": [
+        "Da valutare il concorso con le violazioni ex art. 85 CdS.",
+        "Verificare se per il servizio concreto fosse richiesto KB / KA / CQC."
+    ],
+    "fields_to_fill": [
+        "titolo professionale mancante (KB / KA / CQC)",
+        "tipo di veicolo e servizio svolto",
+        "eventuale affidante del veicolo"
+    ],
+    "short_ready_text": (
+        "Violazione concorrente: guida del veicolo adibito al servizio senza il prescritto titolo professionale. "
+        "Norma: art. 116, commi 16 e 18, CdS. "
+        "PMR € 408,00; riduzione 30% € 285,60; oltre 60 giorni € 817,00; "
+        "edittale da € 408,00 a € 1.634,00. "
+        "Accessoria: fermo del veicolo per 60 giorni."
+    )
+},
 
 # =========================
 # STATO CONVERSAZIONI
@@ -248,28 +279,92 @@ def format_violation(code):
     lines.append("Verificare sempre normativa vigente, prontuario del comando, disciplina locale e dati concreti del caso.")
     return "\n".join(lines)
 
+def format_compact_violation(code):
+    v = VIOLATIONS[code]
+    lines = []
+    lines.append(f"{code} | {v['article']} | {v['title']}")
+    lines.append(f"- PMR: {v['pmr']}")
+    lines.append(f"- Riduzione 30%: {v['reduced_30']}")
+    lines.append(f"- Oltre 60 gg: {v['over_60']}")
+    lines.append(f"- Limiti edittali: {v['edictal']}")
+    lines.append("- Sanzioni accessorie:")
+    for a in v["accessories"]:
+        lines.append(f"  • {a}")
+    lines.append("- Dicitura verbale:")
+    lines.append(f"  {v['verbal_text']}")
+    if v.get("fields_to_fill"):
+        lines.append("- Dati da completare:")
+        for f in v["fields_to_fill"]:
+            lines.append(f"  • {f}")
+    if v.get("short_ready_text"):
+        lines.append("- Verbale sintetico pronto:")
+        lines.append(f"  {v['short_ready_text']}")
+    return "\n".join(lines)
+
 def format_multiple(main_code, concurrent_codes=None, extra_notes=None):
     if concurrent_codes is None:
         concurrent_codes = []
     if extra_notes is None:
         extra_notes = []
 
-    main_text = format_violation(main_code)
+    v = VIOLATIONS[main_code]
 
-    lines = [main_text]
+    lines = []
+    lines.append("ESITO FINALE")
+    lines.append(v["title"])
+    lines.append("")
+    lines.append("RIFERIMENTO")
+    lines.append(v["article"])
+    lines.append("")
+    lines.append("VOCE OPERATIVA")
+    lines.append(main_code)
+    lines.append("")
+    lines.append("IMPORTI")
+    lines.append(f"- Pagamento in misura ridotta: {v['pmr']}")
+    lines.append(f"- Riduzione 30% entro 5 gg: {v['reduced_30']}")
+    lines.append(f"- Pagamento oltre 60 gg: {v['over_60']}")
+    lines.append(f"- Limiti edittali: {v['edictal']}")
+    lines.append("")
+    lines.append("SANZIONI ACCESSORIE")
+    for a in v["accessories"]:
+        lines.append(f"- {a}")
+    lines.append("")
+    lines.append("DICITURA VERBALE")
+    lines.append(v["verbal_text"])
+
+    if v.get("fields_to_fill"):
+        lines.append("")
+        lines.append("DATI DA COMPLETARE")
+        for f in v["fields_to_fill"]:
+            lines.append(f"- {f}")
+
+    if v.get("short_ready_text"):
+        lines.append("")
+        lines.append("VERBALE SINTETICO PRONTO")
+        lines.append(v["short_ready_text"])
+
+    if v.get("notes"):
+        lines.append("")
+        lines.append("NOTE OPERATIVE")
+        for n in v["notes"]:
+            lines.append(f"- {n}")
 
     if concurrent_codes:
         lines.append("")
         lines.append("VIOLAZIONI CONCORRENTI POSSIBILI")
         for code in concurrent_codes:
-            v = VIOLATIONS[code]
-            lines.append(f"- {code} | {v['article']} | {v['title']}")
+            lines.append("")
+            lines.append(format_compact_violation(code))
 
     if extra_notes:
         lines.append("")
         lines.append("ULTERIORI VERIFICHE")
         for note in extra_notes:
             lines.append(f"- {note}")
+
+    lines.append("")
+    lines.append("AVVERTENZA")
+    lines.append("Verificare sempre normativa vigente, prontuario del comando, disciplina locale e dati concreti del caso.")
 
     return "\n".join(lines)
 
