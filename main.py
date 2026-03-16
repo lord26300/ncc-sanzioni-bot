@@ -206,7 +206,7 @@ VIOLATIONS = {
         "Accessoria: fermo del veicolo per 60 giorni."
     )
 },
-
+}
 # =========================
 # STATO CONVERSAZIONI
 # =========================
