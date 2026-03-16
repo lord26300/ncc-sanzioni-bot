@@ -1,4 +1,5 @@
 import os
+import json
 import threading
 from flask import Flask
 import telebot
@@ -7,6 +8,15 @@ TOKEN = os.getenv("TOKEN")
 bot = telebot.TeleBot(TOKEN)
 
 app = Flask(__name__)
+
+ADMIN_ID = 242294061
+ACCESS_FILE = "access_data.json"
+
+# Se vuoi usare una GIF/animazione di benvenuto:
+# 1) carica il file nel progetto (es. welcome.mp4 oppure welcome.gif)
+# 2) metti qui il nome del file
+WELCOME_MEDIA_PATH = "welcome.mp4"   # cambia se vuoi usare un altro nome
+WELCOME_MEDIA_ENABLED = False        # metti True quando hai caricato davvero il file
 
 # =========================
 # DATI SANZIONI
@@ -297,6 +307,152 @@ VIOLATIONS = {
 }
 
 # =========================
+# ACCESSO / AUTORIZZAZIONI
+# =========================
+
+def load_access_data():
+    if os.path.exists(ACCESS_FILE):
+        try:
+            with open(ACCESS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return {
+                    "authorized_users": set(data.get("authorized_users", [ADMIN_ID])),
+                    "pending_users": data.get("pending_users", {}),
+                    "rejected_users": set(data.get("rejected_users", []))
+                }
+        except Exception:
+            pass
+    return {
+        "authorized_users": {ADMIN_ID},
+        "pending_users": {},
+        "rejected_users": set()
+    }
+
+def save_access_data():
+    data = {
+        "authorized_users": list(access_data["authorized_users"]),
+        "pending_users": access_data["pending_users"],
+        "rejected_users": list(access_data["rejected_users"])
+    }
+    with open(ACCESS_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+access_data = load_access_data()
+
+def is_admin(user_id):
+    return user_id == ADMIN_ID
+
+def is_authorized(user_id):
+    return user_id in access_data["authorized_users"]
+
+def is_pending(user_id):
+    return str(user_id) in access_data["pending_users"]
+
+def add_pending(user):
+    uid = str(user.id)
+    if uid not in access_data["pending_users"]:
+        access_data["pending_users"][uid] = {
+            "id": user.id,
+            "first_name": user.first_name or "",
+            "username": user.username or "",
+        }
+        save_access_data()
+
+def approve_user(user_id):
+    uid_str = str(user_id)
+    if uid_str in access_data["pending_users"]:
+        del access_data["pending_users"][uid_str]
+    access_data["authorized_users"].add(user_id)
+    access_data["rejected_users"].discard(user_id)
+    save_access_data()
+
+def reject_user(user_id):
+    uid_str = str(user_id)
+    if uid_str in access_data["pending_users"]:
+        del access_data["pending_users"][uid_str]
+    access_data["rejected_users"].add(user_id)
+    access_data["authorized_users"].discard(user_id)
+    save_access_data()
+
+def revoke_user(user_id):
+    if user_id == ADMIN_ID:
+        return False
+    access_data["authorized_users"].discard(user_id)
+    save_access_data()
+    return True
+
+def send_welcome_media(chat_id):
+    if not WELCOME_MEDIA_ENABLED:
+        return
+    if not os.path.exists(WELCOME_MEDIA_PATH):
+        return
+    try:
+        with open(WELCOME_MEDIA_PATH, "rb") as media_file:
+            # MP4 breve o gif animata; Telegram accetta send_animation per GIF/MP4 brevi
+            bot.send_animation(chat_id, media_file)
+    except Exception:
+        pass
+
+def request_access_text():
+    return (
+        "Benvenuto in NCC Sanzioni Bot.\n\n"
+        "Questo assistente supporta l’analisi preliminare delle possibili violazioni in materia NCC, con indicazione di:\n"
+        "- riferimento normativo\n"
+        "- voce operativa\n"
+        "- importi\n"
+        "- sanzioni accessorie\n"
+        "- dicitura verbale\n"
+        "- verifiche finali\n\n"
+        "Uso interno-operativo.\n"
+        "Le risultanze vanno sempre verificate su normativa vigente, prontuario e disposizioni di servizio.\n\n"
+        "Il tuo accesso è in attesa di approvazione amministratore."
+    )
+
+def authorized_start_text(user_id):
+    return (
+        f"Benvenuto in NCC Sanzioni Bot.\n\n"
+        f"Accesso autorizzato.\n"
+        f"Il tuo user id è: {user_id}\n\n"
+        "Comandi disponibili:\n"
+        "/caso - avvia analisi guidata\n"
+        "/help - guida\n"
+        "/norme - riferimenti principali\n"
+        "/reset - annulla caso in corso"
+    )
+
+def notify_admin_new_request(user):
+    text = (
+        "Richiesta accesso al bot\n\n"
+        f"Nome: {user.first_name or '-'}\n"
+        f"Username: @{user.username}\n" if user.username else f"Nome: {user.first_name or '-'}\nUsername: -\n"
+    )
+    text += (
+        f"ID: {user.id}\n\n"
+        f"Per approvare:\n/approva {user.id}\n\n"
+        f"Per rifiutare:\n/rifiuta {user.id}"
+    )
+    bot.send_message(ADMIN_ID, text)
+
+def ensure_authorized(message):
+    uid = message.from_user.id
+    if is_admin(uid) or is_authorized(uid):
+        return True
+
+    send_welcome_media(message.chat.id)
+
+    if is_pending(uid):
+        bot.reply_to(
+            message,
+            "Accesso non ancora autorizzato.\nLa tua richiesta è già stata inviata all'amministratore."
+        )
+        return False
+
+    add_pending(message.from_user)
+    notify_admin_new_request(message.from_user)
+    bot.reply_to(message, request_access_text())
+    return False
+
+# =========================
 # STATO CONVERSAZIONI
 # =========================
 
@@ -328,49 +484,6 @@ def set_answer(chat_id, key, value):
 
 def next_step(chat_id, step):
     user_states[chat_id]["step"] = step
-
-def format_violation(code):
-    v = VIOLATIONS[code]
-    lines = []
-    lines.append("ESITO FINALE")
-    lines.append(v["title"])
-    lines.append("")
-    lines.append("RIFERIMENTO")
-    lines.append(v["article"])
-    lines.append("")
-    lines.append("VOCE OPERATIVA")
-    lines.append(code)
-    lines.append("")
-    lines.append("IMPORTI")
-    lines.append(f"- Pagamento in misura ridotta: {v['pmr']}")
-    lines.append(f"- Riduzione 30% entro 5 gg: {v['reduced_30']}")
-    lines.append(f"- Pagamento oltre 60 gg: {v['over_60']}")
-    lines.append(f"- Limiti edittali: {v['edictal']}")
-    lines.append("")
-    lines.append("SANZIONI ACCESSORIE")
-    for a in v["accessories"]:
-        lines.append(f"- {a}")
-    lines.append("")
-    lines.append("DICITURA VERBALE")
-    lines.append(v["verbal_text"])
-    if v.get("fields_to_fill"):
-        lines.append("")
-        lines.append("DATI DA COMPLETARE")
-        for f in v["fields_to_fill"]:
-            lines.append(f"- {f}")
-    if v.get("short_ready_text"):
-        lines.append("")
-        lines.append("VERBALE SINTETICO PRONTO")
-        lines.append(v["short_ready_text"])
-    if v.get("notes"):
-        lines.append("")
-        lines.append("NOTE OPERATIVE")
-        for n in v["notes"]:
-            lines.append(f"- {n}")
-    lines.append("")
-    lines.append("AVVERTENZA")
-    lines.append("Verificare sempre normativa vigente, prontuario del comando, disciplina locale e dati concreti del caso.")
-    return "\n".join(lines)
 
 def format_compact_violation(code):
     v = VIOLATIONS[code]
@@ -483,7 +596,6 @@ def decide_violation(answers):
     if kb == "no":
         concurrent.append("116-06")
 
-    # trasporto accessorio / navetta / parking / struttura
     if service_context == "b" and separate_payment == "no":
         return None, concurrent, [
             "Il caso può rientrare in navetta / trasporto accessorio collegato ad attività propria.",
@@ -492,13 +604,11 @@ def decide_violation(answers):
             "Verificare che non si tratti in concreto di servizio aperto a utenza indifferenziata."
         ]
 
-    # mezzo non autorizzato NCC
     if vehicle_authorized == "no" and service_to_third == "si":
         if recurrence == "second_3y":
             return "085-04", concurrent, notes
         return "085-02", concurrent, notes
 
-    # mezzo autorizzato NCC + violazione artt. 3 o 11
     if vehicle_authorized == "si" and violation_type == "art3_11":
         if recurrence == "2_5y":
             return "085-06", concurrent, notes
@@ -509,11 +619,9 @@ def decide_violation(answers):
         else:
             return "085-05", concurrent, notes
 
-    # mezzo autorizzato NCC + altre prescrizioni
     if vehicle_authorized == "si" and violation_type == "other_auth":
         return "085-09", concurrent, notes
 
-    # stazionamento pubblico senza prenotazione
     if vehicle_authorized == "si" and public_waiting == "si" and taxi_commune == "si" and booking == "no":
         notes.extend([
             "Possibile violazione art. 11 L. 21/1992 per stazionamento fuori rimessa.",
@@ -759,23 +867,112 @@ def home():
     return "NCC Sanzioni Bot attivo", 200
 
 # =========================
+# COMANDI ADMIN
+# =========================
+
+@bot.message_handler(commands=['approva'])
+def approve_command(message):
+    if not is_admin(message.from_user.id):
+        return
+    parts = message.text.strip().split()
+    if len(parts) != 2 or not parts[1].isdigit():
+        bot.reply_to(message, "Uso corretto: /approva ID")
+        return
+    user_id = int(parts[1])
+    approve_user(user_id)
+    bot.reply_to(message, f"Utente {user_id} autorizzato.")
+    try:
+        bot.send_message(
+            user_id,
+            "Accesso autorizzato dall'amministratore.\n\nOra puoi usare il bot.\nScrivi /start"
+        )
+    except Exception:
+        pass
+
+@bot.message_handler(commands=['rifiuta'])
+def reject_command(message):
+    if not is_admin(message.from_user.id):
+        return
+    parts = message.text.strip().split()
+    if len(parts) != 2 or not parts[1].isdigit():
+        bot.reply_to(message, "Uso corretto: /rifiuta ID")
+        return
+    user_id = int(parts[1])
+    reject_user(user_id)
+    bot.reply_to(message, f"Utente {user_id} rifiutato.")
+    try:
+        bot.send_message(
+            user_id,
+            "La tua richiesta di accesso al bot non è stata approvata."
+        )
+    except Exception:
+        pass
+
+@bot.message_handler(commands=['pendenti'])
+def pending_command(message):
+    if not is_admin(message.from_user.id):
+        return
+    if not access_data["pending_users"]:
+        bot.reply_to(message, "Nessuna richiesta pendente.")
+        return
+    lines = ["Richieste pendenti:"]
+    for uid, data in access_data["pending_users"].items():
+        username = f"@{data['username']}" if data.get("username") else "-"
+        lines.append(f"- ID {uid} | {data.get('first_name', '-')} | {username}")
+    bot.reply_to(message, "\n".join(lines))
+
+@bot.message_handler(commands=['autorizzati'])
+def authorized_command(message):
+    if not is_admin(message.from_user.id):
+        return
+    lines = ["Utenti autorizzati:"]
+    for uid in sorted(access_data["authorized_users"]):
+        suffix = " (admin)" if uid == ADMIN_ID else ""
+        lines.append(f"- {uid}{suffix}")
+    bot.reply_to(message, "\n".join(lines))
+
+@bot.message_handler(commands=['revoca'])
+def revoke_command(message):
+    if not is_admin(message.from_user.id):
+        return
+    parts = message.text.strip().split()
+    if len(parts) != 2 or not parts[1].isdigit():
+        bot.reply_to(message, "Uso corretto: /revoca ID")
+        return
+    user_id = int(parts[1])
+    ok = revoke_user(user_id)
+    if not ok:
+        bot.reply_to(message, "Non puoi revocare l'accesso all'admin.")
+        return
+    bot.reply_to(message, f"Accesso revocato all'utente {user_id}.")
+    try:
+        bot.send_message(user_id, "Il tuo accesso al bot è stato revocato.")
+    except Exception:
+        pass
+
+# =========================
 # COMANDI BOT
 # =========================
 
 @bot.message_handler(commands=['start'])
 def start_command(message):
-    bot.reply_to(
-        message,
-        "Benvenuto in NCC Sanzioni Bot.\n\n"
-        "Comandi disponibili:\n"
-        "/caso - avvia analisi guidata\n"
-        "/help - guida\n"
-        "/norme - riferimenti principali\n"
-        "/reset - annulla caso in corso"
-    )
+    uid = message.from_user.id
+
+    send_welcome_media(message.chat.id)
+
+    if not is_admin(uid) and not is_authorized(uid):
+        if not is_pending(uid):
+            add_pending(message.from_user)
+            notify_admin_new_request(message.from_user)
+        bot.reply_to(message, request_access_text())
+        return
+
+    bot.reply_to(message, authorized_start_text(uid))
 
 @bot.message_handler(commands=['help'])
 def help_command(message):
+    if not ensure_authorized(message):
+        return
     bot.reply_to(
         message,
         "Usa /caso per avviare l’analisi guidata.\n\n"
@@ -790,6 +987,8 @@ def help_command(message):
 
 @bot.message_handler(commands=['norme'])
 def norme_command(message):
+    if not ensure_authorized(message):
+        return
     bot.reply_to(
         message,
         "Riferimenti principali NCC:\n"
@@ -803,11 +1002,15 @@ def norme_command(message):
 
 @bot.message_handler(commands=['reset'])
 def reset_command(message):
+    if not ensure_authorized(message):
+        return
     clear_case(message.chat.id)
     bot.reply_to(message, "Procedura annullata.")
 
 @bot.message_handler(commands=['caso'])
 def caso_command(message):
+    if not ensure_authorized(message):
+        return
     start_case(message.chat.id)
     bot.reply_to(
         message,
@@ -822,6 +1025,9 @@ def caso_command(message):
 
 @bot.message_handler(func=lambda m: True)
 def all_messages(message):
+    if not ensure_authorized(message):
+        return
+
     chat_id = message.chat.id
 
     if is_in_case(chat_id):
