@@ -391,11 +391,12 @@ def decide_violation(answers):
         concurrent.append("116-06")
 
     # filtro di prudenza: attività accessoria / cortesia
-    if courtesy == "si" and separate_payment == "no":
+        if courtesy == "b" and separate_payment == "no":
         return None, concurrent, [
-            "Il caso può rientrare in trasporto di cortesia / attività accessoria.",
-            "Verificare che non vi sia corrispettivo autonomo o utenza indifferenziata.",
-            "Verificare che il trasporto sia riservato a clienti propri e accessorio all’attività principale."
+            "Il caso può rientrare in navetta / trasporto accessorio collegato ad attività propria.",
+            "Verificare che il servizio sia riservato a clienti propri della struttura o attività.",
+            "Verificare che non vi sia corrispettivo separato specifico per il trasporto.",
+            "Verificare che non si tratti in concreto di servizio aperto a utenza indifferenziata."
         ]
 
     # mezzo non autorizzato NCC
@@ -469,12 +470,13 @@ def ask_step(chat_id):
     )
 
     elif step == "separate_payment":
-        bot.send_message(
-            chat_id,
-            "4) Esiste un corrispettivo separato specifico per il trasporto?\n"
-            "Rispondi:\n"
-            "si / no"
-        )
+    bot.send_message(
+        chat_id,
+        "4) Il trasporto ha un prezzo specifico separato?\n\n"
+        "Rispondi:\n"
+        "si = il cliente paga proprio il trasporto\n"
+        "no = il trasporto non ha un prezzo separato / è compreso / è accessorio"
+    )
 
     elif step == "violation_type":
         bot.send_message(
@@ -588,12 +590,12 @@ def handle_case_input(message):
             bot.reply_to(message, "Rispondi solo con: si / no / dubbio")
 
     elif step == "courtesy":
-        if text in allowed_yes_no:
-            set_answer(chat_id, "courtesy", text)
-            next_step(chat_id, "separate_payment")
-            ask_step(chat_id)
-        else:
-            bot.reply_to(message, "Rispondi solo con: si / no")
+    if text in {"a", "b", "c"}:
+        set_answer(chat_id, "courtesy", text)
+        next_step(chat_id, "separate_payment")
+        ask_step(chat_id)
+    else:
+        bot.reply_to(message, "Rispondi solo con: a / b / c")
 
     elif step == "separate_payment":
         if text in allowed_yes_no:
