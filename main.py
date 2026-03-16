@@ -449,20 +449,24 @@ def ask_step(chat_id):
         )
 
     elif step == "service_to_third":
-        bot.send_message(
-            chat_id,
-            "2) Il trasporto è verso terzi / a pagamento / per utenza esterna?\n"
-            "Rispondi:\n"
-            "si / no / dubbio"
-        )
+    bot.send_message(
+        chat_id,
+        "2) Le persone trasportate sono clienti/passeggeri trasportati come servizio di trasporto?\n\n"
+        "Rispondi:\n"
+        "si = il veicolo sta svolgendo un vero trasporto di persone per clienti/utenza\n"
+        "no = non risulta un servizio di trasporto verso clienti\n"
+        "dubbio = non è ancora chiaro se sia trasporto per clienti oppure altra situazione"
+    )
 
     elif step == "courtesy":
-        bot.send_message(
-            chat_id,
-            "3) Si tratta di trasporto di cortesia / attività accessoria per clienti propri?\n"
-            "Rispondi:\n"
-            "si / no"
-        )
+    bot.send_message(
+        chat_id,
+        "3) Il servizio in esame rientra in quale situazione?\n\n"
+        "Rispondi con UNA sola lettera:\n"
+        "a = servizio dichiarato come NCC / taxi / autobus autorizzato\n"
+        "b = navetta o trasporto collegato a hotel, parcheggio, struttura o attività propria\n"
+        "c = non chiaro / da verificare"
+    )
 
     elif step == "separate_payment":
         bot.send_message(
