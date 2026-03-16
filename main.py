@@ -13,47 +13,47 @@ app = Flask(__name__)
 # =========================
 
 VIOLATIONS = {
-   "085-02": {
-    "title": "Noleggio con conducente di veicolo non adibito a tale uso - 1a violazione",
-    "article": "CdS art. 85 c. 4",
-    "pmr": "Non ammesso",
-    "reduced_30": "Non ammesso",
-    "over_60": "Non ammesso",
-    "edictal": "da € 1.812,00 a € 7.249,00",
-    "accessories": [
-        "Sospensione patente da 4 a 12 mesi",
-        "Sequestro del veicolo ai fini della confisca"
-    ],
-    "verbal_text": (
-        "Adibiva a noleggio con conducente il veicolo sopra indicato benché non destinato a tale uso "
-        "(ovvero, solo per autovetture e motocarrozzette, benché privo della prescritta autorizzazione; "
-        "ovvero, per tutti i veicoli, benché l'autorizzazione fosse sospesa o revocata). "
-        "Risultava infatti, in base alle indicazioni del documento di circolazione, che il veicolo doveva "
-        "essere adibito a diverso uso. Nella circostanza veniva accertato il trasporto di persone. "
-        "Il veicolo è sottoposto a sequestro ai fini della confisca come da separato verbale."
-    ),
-    "notes": [
-        "Il verbale va inviato entro 10 giorni al Prefetto del luogo della violazione.",
-        "Non è ammesso il pagamento in misura ridotta, essendo prevista la confisca del veicolo.",
-        "Possibili violazioni concorrenti: CAP/CQC, art. 72, art. 79, 085-05.",
-        "Non è ammesso il servizio NCC di autocarri per trasporto cose per conto terzi."
-    ],
-    "fields_to_fill": [
-        "uso risultante dalla carta di circolazione / DU",
-        "generalità di almeno un passeggero trasportato",
-        "eventuale provvedimento di sospensione/revoca autorizzazione",
-        "generalità del custode",
-        "luogo di custodia del veicolo"
-    ],
-    "short_ready_text": (
-        "Violazione accertata: noleggio con conducente con veicolo non adibito a tale uso. "
-        "Norma: art. 85, comma 4, CdS. "
-        "Sanzione edittale: da € 1.812,00 a € 7.249,00. "
-        "Pagamento in misura ridotta non ammesso. "
-        "Accessorie: sospensione patente da 4 a 12 mesi e sequestro del veicolo ai fini della confisca. "
-        "Verbale da trasmettere entro 10 giorni al Prefetto del luogo della violazione."
-    )
-},
+    "085-02": {
+        "title": "Noleggio con conducente di veicolo non adibito a tale uso - 1a violazione",
+        "article": "CdS art. 85 c. 4",
+        "pmr": "Non ammesso",
+        "reduced_30": "Non ammesso",
+        "over_60": "Non ammesso",
+        "edictal": "da € 1.812,00 a € 7.249,00",
+        "accessories": [
+            "Sospensione patente da 4 a 12 mesi",
+            "Sequestro del veicolo ai fini della confisca"
+        ],
+        "verbal_text": (
+            "Adibiva a noleggio con conducente il veicolo sopra indicato benché non destinato a tale uso "
+            "(ovvero, solo per autovetture e motocarrozzette, benché privo della prescritta autorizzazione; "
+            "ovvero, per tutti i veicoli, benché l'autorizzazione fosse sospesa o revocata). "
+            "Risultava infatti, in base alle indicazioni del documento di circolazione, che il veicolo doveva "
+            "essere adibito a diverso uso. Nella circostanza veniva accertato il trasporto di persone. "
+            "Il veicolo è sottoposto a sequestro ai fini della confisca come da separato verbale."
+        ),
+        "notes": [
+            "Il verbale va inviato entro 10 giorni al Prefetto del luogo della violazione.",
+            "Non è ammesso il pagamento in misura ridotta, essendo prevista la confisca del veicolo.",
+            "Possibili violazioni concorrenti: CAP/CQC, art. 72, art. 79, 085-05.",
+            "Non è ammesso il servizio NCC di autocarri per trasporto cose per conto terzi."
+        ],
+        "fields_to_fill": [
+            "uso risultante dalla carta di circolazione / DU",
+            "generalità di almeno un passeggero trasportato",
+            "eventuale provvedimento di sospensione/revoca autorizzazione",
+            "generalità del custode",
+            "luogo di custodia del veicolo"
+        ],
+        "short_ready_text": (
+            "Violazione accertata: noleggio con conducente con veicolo non adibito a tale uso. "
+            "Norma: art. 85, comma 4, CdS. "
+            "Sanzione edittale: da € 1.812,00 a € 7.249,00. "
+            "Pagamento in misura ridotta non ammesso. "
+            "Accessorie: sospensione patente da 4 a 12 mesi e sequestro del veicolo ai fini della confisca. "
+            "Verbale da trasmettere entro 10 giorni al Prefetto del luogo della violazione."
+        )
+    },
     "085-04": {
         "title": "Noleggio con conducente di veicolo non adibito a tale uso - 2a violazione nel triennio",
         "article": "CdS art. 85 c. 4",
@@ -67,14 +67,31 @@ VIOLATIONS = {
         ],
         "verbal_text": (
             "Per la seconda volta, in un periodo di 3 anni, adibiva a noleggio con conducente il veicolo sopra indicato "
-            "benché non destinato a tale uso. Risultava infatti, in base alle indicazioni del documento di circolazione, "
-            "che il veicolo doveva essere adibito a diverso uso. Nella circostanza veniva accertato il trasporto di persone. "
+            "benché non destinato a tale uso (ovvero, solo per autovetture e motocarrozzette, benché fosse privo di "
+            "autorizzazione ovvero, per tutti i veicoli, benché l'autorizzazione fosse sospesa o revocata). "
+            "Risultava infatti, in base alle indicazioni del documento di circolazione, che il veicolo doveva essere "
+            "adibito a diverso uso. Nella circostanza veniva accertato il trasporto di persone. "
             "Il veicolo è sottoposto a sequestro come da apposito verbale."
         ),
         "notes": [
             "Alla seconda violazione nel triennio si applica la revoca patente.",
             "L'organo accertatore comunica entro 5 giorni al Prefetto i presupposti della revoca."
-        ]
+        ],
+        "fields_to_fill": [
+            "uso risultante dalla carta di circolazione / DU",
+            "generalità di almeno un passeggero trasportato",
+            "generalità del custode",
+            "luogo di custodia del veicolo",
+            "precedente violazione utile nel triennio"
+        ],
+        "short_ready_text": (
+            "Violazione accertata: noleggio con conducente con veicolo non adibito a tale uso, seconda violazione nel triennio. "
+            "Norma: art. 85, comma 4, CdS. "
+            "Sanzione edittale: da € 1.812,00 a € 7.249,00. "
+            "Pagamento in misura ridotta non ammesso. "
+            "Accessorie: revoca patente e sequestro del veicolo per confisca. "
+            "Comunicazione entro 5 giorni al Prefetto per i presupposti della revoca."
+        )
     },
     "085-05": {
         "title": "NCC in violazione degli artt. 3 e 11 L. 21/1992 - 1a violazione nel quinquennio",
@@ -87,17 +104,32 @@ VIOLATIONS = {
             "Sospensione documento di circolazione per 1 mese"
         ],
         "verbal_text": (
-            "Utilizzava l'autovettura adibita a servizio di noleggio con conducente, munito della relativa autorizzazione, "
-            "senza ottemperare alle disposizioni dell'art. 3 o dell'art. 11 della L. 21/1992. "
+            "Utilizzava l'autovettura (o il motoveicolo) sopra indicata, adibita a servizio di noleggio con conducente, "
+            "munito della relativa autorizzazione, senza ottemperare alle disposizioni dell'art. 3 della L. 21/1992 "
+            "ovvero alle disposizioni di cui all'art. 11 della L. 21/1992. "
             "Il documento di circolazione è ritirato e trasmesso all'UMC competente. "
             "Il conducente è autorizzato a condurre il veicolo per la via più breve fino al luogo indicato, "
-            "con l'avvertenza che il veicolo sarà sottoposto a fermo amministrativo per la durata della sospensione."
+            "con l'avvertenza che lo stesso sarà sottoposto a fermo amministrativo per tutta la durata della sospensione."
         ),
         "notes": [
             "Se il conducente non è titolare dell’autorizzazione, la violazione va notificata al titolare.",
             "Non contestare come autonoma violazione il mero mancato rientro in rimessa dopo ogni servizio.",
             "Verificare con attenzione prenotazione, stazionamento, foglio di servizio, sede/rimessa."
-        ]
+        ],
+        "fields_to_fill": [
+            "specificare se la violazione riguarda art. 3 o art. 11 L. 21/1992",
+            "descrizione concreta del fatto accertato",
+            "UMC competente",
+            "luogo verso cui autorizzare la marcia per la via più breve",
+            "titolare dell'autorizzazione se diverso dal conducente"
+        ],
+        "short_ready_text": (
+            "Violazione accertata: utilizzo del veicolo NCC in violazione degli artt. 3 o 11 della L. 21/1992. "
+            "Norma: art. 85, comma 4-bis, CdS. "
+            "PMR € 178,00; riduzione 30% € 124,60; oltre 60 giorni € 336,00; "
+            "edittale da € 178,00 a € 672,00. "
+            "Accessoria: sospensione del documento di circolazione per 1 mese."
+        )
     },
     "085-06": {
         "title": "NCC in violazione degli artt. 3 e 11 L. 21/1992 - 2a violazione nel quinquennio",
@@ -110,14 +142,29 @@ VIOLATIONS = {
             "Sospensione documento di circolazione da 1 a 2 mesi"
         ],
         "verbal_text": (
-            "Utilizzava l'autovettura adibita a servizio di noleggio con conducente, munito della relativa autorizzazione, "
-            "senza ottemperare alle disposizioni dell'art. 3 o dell'art. 11 della L. 21/1992. "
+            "Utilizzava l'autovettura (o il motoveicolo) sopra indicata, adibita a servizio di noleggio con conducente, "
+            "munito della relativa autorizzazione, senza ottemperare alle disposizioni dell'art. 3 della L. 21/1992 "
+            "ovvero alle disposizioni di cui all'art. 11 della L. 21/1992. "
             "Il documento di circolazione è ritirato e trasmesso all'UMC competente."
         ),
         "notes": [
             "Seconda violazione nel quinquennio.",
             "Se il conducente non è titolare, risponde il titolare dell’autorizzazione."
-        ]
+        ],
+        "fields_to_fill": [
+            "specificare se la violazione riguarda art. 3 o art. 11 L. 21/1992",
+            "descrizione concreta del fatto accertato",
+            "UMC competente",
+            "precedente violazione utile nel quinquennio"
+        ],
+        "short_ready_text": (
+            "Violazione accertata: utilizzo del veicolo NCC in violazione degli artt. 3 o 11 della L. 21/1992, "
+            "seconda violazione nel quinquennio. "
+            "Norma: art. 85, comma 4-bis, CdS. "
+            "PMR € 264,00; riduzione 30% € 184,80; oltre 60 giorni € 505,00; "
+            "edittale da € 264,00 a € 1.010,00. "
+            "Accessoria: sospensione del documento di circolazione da 1 a 2 mesi."
+        )
     },
     "085-07": {
         "title": "NCC in violazione degli artt. 3 e 11 L. 21/1992 - 3a violazione nel quinquennio",
@@ -130,12 +177,26 @@ VIOLATIONS = {
             "Sospensione documento di circolazione da 2 a 4 mesi"
         ],
         "verbal_text": (
-            "Utilizzava l'autovettura adibita a servizio di noleggio con conducente, munito della relativa autorizzazione, "
-            "senza ottemperare alle disposizioni dell'art. 3 o dell'art. 11 della L. 21/1992."
+            "Utilizzava l'autovettura (o il motoveicolo) sopra indicata, adibita a servizio di noleggio con conducente, "
+            "munito della relativa autorizzazione, senza ottemperare alle disposizioni dell'art. 3 della L. 21/1992 "
+            "ovvero alle disposizioni di cui all'art. 11 della L. 21/1992."
         ),
         "notes": [
             "Terza violazione nel quinquennio."
-        ]
+        ],
+        "fields_to_fill": [
+            "specificare se la violazione riguarda art. 3 o art. 11 L. 21/1992",
+            "descrizione concreta del fatto accertato",
+            "precedenti violazioni utili nel quinquennio"
+        ],
+        "short_ready_text": (
+            "Violazione accertata: utilizzo del veicolo NCC in violazione degli artt. 3 o 11 della L. 21/1992, "
+            "terza violazione nel quinquennio. "
+            "Norma: art. 85, comma 4-bis, CdS. "
+            "PMR € 356,00; riduzione 30% € 249,20; oltre 60 giorni € 672,00; "
+            "edittale da € 356,00 a € 1.344,00. "
+            "Accessoria: sospensione del documento di circolazione da 2 a 4 mesi."
+        )
     },
     "085-08": {
         "title": "NCC in violazione degli artt. 3 e 11 L. 21/1992 - 4a o successiva nel quinquennio",
@@ -148,12 +209,26 @@ VIOLATIONS = {
             "Sospensione documento di circolazione da 4 a 8 mesi"
         ],
         "verbal_text": (
-            "Utilizzava l'autovettura adibita a servizio di noleggio con conducente, munito della relativa autorizzazione, "
-            "senza ottemperare alle disposizioni dell'art. 3 o dell'art. 11 della L. 21/1992."
+            "Utilizzava l'autovettura (o il motoveicolo) sopra indicata, adibita a servizio di noleggio con conducente, "
+            "munito della relativa autorizzazione, senza ottemperare alle disposizioni dell'art. 3 della L. 21/1992 "
+            "ovvero alle disposizioni di cui all'art. 11 della L. 21/1992."
         ),
         "notes": [
             "Quarta o successiva violazione nel quinquennio."
-        ]
+        ],
+        "fields_to_fill": [
+            "specificare se la violazione riguarda art. 3 o art. 11 L. 21/1992",
+            "descrizione concreta del fatto accertato",
+            "progressione completa delle violazioni nel quinquennio"
+        ],
+        "short_ready_text": (
+            "Violazione accertata: utilizzo del veicolo NCC in violazione degli artt. 3 o 11 della L. 21/1992, "
+            "quarta o successiva nel quinquennio. "
+            "Norma: art. 85, comma 4-bis, CdS. "
+            "PMR € 528,00; riduzione 30% € 369,60; oltre 60 giorni € 1.010,00; "
+            "edittale da € 528,00 a € 2.020,00. "
+            "Accessoria: sospensione del documento di circolazione da 4 a 8 mesi."
+        )
     },
     "085-09": {
         "title": "Circolazione con NCC violando altre prescrizioni dell’autorizzazione",
@@ -166,58 +241,66 @@ VIOLATIONS = {
             "Non previste"
         ],
         "verbal_text": (
-            "Utilizzava il veicolo adibito a servizio di noleggio con conducente senza ottemperare alle norme in vigore "
-            "ovvero alle condizioni di cui all'autorizzazione. Veniva accertato che ..."
+            "Utilizzava il veicolo sopra indicato, adibito a servizio di noleggio con conducente, "
+            "senza ottemperare alle norme in vigore ovvero alle condizioni di cui all'autorizzazione. "
+            "Veniva accertato che ..."
         ),
         "notes": [
             "Rientrano qui le prescrizioni diverse dagli artt. 3 e 11 L. 21/1992.",
             "Verificare regolamenti comunali/locali, ZTL, modalità di servizio, ruolo CCIAA."
-        ]
+        ],
+        "fields_to_fill": [
+            "specifica prescrizione autorizzativa violata",
+            "descrizione concreta del fatto accertato",
+            "eventuale regolamento locale applicabile"
+        ],
+        "short_ready_text": (
+            "Violazione accertata: circolazione con NCC in violazione di altre prescrizioni dell'autorizzazione. "
+            "Norma: art. 85, comma 4-ter, CdS. "
+            "PMR € 86,00; riduzione 30% € 60,20; oltre 60 giorni € 169,00; "
+            "edittale da € 86,00 a € 338,00. "
+            "Sanzioni accessorie non previste."
+        )
     },
     "116-06": {
-    "title": "Guida senza CAP o CQC",
-    "article": "CdS art. 116 c. 16 e 18",
-    "pmr": "€ 408,00",
-    "reduced_30": "€ 285,60",
-    "over_60": "€ 817,00",
-    "edictal": "da € 408,00 a € 1.634,00",
-    "accessories": [
-        "Fermo veicolo per 60 giorni"
-    ],
-    "verbal_text": (
-        "Circolava alla guida del predetto veicolo adibito a servizio di noleggio con conducente "
-        "munito di patente ma non del prescritto certificato di abilitazione professionale / titolo "
-        "professionale richiesto per il servizio svolto."
-    ),
-    "notes": [
-        "Da valutare il concorso con le violazioni ex art. 85 CdS.",
-        "Verificare se per il servizio concreto fosse richiesto KB / KA / CQC."
-    ],
-    "fields_to_fill": [
-        "titolo professionale mancante (KB / KA / CQC)",
-        "tipo di veicolo e servizio svolto",
-        "eventuale affidante del veicolo"
-    ],
-    "short_ready_text": (
-        "Violazione concorrente: guida del veicolo adibito al servizio senza il prescritto titolo professionale. "
-        "Norma: art. 116, commi 16 e 18, CdS. "
-        "PMR € 408,00; riduzione 30% € 285,60; oltre 60 giorni € 817,00; "
-        "edittale da € 408,00 a € 1.634,00. "
-        "Accessoria: fermo del veicolo per 60 giorni."
-    )
-},
+        "title": "Guida senza CAP o CQC",
+        "article": "CdS art. 116 c. 16 e 18",
+        "pmr": "€ 408,00",
+        "reduced_30": "€ 285,60",
+        "over_60": "€ 817,00",
+        "edictal": "da € 408,00 a € 1.634,00",
+        "accessories": [
+            "Fermo veicolo per 60 giorni"
+        ],
+        "verbal_text": (
+            "Circolava alla guida del predetto veicolo adibito a servizio di noleggio con conducente "
+            "munito di patente ma non del prescritto certificato di abilitazione professionale / titolo "
+            "professionale richiesto per il servizio svolto."
+        ),
+        "notes": [
+            "Da valutare il concorso con le violazioni ex art. 85 CdS.",
+            "Verificare se per il servizio concreto fosse richiesto KB / KA / CQC."
+        ],
+        "fields_to_fill": [
+            "titolo professionale mancante (KB / KA / CQC)",
+            "tipo di veicolo e servizio svolto",
+            "eventuale affidante del veicolo"
+        ],
+        "short_ready_text": (
+            "Violazione concorrente: guida del veicolo adibito al servizio senza il prescritto titolo professionale. "
+            "Norma: art. 116, commi 16 e 18, CdS. "
+            "PMR € 408,00; riduzione 30% € 285,60; oltre 60 giorni € 817,00; "
+            "edittale da € 408,00 a € 1.634,00. "
+            "Accessoria: fermo del veicolo per 60 giorni."
+        )
+    }
 }
+
 # =========================
 # STATO CONVERSAZIONI
 # =========================
 
 user_states = {}
-
-# user_states[chat_id] = {
-#   "mode": "case_flow",
-#   "answers": {},
-#   "step": "vehicle_type"
-# }
 
 # =========================
 # FUNZIONI UTILI
@@ -270,10 +353,20 @@ def format_violation(code):
     lines.append("")
     lines.append("DICITURA VERBALE")
     lines.append(v["verbal_text"])
-    lines.append("")
-    lines.append("NOTE OPERATIVE")
-    for n in v["notes"]:
-        lines.append(f"- {n}")
+    if v.get("fields_to_fill"):
+        lines.append("")
+        lines.append("DATI DA COMPLETARE")
+        for f in v["fields_to_fill"]:
+            lines.append(f"- {f}")
+    if v.get("short_ready_text"):
+        lines.append("")
+        lines.append("VERBALE SINTETICO PRONTO")
+        lines.append(v["short_ready_text"])
+    if v.get("notes"):
+        lines.append("")
+        lines.append("NOTE OPERATIVE")
+        for n in v["notes"]:
+            lines.append(f"- {n}")
     lines.append("")
     lines.append("AVVERTENZA")
     lines.append("Verificare sempre normativa vigente, prontuario del comando, disciplina locale e dati concreti del caso.")
@@ -373,16 +466,16 @@ def format_multiple(main_code, concurrent_codes=None, extra_notes=None):
 # =========================
 
 def decide_violation(answers):
-    vehicle_authorized = answers.get("vehicle_authorized")        # si/no
-    service_to_third = answers.get("service_to_third")            # si/no/dubbio
-    violation_type = answers.get("violation_type")                # art3_11 / other_auth / none
-    recurrence = answers.get("recurrence")                        # first / second_3y / 1_5y / 2_5y / 3_5y / 4plus_5y
-    kb = answers.get("kb")                                        # si/no
-    public_waiting = answers.get("public_waiting")                # si/no
-    taxi_commune = answers.get("taxi_commune")                    # si/no
-    booking = answers.get("booking")                              # si/no
-    courtesy = answers.get("courtesy")                            # si/no
-    separate_payment = answers.get("separate_payment")            # si/no
+    vehicle_authorized = answers.get("vehicle_authorized")
+    service_to_third = answers.get("service_to_third")
+    service_context = answers.get("service_context")
+    violation_type = answers.get("violation_type")
+    recurrence = answers.get("recurrence")
+    kb = answers.get("kb")
+    public_waiting = answers.get("public_waiting")
+    taxi_commune = answers.get("taxi_commune")
+    booking = answers.get("booking")
+    separate_payment = answers.get("separate_payment")
 
     concurrent = []
     notes = []
@@ -390,8 +483,8 @@ def decide_violation(answers):
     if kb == "no":
         concurrent.append("116-06")
 
-    # filtro di prudenza: attività accessoria / cortesia
-        if courtesy == "b" and separate_payment == "no":
+    # trasporto accessorio / navetta / parking / struttura
+    if service_context == "b" and separate_payment == "no":
         return None, concurrent, [
             "Il caso può rientrare in navetta / trasporto accessorio collegato ad attività propria.",
             "Verificare che il servizio sia riservato a clienti propri della struttura o attività.",
@@ -420,7 +513,7 @@ def decide_violation(answers):
     if vehicle_authorized == "si" and violation_type == "other_auth":
         return "085-09", concurrent, notes
 
-    # stazionamento pubblico senza prenotazione: suggerimento art. 3/11
+    # stazionamento pubblico senza prenotazione
     if vehicle_authorized == "si" and public_waiting == "si" and taxi_commune == "si" and booking == "no":
         notes.extend([
             "Possibile violazione art. 11 L. 21/1992 per stazionamento fuori rimessa.",
@@ -444,44 +537,44 @@ def ask_step(chat_id):
     if step == "vehicle_authorized":
         bot.send_message(
             chat_id,
-            "1) Il veicolo è autorizzato/adibito a NCC?\n"
-            "Rispondi con una delle seguenti parole:\n"
+            "1) Il veicolo è autorizzato/adibito a NCC?\n\n"
+            "Rispondi:\n"
             "si / no"
         )
 
     elif step == "service_to_third":
-    bot.send_message(
-        chat_id,
-        "2) Le persone trasportate sono clienti/passeggeri trasportati come servizio di trasporto?\n\n"
-        "Rispondi:\n"
-        "si = il veicolo sta svolgendo un vero trasporto di persone per clienti/utenza\n"
-        "no = non risulta un servizio di trasporto verso clienti\n"
-        "dubbio = non è ancora chiaro se sia trasporto per clienti oppure altra situazione"
-    )
+        bot.send_message(
+            chat_id,
+            "2) Il conducente sta trasportando o mettendosi a disposizione di clienti/passeggeri come servizio NCC o simile?\n\n"
+            "Rispondi:\n"
+            "si = trasporto clienti/passeggeri\n"
+            "no = non sta facendo servizio verso clienti\n"
+            "dubbio = situazione non ancora chiara"
+        )
 
-    elif step == "courtesy":
-    bot.send_message(
-        chat_id,
-        "3) Il servizio in esame rientra in quale situazione?\n\n"
-        "Rispondi con UNA sola lettera:\n"
-        "a = servizio dichiarato come NCC / taxi / autobus autorizzato\n"
-        "b = navetta o trasporto collegato a hotel, parcheggio, struttura o attività propria\n"
-        "c = non chiaro / da verificare"
-    )
+    elif step == "service_context":
+        bot.send_message(
+            chat_id,
+            "3) Il servizio in esame rientra in quale situazione?\n\n"
+            "Rispondi con UNA sola lettera:\n"
+            "a = servizio dichiarato come NCC / taxi / autobus autorizzato\n"
+            "b = navetta o trasporto collegato a hotel, parcheggio, struttura o attività propria\n"
+            "c = non chiaro / da verificare"
+        )
 
     elif step == "separate_payment":
-    bot.send_message(
-        chat_id,
-        "4) Il trasporto ha un prezzo specifico separato?\n\n"
-        "Rispondi:\n"
-        "si = il cliente paga proprio il trasporto\n"
-        "no = il trasporto non ha un prezzo separato / è compreso / è accessorio"
-    )
+        bot.send_message(
+            chat_id,
+            "4) Il trasporto ha un prezzo specifico separato?\n\n"
+            "Rispondi:\n"
+            "si = il cliente paga proprio il trasporto\n"
+            "no = il trasporto non ha un prezzo separato / è compreso / è accessorio"
+        )
 
     elif step == "violation_type":
         bot.send_message(
             chat_id,
-            "5) Se il veicolo è NCC, la violazione riguarda:\n"
+            "5) Se il veicolo è NCC, la violazione riguarda:\n\n"
             "art3_11 = artt. 3 o 11 L. 21/1992\n"
             "other_auth = altre prescrizioni dell'autorizzazione\n"
             "none = non chiaro / non applicabile"
@@ -490,7 +583,7 @@ def ask_step(chat_id):
     elif step == "public_waiting":
         bot.send_message(
             chat_id,
-            "6) Il veicolo stazionava/sostava su area pubblica in attesa?\n"
+            "6) Il veicolo stazionava/sostava su area pubblica in attesa?\n\n"
             "Rispondi:\n"
             "si / no"
         )
@@ -498,7 +591,7 @@ def ask_step(chat_id):
     elif step == "taxi_commune":
         bot.send_message(
             chat_id,
-            "7) Il fatto è avvenuto in un comune dove è esercitato il servizio taxi?\n"
+            "7) Il fatto è avvenuto in un comune dove è esercitato il servizio taxi?\n\n"
             "Rispondi:\n"
             "si / no"
         )
@@ -506,7 +599,7 @@ def ask_step(chat_id):
     elif step == "booking":
         bot.send_message(
             chat_id,
-            "8) Esiste prenotazione documentabile / foglio di servizio / contratto?\n"
+            "8) Esiste prenotazione documentabile / foglio di servizio / contratto?\n\n"
             "Rispondi:\n"
             "si / no"
         )
@@ -514,7 +607,7 @@ def ask_step(chat_id):
     elif step == "recurrence":
         bot.send_message(
             chat_id,
-            "9) Indica la progressione della violazione.\n"
+            "9) Indica la progressione della violazione.\n\n"
             "Rispondi con UNA di queste:\n"
             "first = prima violazione\n"
             "second_3y = seconda nel triennio (per 085-04)\n"
@@ -527,7 +620,7 @@ def ask_step(chat_id):
     elif step == "kb":
         bot.send_message(
             chat_id,
-            "10) Il conducente ha il titolo professionale richiesto (KB/KA/CQC se dovuto)?\n"
+            "10) Il conducente ha il titolo professionale richiesto (KB/KA/CQC se dovuto)?\n\n"
             "Rispondi:\n"
             "si / no"
         )
@@ -546,8 +639,8 @@ def ask_step(chat_id):
             if concurrent:
                 lines.append("VIOLAZIONI CONCORRENTI POSSIBILI")
                 for code in concurrent:
-                    v = VIOLATIONS[code]
-                    lines.append(f"- {code} | {v['article']} | {v['title']}")
+                    lines.append("")
+                    lines.append(format_compact_violation(code))
                 lines.append("")
             lines.append("VERIFICHE NECESSARIE")
             for n in notes:
@@ -584,18 +677,18 @@ def handle_case_input(message):
     elif step == "service_to_third":
         if text in allowed_yes_no_doubt:
             set_answer(chat_id, "service_to_third", text)
-            next_step(chat_id, "courtesy")
+            next_step(chat_id, "service_context")
             ask_step(chat_id)
         else:
             bot.reply_to(message, "Rispondi solo con: si / no / dubbio")
 
-    elif step == "courtesy":
-    if text in {"a", "b", "c"}:
-        set_answer(chat_id, "courtesy", text)
-        next_step(chat_id, "separate_payment")
-        ask_step(chat_id)
-    else:
-        bot.reply_to(message, "Rispondi solo con: a / b / c")
+    elif step == "service_context":
+        if text in {"a", "b", "c"}:
+            set_answer(chat_id, "service_context", text)
+            next_step(chat_id, "separate_payment")
+            ask_step(chat_id)
+        else:
+            bot.reply_to(message, "Rispondi solo con: a / b / c")
 
     elif step == "separate_payment":
         if text in allowed_yes_no:
@@ -657,7 +750,6 @@ def handle_case_input(message):
         else:
             bot.reply_to(message, "Rispondi solo con: si / no")
 
-
 # =========================
 # FLASK
 # =========================
@@ -665,7 +757,6 @@ def handle_case_input(message):
 @app.route("/")
 def home():
     return "NCC Sanzioni Bot attivo", 200
-
 
 # =========================
 # COMANDI BOT
@@ -725,7 +816,6 @@ def caso_command(message):
     )
     ask_step(message.chat.id)
 
-
 # =========================
 # MESSAGGI GENERICI
 # =========================
@@ -741,7 +831,6 @@ def all_messages(message):
             message,
             "Usa /caso per avviare l’analisi guidata."
         )
-
 
 # =========================
 # AVVIO BOT
