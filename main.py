@@ -10,13 +10,10 @@ bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
 
 ADMIN_ID = 242294061
-ACCESS_FILE = "access_data.json"
 
-# Se vuoi usare una GIF/animazione di benvenuto:
-# 1) carica il file nel progetto (es. welcome.mp4 oppure welcome.gif)
-# 2) metti qui il nome del file
-WELCOME_MEDIA_PATH = "welcome.mp4"   # cambia se vuoi usare un altro nome
-WELCOME_MEDIA_ENABLED = True        # metti True quando hai caricato davvero il file
+# GIF/animazione di benvenuto
+WELCOME_MEDIA_PATH = "welcome.mp4"
+WELCOME_MEDIA_ENABLED = False
 
 # =========================
 # DATI SANZIONI
@@ -310,34 +307,14 @@ VIOLATIONS = {
 # ACCESSO / AUTORIZZAZIONI
 # =========================
 
-def load_access_data():
-    if os.path.exists(ACCESS_FILE):
-        try:
-            with open(ACCESS_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                return {
-                    "authorized_users": set(data.get("authorized_users", [ADMIN_ID])),
-                    "pending_users": data.get("pending_users", {}),
-                    "rejected_users": set(data.get("rejected_users", []))
-                }
-        except Exception:
-            pass
-    return {
-        "authorized_users": {ADMIN_ID},
-        "pending_users": {},
-        "rejected_users": set()
-    }
+access_data = {
+    "authorized_users": {ADMIN_ID},
+    "pending_users": {},
+    "rejected_users": set()
+}
 
 def save_access_data():
-    data = {
-        "authorized_users": list(access_data["authorized_users"]),
-        "pending_users": access_data["pending_users"],
-        "rejected_users": list(access_data["rejected_users"])
-    }
-    with open(ACCESS_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-
-access_data = load_access_data()
+    return
 
 def is_admin(user_id):
     return user_id == ADMIN_ID
@@ -388,7 +365,6 @@ def send_welcome_media(chat_id):
         return
     try:
         with open(WELCOME_MEDIA_PATH, "rb") as media_file:
-            # MP4 breve o gif animata; Telegram accetta send_animation per GIF/MP4 brevi
             bot.send_animation(chat_id, media_file)
     except Exception:
         pass
@@ -414,19 +390,19 @@ def authorized_start_text(user_id):
         f"Accesso autorizzato.\n"
         f"Il tuo user id è: {user_id}\n\n"
         "Comandi disponibili:\n"
-        "/caso - avvia analisi guidata\n"
+        "/caso - descrivi liberamente il fatto\n"
+        "/checklist - controlli operativi\n"
         "/help - guida\n"
         "/norme - riferimenti principali\n"
         "/reset - annulla caso in corso"
     )
 
 def notify_admin_new_request(user):
+    username_line = f"@{user.username}" if user.username else "-"
     text = (
         "Richiesta accesso al bot\n\n"
         f"Nome: {user.first_name or '-'}\n"
-        f"Username: @{user.username}\n" if user.username else f"Nome: {user.first_name or '-'}\nUsername: -\n"
-    )
-    text += (
+        f"Username: {username_line}\n"
         f"ID: {user.id}\n\n"
         f"Per approvare:\n/approva {user.id}\n\n"
         f"Per rifiutare:\n/rifiuta {user.id}"
@@ -458,32 +434,20 @@ def ensure_authorized(message):
 
 user_states = {}
 
-# =========================
-# FUNZIONI UTILI
-# =========================
+# mode:
+# - free_case: attesa descrizione libera
+# - clarification: attesa risposta a domanda integrativa
 
-def start_case(chat_id):
-    user_states[chat_id] = {
-        "mode": "case_flow",
-        "answers": {},
-        "step": "vehicle_authorized"
-    }
+# =========================
+# FUNZIONI FORMATO
+# =========================
 
 def clear_case(chat_id):
     if chat_id in user_states:
         del user_states[chat_id]
 
-def is_in_case(chat_id):
-    return chat_id in user_states and user_states[chat_id].get("mode") == "case_flow"
-
 def get_state(chat_id):
     return user_states.get(chat_id)
-
-def set_answer(chat_id, key, value):
-    user_states[chat_id]["answers"][key] = value
-
-def next_step(chat_id, step):
-    user_states[chat_id]["step"] = step
 
 def format_compact_violation(code):
     v = VIOLATIONS[code]
@@ -575,8 +539,103 @@ def format_multiple(main_code, concurrent_codes=None, extra_notes=None):
     return "\n".join(lines)
 
 # =========================
-# MOTORE DECISIONALE
+# ANALISI TESTO LIBERO
 # =========================
+
+def detect_from_text(text):
+    t = text.lower()
+
+    data = {
+        "vehicle_authorized": None,   # si/no
+        "service_to_third": None,     # si/no/dubbio
+        "service_context": None,      # a/b/c
+        "violation_type": None,       # art3_11 / other_auth / none
+        "recurrence": None,           # first / second_3y / 1_5y / 2_5y / 3_5y / 4plus_5y
+        "kb": None,                   # si/no
+        "public_waiting": None,       # si/no
+        "taxi_commune": None,         # si/no
+        "booking": None,              # si/no
+        "separate_payment": None      # si/no
+    }
+
+    # autorizzazione veicolo
+    if any(x in t for x in [
+        "veicolo privato", "auto privata", "non autorizzato", "senza autorizzazione ncc",
+        "abusivo", "non ncc", "mezzo privato"
+    ]):
+        data["vehicle_authorized"] = "no"
+
+    if any(x in t for x in [
+        "veicolo ncc", "autorizzato ncc", "con autorizzazione ncc", "ncc regolare"
+    ]):
+        data["vehicle_authorized"] = "si"
+
+    # servizio verso clienti
+    if any(x in t for x in [
+        "clienti", "passeggeri", "turisti", "a pagamento", "trasporta persone",
+        "accompagna clienti", "servizio ncc", "utenza"
+    ]):
+        data["service_to_third"] = "si"
+
+    # contesto
+    if any(x in t for x in ["hotel", "albergo", "parcheggio", "parking", "struttura ricettiva", "navetta"]):
+        data["service_context"] = "b"
+    elif any(x in t for x in ["taxi", "ncc", "autobus autorizzato", "bus autorizzato"]):
+        data["service_context"] = "a"
+
+    # tipo violazione
+    if any(x in t for x in [
+        "senza prenotazione", "manca prenotazione", "no prenotazione",
+        "foglio di servizio", "staziona", "sosta su area pubblica", "attesa clienti",
+        "rimessa", "fuori rimessa"
+    ]):
+        data["violation_type"] = "art3_11"
+
+    if any(x in t for x in [
+        "ztl", "regolamento comunale", "altra prescrizione", "condizioni autorizzazione",
+        "prescrizione autorizzativa"
+    ]):
+        data["violation_type"] = "other_auth"
+
+    # recidiva
+    if any(x in t for x in ["seconda nel triennio", "2a nel triennio", "recidiva triennio"]):
+        data["recurrence"] = "second_3y"
+    elif any(x in t for x in ["seconda nel quinquennio", "2a nel quinquennio"]):
+        data["recurrence"] = "2_5y"
+    elif any(x in t for x in ["terza nel quinquennio", "3a nel quinquennio"]):
+        data["recurrence"] = "3_5y"
+    elif any(x in t for x in ["quarta nel quinquennio", "quarta o successiva", "4a nel quinquennio"]):
+        data["recurrence"] = "4plus_5y"
+    elif any(x in t for x in ["prima violazione", "1a violazione", "prima nel quinquennio"]):
+        data["recurrence"] = "first"
+
+    # kb/cqc
+    if any(x in t for x in ["senza kb", "manca kb", "senza cqc", "manca cqc", "senza ka", "manca ka"]):
+        data["kb"] = "no"
+    elif any(x in t for x in ["con kb", "kb presente", "cqc presente", "titolo presente"]):
+        data["kb"] = "si"
+
+    # sosta/attesa
+    if any(x in t for x in ["staziona", "in attesa", "sosta", "fermo in attesa", "attesa clienti"]):
+        data["public_waiting"] = "si"
+
+    # comune taxi
+    if any(x in t for x in ["comune con taxi", "dove c'è taxi", "porto di civitavecchia", "roma", "milano"]):
+        data["taxi_commune"] = "si"
+
+    # prenotazione
+    if any(x in t for x in ["senza prenotazione", "no prenotazione", "manca prenotazione"]):
+        data["booking"] = "no"
+    elif any(x in t for x in ["prenotazione presente", "con prenotazione", "foglio di servizio presente", "contratto presente"]):
+        data["booking"] = "si"
+
+    # corrispettivo separato
+    if any(x in t for x in ["pagamento separato", "prezzo separato", "corrispettivo separato", "pagano il trasporto"]):
+        data["separate_payment"] = "si"
+    elif any(x in t for x in ["gratuito", "senza corrispettivo", "compreso nel servizio", "cortesia"]):
+        data["separate_payment"] = "no"
+
+    return data
 
 def decide_violation(answers):
     vehicle_authorized = answers.get("vehicle_authorized")
@@ -634,229 +693,195 @@ def decide_violation(answers):
         "Servono ulteriori elementi su autorizzazione, prenotazione, natura del servizio e progressione."
     ]
 
-# =========================
-# DOMANDE GUIDATE
-# =========================
+def missing_questions(answers):
+    questions = []
 
-def ask_step(chat_id):
-    state = get_state(chat_id)
-    step = state["step"]
+    if answers.get("vehicle_authorized") is None:
+        questions.append({
+            "key": "vehicle_authorized",
+            "text": "Il veicolo è autorizzato/adibito a NCC?\nRispondi: si / no"
+        })
 
-    if step == "vehicle_authorized":
-        bot.send_message(
-            chat_id,
-            "1) Il veicolo è autorizzato/adibito a NCC?\n\n"
-            "Rispondi:\n"
-            "si / no"
-        )
+    if answers.get("service_to_third") is None:
+        questions.append({
+            "key": "service_to_third",
+            "text": "Il conducente sta trasportando o mettendosi a disposizione di clienti/passeggeri?\nRispondi: si / no / dubbio"
+        })
 
-    elif step == "service_to_third":
-        bot.send_message(
-            chat_id,
-            "2) Il conducente sta trasportando o mettendosi a disposizione di clienti/passeggeri come servizio NCC o simile?\n\n"
-            "Rispondi:\n"
-            "si = trasporto clienti/passeggeri\n"
-            "no = non sta facendo servizio verso clienti\n"
-            "dubbio = situazione non ancora chiara"
-        )
+    if answers.get("service_context") is None:
+        questions.append({
+            "key": "service_context",
+            "text": "Il servizio sembra essere:\na = NCC/taxi/autobus autorizzato\nb = navetta o trasporto collegato a hotel/parcheggio/struttura\nc = non chiaro\nRispondi: a / b / c"
+        })
 
-    elif step == "service_context":
-        bot.send_message(
-            chat_id,
-            "3) Il servizio in esame rientra in quale situazione?\n\n"
-            "Rispondi con UNA sola lettera:\n"
-            "a = servizio dichiarato come NCC / taxi / autobus autorizzato\n"
-            "b = navetta o trasporto collegato a hotel, parcheggio, struttura o attività propria\n"
-            "c = non chiaro / da verificare"
-        )
+    if answers.get("separate_payment") is None:
+        questions.append({
+            "key": "separate_payment",
+            "text": "Il trasporto ha un prezzo/corrispettivo separato?\nRispondi: si / no"
+        })
 
-    elif step == "separate_payment":
-        bot.send_message(
-            chat_id,
-            "4) Il trasporto ha un prezzo specifico separato?\n\n"
-            "Rispondi:\n"
-            "si = il cliente paga proprio il trasporto\n"
-            "no = il trasporto non ha un prezzo separato / è compreso / è accessorio"
-        )
+    # se mezzo non ncc e servizio verso clienti, serve recidiva minima
+    if answers.get("vehicle_authorized") == "no" and answers.get("service_to_third") == "si" and answers.get("recurrence") is None:
+        questions.append({
+            "key": "recurrence",
+            "text": "Si tratta di prima violazione o seconda nel triennio?\nRispondi: first / second_3y"
+        })
 
-    elif step == "violation_type":
-        bot.send_message(
-            chat_id,
-            "5) Se il veicolo è NCC, la violazione riguarda:\n\n"
-            "art3_11 = artt. 3 o 11 L. 21/1992\n"
-            "other_auth = altre prescrizioni dell'autorizzazione\n"
-            "none = non chiaro / non applicabile"
-        )
+    # se mezzo ncc, serve tipo violazione
+    if answers.get("vehicle_authorized") == "si" and answers.get("violation_type") is None:
+        questions.append({
+            "key": "violation_type",
+            "text": "La violazione riguarda:\nart3_11 = artt. 3 o 11 L. 21/1992\nother_auth = altre prescrizioni autorizzative\nnone = non chiaro\nRispondi: art3_11 / other_auth / none"
+        })
 
-    elif step == "public_waiting":
-        bot.send_message(
-            chat_id,
-            "6) Il veicolo stazionava/sostava su area pubblica in attesa?\n\n"
-            "Rispondi:\n"
-            "si / no"
-        )
+    # se art3_11 serve recidiva quinquennio
+    if answers.get("vehicle_authorized") == "si" and answers.get("violation_type") == "art3_11" and answers.get("recurrence") is None:
+        questions.append({
+            "key": "recurrence",
+            "text": "Indica la progressione nel quinquennio:\nfirst / 2_5y / 3_5y / 4plus_5y"
+        })
 
-    elif step == "taxi_commune":
-        bot.send_message(
-            chat_id,
-            "7) Il fatto è avvenuto in un comune dove è esercitato il servizio taxi?\n\n"
-            "Rispondi:\n"
-            "si / no"
-        )
+    if answers.get("kb") is None:
+        questions.append({
+            "key": "kb",
+            "text": "Il conducente ha il titolo professionale richiesto (KB/KA/CQC se dovuto)?\nRispondi: si / no"
+        })
 
-    elif step == "booking":
-        bot.send_message(
-            chat_id,
-            "8) Esiste prenotazione documentabile / foglio di servizio / contratto?\n\n"
-            "Rispondi:\n"
-            "si / no"
-        )
+    if answers.get("public_waiting") is None:
+        questions.append({
+            "key": "public_waiting",
+            "text": "Il veicolo era in sosta/stazionamento su area pubblica in attesa?\nRispondi: si / no"
+        })
 
-    elif step == "recurrence":
-        bot.send_message(
-            chat_id,
-            "9) Indica la progressione della violazione.\n\n"
-            "Rispondi con UNA di queste:\n"
-            "first = prima violazione\n"
-            "second_3y = seconda nel triennio (per 085-04)\n"
-            "1_5y = prima nel quinquennio\n"
-            "2_5y = seconda nel quinquennio\n"
-            "3_5y = terza nel quinquennio\n"
-            "4plus_5y = quarta o successiva nel quinquennio"
-        )
+    if answers.get("taxi_commune") is None:
+        questions.append({
+            "key": "taxi_commune",
+            "text": "Il fatto avviene in un comune dove è esercitato il servizio taxi?\nRispondi: si / no"
+        })
 
-    elif step == "kb":
-        bot.send_message(
-            chat_id,
-            "10) Il conducente ha il titolo professionale richiesto (KB/KA/CQC se dovuto)?\n\n"
-            "Rispondi:\n"
-            "si / no"
-        )
+    if answers.get("booking") is None:
+        questions.append({
+            "key": "booking",
+            "text": "Esiste prenotazione documentabile / foglio di servizio / contratto?\nRispondi: si / no"
+        })
 
-    elif step == "finalize":
-        answers = state["answers"]
-        main_code, concurrent, notes = decide_violation(answers)
+    return questions
 
-        if main_code:
-            result = format_multiple(main_code, concurrent, notes)
-        else:
-            lines = []
-            lines.append("ESITO")
-            lines.append("Non è stato possibile individuare automaticamente una voce sanzionatoria definitiva.")
-            lines.append("")
-            if concurrent:
-                lines.append("VIOLAZIONI CONCORRENTI POSSIBILI")
-                for code in concurrent:
-                    lines.append("")
-                    lines.append(format_compact_violation(code))
-                lines.append("")
-            lines.append("VERIFICHE NECESSARIE")
-            for n in notes:
-                lines.append(f"- {n}")
-            lines.append("")
-            lines.append("AVVERTENZA")
-            lines.append("Il caso richiede approfondimento su normativa vigente, prontuario e circostanze concrete.")
-            result = "\n".join(lines)
+def parse_answer_for_key(key, text):
+    t = text.strip().lower()
 
-        bot.send_message(chat_id, result)
+    if key in ["vehicle_authorized", "kb", "public_waiting", "taxi_commune", "booking", "separate_payment"]:
+        if t in {"si", "no"}:
+            return t
+
+    if key == "service_to_third":
+        if t in {"si", "no", "dubbio"}:
+            return t
+
+    if key == "service_context":
+        if t in {"a", "b", "c"}:
+            return t
+
+    if key == "violation_type":
+        if t in {"art3_11", "other_auth", "none"}:
+            return t
+
+    if key == "recurrence":
+        if t in {"first", "second_3y", "2_5y", "3_5y", "4plus_5y"}:
+            return t
+
+    return None
+
+def begin_case_flow(chat_id):
+    user_states[chat_id] = {
+        "mode": "free_case",
+        "free_text": "",
+        "answers": {},
+        "pending_question": None
+    }
+
+def process_case_description(chat_id, text):
+    state = user_states[chat_id]
+    state["free_text"] = text
+    detected = detect_from_text(text)
+    state["answers"].update({k: v for k, v in detected.items() if v is not None})
+
+    main_code, concurrent, notes = decide_violation(state["answers"])
+    questions = missing_questions(state["answers"])
+
+    if main_code and len(questions) == 0:
+        result = format_multiple(main_code, concurrent, notes)
         clear_case(chat_id)
+        return result
 
-# =========================
-# GESTIONE INPUT STEP BY STEP
-# =========================
+    if main_code and len(questions) <= 2:
+        # anche se ha già un'ipotesi, chiede i pochi dati mancanti
+        q = questions[0]
+        state["mode"] = "clarification"
+        state["pending_question"] = q
+        return (
+            "Esito preliminare probabile individuato.\n"
+            "Per chiudere il caso mi serve ancora un dato:\n\n"
+            f"{q['text']}"
+        )
 
-def handle_case_input(message):
-    chat_id = message.chat.id
-    text = message.text.strip().lower()
-    state = get_state(chat_id)
-    step = state["step"]
+    if questions:
+        q = questions[0]
+        state["mode"] = "clarification"
+        state["pending_question"] = q
+        return (
+            "Per analizzare correttamente il caso mi serve un primo chiarimento:\n\n"
+            f"{q['text']}"
+        )
 
-    allowed_yes_no = {"si", "no"}
-    allowed_yes_no_doubt = {"si", "no", "dubbio"}
+    result = (
+        "Non è stato possibile chiudere automaticamente il caso.\n\n"
+        "Verifiche necessarie:\n" +
+        "\n".join([f"- {n}" for n in notes])
+    )
+    clear_case(chat_id)
+    return result
 
-    if step == "vehicle_authorized":
-        if text in allowed_yes_no:
-            set_answer(chat_id, "vehicle_authorized", text)
-            next_step(chat_id, "service_to_third")
-            ask_step(chat_id)
-        else:
-            bot.reply_to(message, "Rispondi solo con: si / no")
+def process_clarification(chat_id, text):
+    state = user_states[chat_id]
+    q = state.get("pending_question")
+    if not q:
+        clear_case(chat_id)
+        return "Procedura annullata. Usa /caso per ricominciare."
 
-    elif step == "service_to_third":
-        if text in allowed_yes_no_doubt:
-            set_answer(chat_id, "service_to_third", text)
-            next_step(chat_id, "service_context")
-            ask_step(chat_id)
-        else:
-            bot.reply_to(message, "Rispondi solo con: si / no / dubbio")
+    value = parse_answer_for_key(q["key"], text)
+    if value is None:
+        return f"Risposta non valida.\n\n{q['text']}"
 
-    elif step == "service_context":
-        if text in {"a", "b", "c"}:
-            set_answer(chat_id, "service_context", text)
-            next_step(chat_id, "separate_payment")
-            ask_step(chat_id)
-        else:
-            bot.reply_to(message, "Rispondi solo con: a / b / c")
+    state["answers"][q["key"]] = value
 
-    elif step == "separate_payment":
-        if text in allowed_yes_no:
-            set_answer(chat_id, "separate_payment", text)
-            next_step(chat_id, "violation_type")
-            ask_step(chat_id)
-        else:
-            bot.reply_to(message, "Rispondi solo con: si / no")
+    main_code, concurrent, notes = decide_violation(state["answers"])
+    questions = missing_questions(state["answers"])
 
-    elif step == "violation_type":
-        if text in {"art3_11", "other_auth", "none"}:
-            set_answer(chat_id, "violation_type", text)
-            next_step(chat_id, "public_waiting")
-            ask_step(chat_id)
-        else:
-            bot.reply_to(message, "Rispondi solo con: art3_11 / other_auth / none")
+    # rimuove la domanda appena completata
+    questions = [item for item in questions if item["key"] != q["key"] or item["text"] != q["text"]]
 
-    elif step == "public_waiting":
-        if text in allowed_yes_no:
-            set_answer(chat_id, "public_waiting", text)
-            next_step(chat_id, "taxi_commune")
-            ask_step(chat_id)
-        else:
-            bot.reply_to(message, "Rispondi solo con: si / no")
+    if main_code and len(questions) == 0:
+        result = format_multiple(main_code, concurrent, notes)
+        clear_case(chat_id)
+        return result
 
-    elif step == "taxi_commune":
-        if text in allowed_yes_no:
-            set_answer(chat_id, "taxi_commune", text)
-            next_step(chat_id, "booking")
-            ask_step(chat_id)
-        else:
-            bot.reply_to(message, "Rispondi solo con: si / no")
+    if questions:
+        next_q = questions[0]
+        state["pending_question"] = next_q
+        return f"Mi serve ancora questo chiarimento:\n\n{next_q['text']}"
 
-    elif step == "booking":
-        if text in allowed_yes_no:
-            set_answer(chat_id, "booking", text)
-            next_step(chat_id, "recurrence")
-            ask_step(chat_id)
-        else:
-            bot.reply_to(message, "Rispondi solo con: si / no")
+    if main_code:
+        result = format_multiple(main_code, concurrent, notes)
+        clear_case(chat_id)
+        return result
 
-    elif step == "recurrence":
-        if text in {"first", "second_3y", "1_5y", "2_5y", "3_5y", "4plus_5y"}:
-            set_answer(chat_id, "recurrence", text)
-            next_step(chat_id, "kb")
-            ask_step(chat_id)
-        else:
-            bot.reply_to(
-                message,
-                "Rispondi solo con una delle opzioni:\n"
-                "first / second_3y / 1_5y / 2_5y / 3_5y / 4plus_5y"
-            )
-
-    elif step == "kb":
-        if text in allowed_yes_no:
-            set_answer(chat_id, "kb", text)
-            next_step(chat_id, "finalize")
-            ask_step(chat_id)
-        else:
-            bot.reply_to(message, "Rispondi solo con: si / no")
+    clear_case(chat_id)
+    return (
+        "Non è stato possibile individuare automaticamente una voce sanzionatoria definitiva.\n\n"
+        "Verifiche necessarie:\n" +
+        "\n".join([f"- {n}" for n in notes])
+    )
 
 # =========================
 # FLASK
@@ -882,10 +907,7 @@ def approve_command(message):
     approve_user(user_id)
     bot.reply_to(message, f"Utente {user_id} autorizzato.")
     try:
-        bot.send_message(
-            user_id,
-            "Accesso autorizzato dall'amministratore.\n\nOra puoi usare il bot.\nScrivi /start"
-        )
+        bot.send_message(user_id, "Accesso autorizzato dall'amministratore.\n\nOra puoi usare il bot.\nScrivi /start")
     except Exception:
         pass
 
@@ -901,10 +923,7 @@ def reject_command(message):
     reject_user(user_id)
     bot.reply_to(message, f"Utente {user_id} rifiutato.")
     try:
-        bot.send_message(
-            user_id,
-            "La tua richiesta di accesso al bot non è stata approvata."
-        )
+        bot.send_message(user_id, "La tua richiesta di accesso al bot non è stata approvata.")
     except Exception:
         pass
 
@@ -957,7 +976,6 @@ def revoke_command(message):
 @bot.message_handler(commands=['start'])
 def start_command(message):
     uid = message.from_user.id
-
     send_welcome_media(message.chat.id)
 
     if not is_admin(uid) and not is_authorized(uid):
@@ -975,14 +993,12 @@ def help_command(message):
         return
     bot.reply_to(
         message,
-        "Usa /caso per avviare l’analisi guidata.\n\n"
-        "Il bot ti farà domande per arrivare a:\n"
-        "- voce operativa\n"
-        "- articolo\n"
-        "- importi\n"
-        "- sanzioni accessorie\n"
-        "- dicitura verbale\n\n"
-        "Usa /reset per annullare una procedura in corso."
+        "Comandi disponibili:\n\n"
+        "/caso = descrivi liberamente la situazione e il bot prova a individuare la sanzione; "
+        "se manca qualcosa ti farà solo le domande strettamente necessarie.\n\n"
+        "/checklist = elenco controlli operativi da verificare sul posto.\n\n"
+        "/norme = riferimenti principali.\n\n"
+        "/reset = annulla il caso in corso."
     )
 
 @bot.message_handler(commands=['norme'])
@@ -1000,6 +1016,27 @@ def norme_command(message):
         "Nota: non proporre automaticamente come illecito il mero mancato rientro in rimessa dopo ogni servizio."
     )
 
+@bot.message_handler(commands=['checklist'])
+def checklist_command(message):
+    if not ensure_authorized(message):
+        return
+    bot.reply_to(
+        message,
+        "CHECKLIST CONTROLLO NCC\n\n"
+        "1. Veicolo autorizzato NCC?\n"
+        "2. Carta di circolazione / DU coerente con l’autorizzazione?\n"
+        "3. Conducente titolare / dipendente / sostituto?\n"
+        "4. Iscrizione a ruolo / KB / KA / CQC se richiesti?\n"
+        "5. Prenotazione documentabile?\n"
+        "6. Foglio di servizio presente?\n"
+        "7. Veicolo in sosta/stazionamento su area pubblica in attesa?\n"
+        "8. Comune con servizio taxi?\n"
+        "9. Trasporto per clienti/utenza o attività accessoria?\n"
+        "10. Corrispettivo separato per il trasporto?\n"
+        "11. Eventuali precedenti nel triennio / quinquennio?\n"
+        "12. Eventuali regolamenti locali, accessi porto, ZTL, prescrizioni autorizzative?"
+    )
+
 @bot.message_handler(commands=['reset'])
 def reset_command(message):
     if not ensure_authorized(message):
@@ -1011,13 +1048,13 @@ def reset_command(message):
 def caso_command(message):
     if not ensure_authorized(message):
         return
-    start_case(message.chat.id)
+    begin_case_flow(message.chat.id)
     bot.reply_to(
         message,
-        "Avvio analisi guidata del caso NCC.\n"
-        "Rispondi alle domande con una sola delle opzioni indicate."
+        "Descrivi liberamente la situazione in un solo messaggio.\n\n"
+        "Esempio:\n"
+        "veicolo privato prende due turisti al porto, li accompagna a Roma, pagamento concordato, conducente senza KB"
     )
-    ask_step(message.chat.id)
 
 # =========================
 # MESSAGGI GENERICI
@@ -1029,14 +1066,25 @@ def all_messages(message):
         return
 
     chat_id = message.chat.id
+    state = get_state(chat_id)
 
-    if is_in_case(chat_id):
-        handle_case_input(message)
-    else:
-        bot.reply_to(
-            message,
-            "Usa /caso per avviare l’analisi guidata."
-        )
+    if not state:
+        bot.reply_to(message, "Usa /caso per descrivere il fatto oppure /checklist per i controlli operativi.")
+        return
+
+    mode = state.get("mode")
+
+    if mode == "free_case":
+        response = process_case_description(chat_id, message.text.strip())
+        bot.reply_to(message, response)
+        return
+
+    if mode == "clarification":
+        response = process_clarification(chat_id, message.text.strip())
+        bot.reply_to(message, response)
+        return
+
+    bot.reply_to(message, "Usa /caso per descrivere il fatto oppure /reset per annullare la procedura.")
 
 # =========================
 # AVVIO BOT
