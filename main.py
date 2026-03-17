@@ -16,7 +16,7 @@ ACCESS_FILE = "access_data.json"
 # 1) carica il file nel progetto (es. welcome.mp4 oppure welcome.gif)
 # 2) metti qui il nome del file
 WELCOME_MEDIA_PATH = "welcome.mp4"   # cambia se vuoi usare un altro nome
-WELCOME_MEDIA_ENABLED = False        # metti True quando hai caricato davvero il file
+WELCOME_MEDIA_ENABLED = True        # metti True quando hai caricato davvero il file
 
 # =========================
 # DATI SANZIONI
