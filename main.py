@@ -303,6 +303,235 @@ VIOLATIONS = {
     }
 }
 
+NCC_DB = {
+    "norme": {
+        "L21_3_11": {
+            "norma": "L. 21/1992 artt. 3 e 11",
+            "tema": "Prescrizioni autorizzazione/licenza NCC",
+            "uso_operativo": "Verificare se la violazione ricade nelle prescrizioni tipiche del titolo NCC e nel corretto esercizio del servizio."
+        },
+        "CDS_85_4": {
+            "norma": "CdS art. 85 c. 4",
+            "tema": "Veicolo non adibito/autorizzato a NCC",
+            "uso_operativo": "Ramo sanzionatorio quando il servizio è svolto con veicolo non autorizzato/adibito a tale uso."
+        },
+        "CDS_85_4BIS": {
+            "norma": "CdS art. 85 c. 4-bis",
+            "tema": "Violazione artt. 3 o 11 L. 21/1992",
+            "uso_operativo": "Ramo per violazioni collegate alle prescrizioni della L. 21/1992, con progressione nel quinquennio."
+        },
+        "CDS_85_4TER": {
+            "norma": "CdS art. 85 c. 4-ter",
+            "tema": "Altre prescrizioni autorizzazione NCC",
+            "uso_operativo": "Ramo per violazioni di prescrizioni diverse da artt. 3 e 11 L. 21/1992."
+        },
+        "CDS_116_14": {
+            "norma": "CdS art. 116 c. 14",
+            "tema": "Incauto affidamento",
+            "uso_operativo": "Quando il soggetto che ha disponibilità del veicolo lo affida a persona priva dei titoli richiesti."
+        },
+        "CDS_116_15_17": {
+            "norma": "CdS art. 116 c. 15 e 17",
+            "tema": "Guida senza patente o patente non idonea",
+            "uso_operativo": "Prima violazione amministrativa, recidiva biennale o reiterazione; può concorrere con il ramo NCC."
+        },
+        "CDS_116_15BIS": {
+            "norma": "CdS art. 116 c. 15-bis",
+            "tema": "Patente diversa in casi tipizzati",
+            "uso_operativo": "Ipotesi specifica distinta dalla guida senza patente vera e propria."
+        },
+        "CDS_116_16_18": {
+            "norma": "CdS art. 116 c. 16 e 18",
+            "tema": "Guida senza CAP/KB/KA/CQC",
+            "uso_operativo": "Per servizio pubblico/NCC senza titolo professionale richiesto."
+        },
+        "CDS_126_11": {
+            "norma": "CdS art. 126 c. 11",
+            "tema": "CAP/CQC scaduti",
+            "uso_operativo": "Quando il titolo professionale esiste ma non è più valido."
+        },
+        "CDS_180": {
+            "norma": "CdS art. 180",
+            "tema": "Mancanza materiale del documento",
+            "uso_operativo": "Solo quando il titolo esiste ma non è esibito nell’immediato."
+        }
+    },
+
+    "voci": {
+        "085-02": {
+            "norma": "CdS art. 85 c. 4",
+            "titolo": "Veicolo non adibito a tale uso – 1ª violazione",
+            "quando_usarla": "Servizio NCC svolto con veicolo non regolarmente adibito/autorizzato a NCC.",
+            "cluster": "mezzo_non_ncc"
+        },
+        "085-04": {
+            "norma": "CdS art. 85 c. 4",
+            "titolo": "Veicolo non adibito – 2ª violazione nel triennio",
+            "quando_usarla": "Quando ricorre seconda violazione nel triennio sul ramo del veicolo non autorizzato.",
+            "cluster": "mezzo_non_ncc"
+        },
+        "085-05": {
+            "norma": "CdS art. 85 c. 4-bis + L. 21/1992",
+            "titolo": "Violazione artt. 3 e 11 – 1ª nel quinquennio",
+            "quando_usarla": "Quando il veicolo è NCC e la violazione riguarda artt. 3 o 11.",
+            "cluster": "mezzo_ncc_art3_11"
+        },
+        "085-06": {
+            "norma": "CdS art. 85 c. 4-bis + L. 21/1992",
+            "titolo": "Violazione artt. 3 e 11 – 2ª nel quinquennio",
+            "quando_usarla": "Come sopra, con progressione sanzionatoria.",
+            "cluster": "mezzo_ncc_art3_11"
+        },
+        "085-07": {
+            "norma": "CdS art. 85 c. 4-bis + L. 21/1992",
+            "titolo": "Violazione artt. 3 e 11 – 3ª nel quinquennio",
+            "quando_usarla": "Come sopra.",
+            "cluster": "mezzo_ncc_art3_11"
+        },
+        "085-08": {
+            "norma": "CdS art. 85 c. 4-bis + L. 21/1992",
+            "titolo": "Violazione artt. 3 e 11 – 4ª o successiva",
+            "quando_usarla": "Come sopra.",
+            "cluster": "mezzo_ncc_art3_11"
+        },
+        "085-09": {
+            "norma": "CdS art. 85 c. 4-ter",
+            "titolo": "Altre prescrizioni dell’autorizzazione NCC",
+            "quando_usarla": "Quando la violazione non ricade negli artt. 3 e 11 ma in altre prescrizioni dell’autorizzazione.",
+            "cluster": "mezzo_ncc_altre_prescrizioni"
+        },
+        "116-01": {
+            "norma": "CdS art. 116 c. 14",
+            "titolo": "Incauto affidamento",
+            "quando_usarla": "Veicolo affidato a soggetto privo dei titoli richiesti.",
+            "cluster": "conducente"
+        },
+        "116-02": {
+            "norma": "CdS art. 116 c. 15 e 17",
+            "titolo": "Guida senza patente / prima violazione amministrativa",
+            "quando_usarla": "Mai conseguita, revocata, non rinnovata per mancanza requisiti o categoria non rientrante nel 15-bis.",
+            "cluster": "conducente"
+        },
+        "116-03": {
+            "norma": "CdS art. 116 c. 15 e 17",
+            "titolo": "Recidiva biennale nella violazione amministrativa",
+            "quando_usarla": "Seconda violazione amministrativa nel biennio, senza presupposti della reiterazione penale.",
+            "cluster": "conducente"
+        },
+        "116-04": {
+            "norma": "CdS art. 116 c. 15 e 17",
+            "titolo": "Reiterazione nella guida senza patente",
+            "quando_usarla": "Quando ricorrono i presupposti di illecito penale richiamati dal prontuario.",
+            "cluster": "conducente"
+        },
+        "116-05": {
+            "norma": "CdS art. 116 c. 15-bis",
+            "titolo": "Patente diversa ma rientrante nei casi tipizzati",
+            "quando_usarla": "Ipotesi tassative di patente di categoria diversa.",
+            "cluster": "conducente"
+        },
+        "116-06": {
+            "norma": "CdS art. 116 c. 16 e 18",
+            "titolo": "Guida senza CAP o CQC",
+            "quando_usarla": "Servizio NCC senza KB/KA/CQC quando richiesti.",
+            "cluster": "conducente"
+        }
+    },
+
+    "casi_tipici": {
+        "A_abusivo_totale_mezzo_proprio": {
+            "descrizione": "Un privato usa il proprio veicolo per trasporto verso terzi assimilabile a NCC.",
+            "possibili_esiti": ["085-02", "085-04", "116-02", "116-03", "116-04", "116-05", "116-06"],
+            "note": [
+                "Se manca il corretto inquadramento NCC del veicolo: valutare il ramo art. 85 c. 4.",
+                "Se manca patente idonea: valutare art. 116 c. 15 / 15-bis secondo il caso.",
+                "Se manca il titolo professionale richiesto: valutare 116-06.",
+                "Possibile concorso di più violazioni."
+            ]
+        },
+        "B_titolare_ncc_procaccia_clienti": {
+            "descrizione": "Il mezzo è NCC ma il servizio va verificato rispetto alle prescrizioni della L. 21/1992 e dell’autorizzazione.",
+            "possibili_esiti": ["085-05", "085-06", "085-07", "085-08", "085-09", "116-06"],
+            "note": [
+                "Se la violazione riguarda artt. 3 o 11 L. 21/1992: ramo 085-05 / 085-06 / 085-07 / 085-08.",
+                "Se riguarda altre prescrizioni dell’autorizzazione: 085-09.",
+                "Se il conducente non ha titolo professionale valido: può concorrere 116-06."
+            ]
+        },
+        "C_impresa_agenzia_mezzo_aziendale": {
+            "descrizione": "Impresa/agenzia che trasporta clienti con dipendente e mezzo aziendale.",
+            "possibili_esiti": ["085-02", "085-04", "085-05", "085-09", "116-06"],
+            "note": [
+                "Prima domanda pratica: trasporto verso terzi / assimilabile a NCC oppure attività accessoria dell’impresa?",
+                "Se il servizio è organizzato come trasporto a terzi, il rischio è la qualificazione come servizio NCC non autorizzato.",
+                "Se il trasporto è realmente accessorio al servizio principale dell’impresa e riservato ai propri clienti, la qualificazione va verificata con attenzione."
+            ]
+        },
+        "D_navetta_parcheggio_hotel": {
+            "descrizione": "Navetta interna / parcheggio / hotel / struttura.",
+            "possibili_esiti": ["085-02", "085-04"],
+            "note": [
+                "Va distinta la navetta interna/collegamento funzionale dal trasporto verso terzi autonomamente venduto.",
+                "Se il trasporto è compreso nel servizio principale e dedicato ai soli clienti, il caso va valutato come attività accessoria e non automaticamente come NCC.",
+                "Se invece il trasporto è offerto come servizio a terzi autonomo, aumenta il rischio di riconduzione al ramo NCC abusivo.",
+                "Verificare copertura documentale e contrattuale."
+            ]
+        },
+        "E_veicolo_ncc_conducente_non_legittimato": {
+            "descrizione": "Il veicolo risulta NCC, ma il conducente non ha patente idonea o titolo professionale richiesto.",
+            "possibili_esiti": ["116-01", "116-02", "116-03", "116-04", "116-05", "116-06"],
+            "note": [
+                "Il nucleo sanzionatorio principale è spesso sul ramo 116.",
+                "Può aggiungersi l’incauto affidamento 116-01 a carico di chi ha affidato il veicolo."
+            ]
+        },
+        "F_veicolo_non_ncc_ma_conducente_titolato": {
+            "descrizione": "Il conducente ha titolo ma usa mezzo non autorizzato/adibito a NCC.",
+            "possibili_esiti": ["085-02", "085-04", "116-02", "116-03", "116-04", "116-05", "116-06"],
+            "note": [
+                "Il fatto che il conducente abbia titolo non sana l’uso di un mezzo non autorizzato/adibito a NCC.",
+                "Valutare prioritariamente il ramo art. 85 c. 4.",
+                "Se inoltre mancano patente idonea o requisiti documentali, il ramo 116 può concorrere."
+            ]
+        }
+    },
+
+    "checklist_operativa": [
+        "Capire se il trasporto è verso terzi / assimilabile a NCC oppure attività accessoria dell’impresa.",
+        "Identificare il soggetto che svolge il trasporto: privato, titolare NCC, impresa/agenzia, gestore navetta/parcheggio.",
+        "Verificare come viene acquisita la clientela: prenotazione preventiva, procacciamento diretto, servizio per clienti propri, navetta interna.",
+        "Verificare se il servizio è riservato ai clienti della struttura o è offerto come trasporto a terzi.",
+        "Verificare se il veicolo è regolarmente adibito/autorizzato a NCC.",
+        "Verificare patente idonea del conducente.",
+        "Verificare titolo professionale richiesto (KB/KA/CQC) o eventuale scadenza.",
+        "Se il veicolo è NCC, distinguere: violazione artt. 3 o 11 L. 21/1992 / altre prescrizioni / progressione nel quinquennio.",
+        "Valutare eventuale concorso con incauto affidamento nei confronti dell’avente disponibilità del veicolo."
+    ],
+
+    "matrice_rapida": {
+        "Mezzo non autorizzato NCC": ["085-02", "085-04"],
+        "Mezzo NCC + violazione artt. 3 o 11 L. 21/1992": ["085-05", "085-06", "085-07", "085-08"],
+        "Mezzo NCC + altre prescrizioni autorizzazione": ["085-09"],
+        "Conducente senza patente idonea": ["116-02", "116-03", "116-04", "116-05"],
+        "Conducente senza KB/KA/CQC": ["116-06"],
+        "Veicolo affidato a soggetto privo dei titoli richiesti": ["116-01"],
+        "Titolo professionale esistente ma scaduto": ["CDS_126_11"],
+        "Documento esistente ma non esibito": ["CDS_180"]
+    },
+
+    "documenti_controllo": [
+        "Carta di circolazione / DU",
+        "Autorizzazione NCC / titolo abilitativo",
+        "Patente del conducente",
+        "KB / KA / CQC se richiesti",
+        "Iscrizione a ruolo / posizione del conducente",
+        "Prenotazione documentabile",
+        "Foglio di servizio",
+        "Eventuale documentazione contrattuale / commerciale / fiscale",
+        "Eventuali regolamenti locali / accesso porto / ZTL"
+    ]
+}
+
 # =========================
 # ACCESSO / AUTORIZZAZIONI
 # =========================
