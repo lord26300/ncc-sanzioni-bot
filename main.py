@@ -621,6 +621,7 @@ def authorized_start_text(user_id):
         "Comandi disponibili:\n"
         "/caso - descrivi liberamente il fatto\n"
         "/checklist - controlli operativi\n"
+        "/documenti - documenti da controllare\n"
         "/help - guida\n"
         "/norme - riferimenti principali\n"
         "/reset - annulla caso in corso"
@@ -765,6 +766,71 @@ def format_multiple(main_code, concurrent_codes=None, extra_notes=None):
     lines.append("AVVERTENZA")
     lines.append("Verificare sempre normativa vigente, prontuario del comando, disciplina locale e dati concreti del caso.")
 
+    return "\n".join(lines)
+
+def format_norme_from_db():
+    lines = ["RIFERIMENTI NORMATIVI NCC\n"]
+    for item in NCC_DB["norme"].values():
+        lines.append(f"- {item['norma']}")
+        lines.append(f"  Tema: {item['tema']}")
+        lines.append(f"  Uso operativo: {item['uso_operativo']}")
+        lines.append("")
+    return "\n".join(lines).strip()
+
+def format_documenti_from_db():
+    lines = ["DOCUMENTI / ELEMENTI DA CONTROLLARE\n"]
+    for item in NCC_DB["documenti_controllo"]:
+        lines.append(f"- {item}")
+    return "\n".join(lines)
+
+def format_checklist_from_db():
+    lines = ["CHECKLIST OPERATIVA NCC\n"]
+    for i, item in enumerate(NCC_DB["checklist_operativa"], start=1):
+        lines.append(f"{i}. {item}")
+    return "\n".join(lines)
+
+def match_case_from_text(text):
+    t = text.lower()
+
+    # casi tipici di primo orientamento
+    if any(x in t for x in ["veicolo privato", "auto privata", "mezzo privato", "senza autorizzazione ncc", "abusivo"]):
+        return "A_abusivo_totale_mezzo_proprio"
+
+    if any(x in t for x in ["ncc", "prenotazione", "foglio di servizio", "rimessa", "staziona", "sosta"]):
+        return "B_titolare_ncc_procaccia_clienti"
+
+    if any(x in t for x in ["agenzia", "impresa", "mezzo aziendale", "dipendente"]):
+        return "C_impresa_agenzia_mezzo_aziendale"
+
+    if any(x in t for x in ["navetta", "hotel", "albergo", "parcheggio", "parking", "struttura ricettiva"]):
+        return "D_navetta_parcheggio_hotel"
+
+    if any(x in t for x in ["senza kb", "senza cqc", "manca kb", "manca cqc", "senza patente", "patente non idonea"]):
+        return "E_veicolo_ncc_conducente_non_legittimato"
+
+    if any(x in t for x in ["con kb", "titolo presente", "conducente titolato"]) and any(x in t for x in ["veicolo privato", "non ncc"]):
+        return "F_veicolo_non_ncc_ma_conducente_titolato"
+
+    return None
+
+def format_case_hint(case_key):
+    case_data = NCC_DB["casi_tipici"][case_key]
+    lines = []
+    lines.append("INQUADRAMENTO OPERATIVO PRELIMINARE")
+    lines.append(case_data["descrizione"])
+    lines.append("")
+    lines.append("POSSIBILI ESITI")
+    for code in case_data["possibili_esiti"]:
+        if code in VIOLATIONS:
+            lines.append(f"- {code} | {VIOLATIONS[code]['article']} | {VIOLATIONS[code]['title']}")
+        elif code in NCC_DB["norme"]:
+            lines.append(f"- {code} | {NCC_DB['norme'][code]['norma']} | {NCC_DB['norme'][code]['tema']}")
+        else:
+            lines.append(f"- {code}")
+    lines.append("")
+    lines.append("NOTE")
+    for n in case_data["note"]:
+        lines.append(f"- {n}")
     return "\n".join(lines)
 
 # =========================
@@ -1035,16 +1101,29 @@ def process_case_description(chat_id, text):
     detected = detect_from_text(text)
     state["answers"].update({k: v for k, v in detected.items() if v is not None})
 
+    case_key = match_case_from_text(text)
     main_code, concurrent, notes = decide_violation(state["answers"])
     questions = missing_questions(state["answers"])
 
+    # Se il bot ha già una chiara soluzione e non mancano dati
     if main_code and len(questions) == 0:
         result = format_multiple(main_code, concurrent, notes)
         clear_case(chat_id)
         return result
 
+    # Se esiste un caso tipico riconosciuto, mostra orientamento e poi chiede il dato mancante
+    if case_key and questions:
+        q = questions[0]
+        state["mode"] = "clarification"
+        state["pending_question"] = q
+        return (
+            f"{format_case_hint(case_key)}\n\n"
+            "Per chiudere correttamente il caso mi serve questo chiarimento:\n\n"
+            f"{q['text']}"
+        )
+
+    # Se ha già un'ipotesi e mancano pochi dati
     if main_code and len(questions) <= 2:
-        # anche se ha già un'ipotesi, chiede i pochi dati mancanti
         q = questions[0]
         state["mode"] = "clarification"
         state["pending_question"] = q
@@ -1054,6 +1133,7 @@ def process_case_description(chat_id, text):
             f"{q['text']}"
         )
 
+    # Se mancano dati ma non ha matchato caso tipico
     if questions:
         q = questions[0]
         state["mode"] = "clarification"
@@ -1223,10 +1303,10 @@ def help_command(message):
     bot.reply_to(
         message,
         "Comandi disponibili:\n\n"
-        "/caso = descrivi liberamente la situazione e il bot prova a individuare la sanzione; "
-        "se manca qualcosa ti farà solo le domande strettamente necessarie.\n\n"
-        "/checklist = elenco controlli operativi da verificare sul posto.\n\n"
-        "/norme = riferimenti principali.\n\n"
+        "/caso = descrivi liberamente la situazione; il bot prova a individuare la sanzione e, se serve, ti chiede solo i dati mancanti.\n\n"
+        "/checklist = elenco controlli operativi sul posto.\n\n"
+        "/documenti = documenti ed elementi che il conducente / servizio NCC deve esibire o consentire di verificare.\n\n"
+        "/norme = riferimenti normativi principali NCC.\n\n"
         "/reset = annulla il caso in corso."
     )
 
@@ -1234,37 +1314,19 @@ def help_command(message):
 def norme_command(message):
     if not ensure_authorized(message):
         return
-    bot.reply_to(
-        message,
-        "Riferimenti principali NCC:\n"
-        "- L. 21/1992 artt. 3 e 11\n"
-        "- CdS art. 85 c. 4\n"
-        "- CdS art. 85 c. 4-bis\n"
-        "- CdS art. 85 c. 4-ter\n"
-        "- CdS art. 116 c. 16 e 18\n\n"
-        "Nota: non proporre automaticamente come illecito il mero mancato rientro in rimessa dopo ogni servizio."
-    )
+    bot.reply_to(message, format_norme_from_db())
+
+@bot.message_handler(commands=['documenti'])
+def documenti_command(message):
+    if not ensure_authorized(message):
+        return
+    bot.reply_to(message, format_documenti_from_db())
 
 @bot.message_handler(commands=['checklist'])
 def checklist_command(message):
     if not ensure_authorized(message):
         return
-    bot.reply_to(
-        message,
-        "CHECKLIST CONTROLLO NCC\n\n"
-        "1. Veicolo autorizzato NCC?\n"
-        "2. Carta di circolazione / DU coerente con l’autorizzazione?\n"
-        "3. Conducente titolare / dipendente / sostituto?\n"
-        "4. Iscrizione a ruolo / KB / KA / CQC se richiesti?\n"
-        "5. Prenotazione documentabile?\n"
-        "6. Foglio di servizio presente?\n"
-        "7. Veicolo in sosta/stazionamento su area pubblica in attesa?\n"
-        "8. Comune con servizio taxi?\n"
-        "9. Trasporto per clienti/utenza o attività accessoria?\n"
-        "10. Corrispettivo separato per il trasporto?\n"
-        "11. Eventuali precedenti nel triennio / quinquennio?\n"
-        "12. Eventuali regolamenti locali, accessi porto, ZTL, prescrizioni autorizzative?"
-    )
+    bot.reply_to(message, format_checklist_from_db())
 
 @bot.message_handler(commands=['reset'])
 def reset_command(message):
