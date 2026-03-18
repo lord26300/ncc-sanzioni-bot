@@ -16,6 +16,9 @@ RENDER_API_KEY = os.getenv("RENDER_API_KEY")
 RENDER_SERVICE_ID = os.getenv("RENDER_SERVICE_ID")
 RENDER_PUBLIC_URL = os.getenv("RENDER_PUBLIC_URL", "https://tuo-servizio.onrender.com")
 
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1")
+
 # GIF/animazione di benvenuto
 WELCOME_MEDIA_PATH = "welcome.mp4"
 WELCOME_MEDIA_ENABLED = False
@@ -1264,7 +1267,9 @@ def begin_case_flow(chat_id):
         "mode": "free_case",
         "free_text": "",
         "answers": {},
-        "pending_question": None
+        "pending_question": None,
+        "awaiting_external_consent": False,
+        "awaiting_web_query": False
     }
 
 def process_case_description(chat_id, text):
@@ -1278,21 +1283,13 @@ def process_case_description(chat_id, text):
     main_code, concurrent, notes = decide_violation(state["answers"])
     questions = missing_questions(state["answers"])
 
-    # Se il bot ha una base interna sufficiente e nessun dato manca
-    if main_code and len(questions) == 0:
+    # Caso chiudibile con dati interni
+    if main_code and len(questions) == 0 and not should_offer_external_search(state["answers"], notes):
         result = format_multiple(main_code, concurrent, notes)
-
-        if need_external_source_notice(state["answers"]):
-            result += (
-                "\n\nAVVISO OPERATORE\n"
-                "Il caso è stato analizzato principalmente con il database interno del bot, "
-                "ma alcuni profili restano da verificare su fonti esterne / normativa aggiornata."
-            )
-
         clear_case(chat_id)
         return result
 
-    # Se esiste un caso tipico riconosciuto, mostra un orientamento e poi chiede il primo dato mancante
+    # Caso tipico riconosciuto + servono ancora dati interni
     if case_key and questions:
         q = questions[0]
         state["mode"] = "clarification"
@@ -1303,8 +1300,8 @@ def process_case_description(chat_id, text):
             f"{q['text']}"
         )
 
-    # Se ha già un’ipotesi ma mancano pochi dati
-    if main_code and len(questions) <= 3:
+    # Ha ipotesi ma mancano pochi dati
+    if main_code and len(questions) <= 3 and len(questions) > 0:
         q = questions[0]
         state["mode"] = "clarification"
         state["pending_question"] = q
@@ -1314,7 +1311,13 @@ def process_case_description(chat_id, text):
             f"{q['text']}"
         )
 
-    # Se non ha dati sufficienti, lo dice e inizia a chiedere ciò che manca
+    # Nessun dato sufficiente interno: propone ricerca esterna
+    if len(questions) == 0 and should_offer_external_search(state["answers"], notes):
+        state["mode"] = "external_consent"
+        state["awaiting_external_consent"] = True
+        return ask_external_search_consent()
+
+    # Mancano dati interni: continua a chiedere prima quelli
     if questions:
         q = questions[0]
         state["mode"] = "clarification"
@@ -1325,22 +1328,10 @@ def process_case_description(chat_id, text):
             f"{q['text']}"
         )
 
-    # Se non riesce a chiudere neppure così
-    result = (
-        "Non è stato possibile chiudere automaticamente il caso con il solo database interno del bot.\n\n"
-        "VERIFICHE NECESSARIE\n" +
-        "\n".join([f"- {n}" for n in notes])
-    )
-
-    if need_external_source_notice(state["answers"]):
-        result += (
-            "\n\nAVVISO OPERATORE\n"
-            "Per completare il caso potrebbe essere necessario verificare fonti esterne o aggiornamenti normativi "
-            "non presenti nel database interno."
-        )
-
-    clear_case(chat_id)
-    return result
+    # fallback finale
+    state["mode"] = "external_consent"
+    state["awaiting_external_consent"] = True
+    return ask_external_search_consent()
 
 def process_clarification(chat_id, text):
     state = user_states[chat_id]
@@ -1358,40 +1349,90 @@ def process_clarification(chat_id, text):
 
     main_code, concurrent, notes = decide_violation(state["answers"])
     questions = missing_questions(state["answers"])
-
     questions = [item for item in questions if item["key"] != q["key"]]
 
-    if main_code and len(questions) == 0:
+    # chiusura completa con database interno
+    if main_code and len(questions) == 0 and not should_offer_external_search(state["answers"], notes):
         result = format_multiple(main_code, concurrent, notes)
-
-        if need_external_source_notice(state["answers"]):
-            result += (
-                "\n\nAVVISO OPERATORE\n"
-                "Il caso è stato chiuso con il database interno del bot, "
-                "ma alcuni aspetti vanno comunque verificati su normativa vigente / fonti esterne."
-            )
-
         clear_case(chat_id)
         return result
 
+    # servono altre domande interne
     if questions:
         next_q = questions[0]
         state["pending_question"] = next_q
         return f"Mi serve ancora questo chiarimento:\n\n{next_q['text']}"
 
+    # nessuna altra domanda interna, ma caso ancora da approfondire all'esterno
+    if should_offer_external_search(state["answers"], notes):
+        state["mode"] = "external_consent"
+        state["awaiting_external_consent"] = True
+        state["pending_question"] = None
+        return ask_external_search_consent()
+
+    # se comunque ha una soluzione, la restituisce
     if main_code:
         result = format_multiple(main_code, concurrent, notes)
         clear_case(chat_id)
         return result
 
-    clear_case(chat_id)
+    state["mode"] = "external_consent"
+    state["awaiting_external_consent"] = True
+    state["pending_question"] = None
+    return ask_external_search_consent()
+
+def ask_external_search_consent():
     return (
-        "Non è stato possibile individuare automaticamente una voce sanzionatoria definitiva.\n\n"
-        "VERIFICHE NECESSARIE\n" +
-        "\n".join([f"- {n}" for n in notes]) +
-        "\n\nAVVISO OPERATORE\n"
-        "Il database interno non basta da solo a chiudere il caso."
+        "Il database interno del bot non è sufficiente per chiudere il caso con affidabilità.\n\n"
+        "Vuoi autorizzare una ricerca esterna su internet con supporto AI?\n"
+        "Rispondi: si / no"
     )
+
+def external_search_not_enabled_message():
+    return (
+        "Ricerca esterna autorizzata dall'operatore.\n\n"
+        "ATTENZIONE:\n"
+        "Il modulo AI/internet non è ancora collegato operativamente nel bot.\n"
+        "Per ora occorre procedere con verifica manuale su fonti esterne.\n\n"
+        "Quando il collegamento sarà attivo, il bot lo segnalerà espressamente."
+    )
+
+def manual_verification_message():
+    return (
+        "Ricerca esterna non autorizzata.\n\n"
+        "Il caso non può essere chiuso con il solo database interno del bot.\n"
+        "Procedere con verifica manuale su normativa vigente, prontuario e fonti esterne."
+    )
+
+def should_offer_external_search(answers, notes):
+    if need_external_source_notice(answers):
+        return True
+
+    if answers.get("service_to_third") == "dubbio":
+        return True
+
+    if answers.get("violation_type") == "none":
+        return True
+
+    if notes and len(notes) > 0:
+        return True
+
+    return False
+
+def process_external_consent(chat_id, text):
+    state = user_states[chat_id]
+    t = text.strip().lower()
+
+    if t not in {"si", "no"}:
+        return "Rispondi solo con: si / no"
+
+    if t == "no":
+        clear_case(chat_id)
+        return manual_verification_message()
+
+    # t == "si"
+    clear_case(chat_id)
+    return external_search_not_enabled_message()
 
 # =========================
 # FLASK
@@ -1536,7 +1577,8 @@ def help_command(message):
 
     text = (
         "Comandi disponibili:\n\n"
-        "/caso = descrivi liberamente la situazione; il bot analizza il testo, usa il database interno e, se manca qualcosa, ti fa domande mirate.\n\n"
+        "/caso = descrivi liberamente la situazione; il bot analizza il testo, usa il database interno e, se manca qualcosa, ti fa domande mirate. "
+        "Se il database interno non basta, può chiederti se autorizzare una ricerca esterna su internet.\n\n"
         "/checklist = elenco controlli operativi sul posto.\n\n"
         "/documenti = documenti ed elementi che il conducente / servizio NCC deve esibire o consentire di verificare.\n\n"
         "/norme = riferimenti normativi principali NCC.\n\n"
@@ -1651,6 +1693,11 @@ def all_messages(message):
 
     if mode == "clarification":
         response = process_clarification(chat_id, message.text.strip())
+        bot.reply_to(message, response)
+        return
+
+    if mode == "external_consent":
+        response = process_external_consent(chat_id, message.text.strip())
         bot.reply_to(message, response)
         return
 
