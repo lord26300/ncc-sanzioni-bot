@@ -1,6 +1,7 @@
 import os
 import json
 import threading
+import requests
 from flask import Flask
 import telebot
 
@@ -10,6 +11,10 @@ bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
 
 ADMIN_ID = 242294061
+
+RENDER_API_KEY = os.getenv("RENDER_API_KEY")
+RENDER_SERVICE_ID = os.getenv("RENDER_SERVICE_ID")
+RENDER_PUBLIC_URL = os.getenv("RENDER_PUBLIC_URL", "https://tuo-servizio.onrender.com")
 
 # GIF/animazione di benvenuto
 WELCOME_MEDIA_PATH = "welcome.mp4"
@@ -669,7 +674,7 @@ def request_access_text():
     )
 
 def authorized_start_text(user_id):
-    return (
+    text = (
         f"Benvenuto in NCC Sanzioni Bot.\n\n"
         f"Accesso autorizzato.\n"
         f"Il tuo user id è: {user_id}\n\n"
@@ -682,8 +687,17 @@ def authorized_start_text(user_id):
         "/art116 - leggi art. 116 CdS\n"
         "/art3l21 - leggi art. 3 L. 21/1992\n"
         "/art11l21 - leggi art. 11 L. 21/1992\n"
+        "/riattiva - istruzioni per riattivare il servizio\n"
         "/reset - annulla caso in corso"
     )
+
+    if user_id == ADMIN_ID:
+        text += (
+            "\n/restartbot - riavvia il servizio Render\n"
+            "/deploybot - avvia un deploy Render"
+        )
+
+    return text
 
 def notify_admin_new_request(user):
     username_line = f"@{user.username}" if user.username else "-"
@@ -715,6 +729,49 @@ def ensure_authorized(message):
     notify_admin_new_request(message.from_user)
     bot.reply_to(message, request_access_text())
     return False
+
+def render_headers():
+    if not RENDER_API_KEY:
+        return None
+    return {
+        "Authorization": f"Bearer {RENDER_API_KEY}",
+        "Accept": "application/json"
+    }
+
+def restart_render_service():
+    if not RENDER_API_KEY or not RENDER_SERVICE_ID:
+        return False, "Variabili Render mancanti: RENDER_API_KEY o RENDER_SERVICE_ID."
+
+    url = f"https://api.render.com/v1/services/{RENDER_SERVICE_ID}/restart"
+    try:
+        response = requests.post(url, headers=render_headers(), timeout=20)
+        if response.status_code in [200, 202]:
+            return True, "Riavvio del servizio richiesto correttamente."
+        return False, f"Errore Render restart: HTTP {response.status_code} - {response.text}"
+    except Exception as e:
+        return False, f"Eccezione restart Render: {e}"
+
+def deploy_render_service():
+    if not RENDER_API_KEY or not RENDER_SERVICE_ID:
+        return False, "Variabili Render mancanti: RENDER_API_KEY o RENDER_SERVICE_ID."
+
+    url = f"https://api.render.com/v1/services/{RENDER_SERVICE_ID}/deploys"
+    try:
+        response = requests.post(url, headers=render_headers(), timeout=20)
+        if response.status_code in [200, 201]:
+            return True, "Deploy del servizio richiesto correttamente."
+        return False, f"Errore Render deploy: HTTP {response.status_code} - {response.text}"
+    except Exception as e:
+        return False, f"Eccezione deploy Render: {e}"
+
+def public_wake_up_message():
+    return (
+        "Richiesta di riattivazione inviata.\n\n"
+        "Il servizio gratuito può impiegare circa 30-60 secondi per tornare operativo.\n\n"
+        f"Apri questo link per favorire il risveglio del servizio:\n{RENDER_PUBLIC_URL}\n\n"
+        "Attendi circa 1 minuto e poi riprova con /start oppure con il comando che stavi usando.\n\n"
+        "Se il bot non si riattiva, contatta l'amministratore per il riavvio del servizio."
+    )
 
 # =========================
 # STATO CONVERSAZIONI
@@ -1422,6 +1479,38 @@ def revoke_command(message):
     except Exception:
         pass
 
+@bot.message_handler(commands=['restartbot'])
+def restartbot_command(message):
+    if not is_admin(message.from_user.id):
+        return
+
+    ok, msg = restart_render_service()
+    if ok:
+        bot.reply_to(
+            message,
+            "Richiesta di riavvio inviata a Render.\n\n"
+            "Attendi circa 30-60 secondi per il completo ripristino del servizio.\n\n"
+            f"Dettaglio: {msg}"
+        )
+    else:
+        bot.reply_to(message, f"Riavvio non riuscito.\n\n{msg}")
+
+@bot.message_handler(commands=['deploybot'])
+def deploybot_command(message):
+    if not is_admin(message.from_user.id):
+        return
+
+    ok, msg = deploy_render_service()
+    if ok:
+        bot.reply_to(
+            message,
+            "Richiesta di deploy inviata a Render.\n\n"
+            "Attendi circa 1-2 minuti per il completamento.\n\n"
+            f"Dettaglio: {msg}"
+        )
+    else:
+        bot.reply_to(message, f"Deploy non riuscito.\n\n{msg}")
+
 # =========================
 # COMANDI BOT
 # =========================
@@ -1444,8 +1533,8 @@ def start_command(message):
 def help_command(message):
     if not ensure_authorized(message):
         return
-    bot.reply_to(
-        message,
+
+    text = (
         "Comandi disponibili:\n\n"
         "/caso = descrivi liberamente la situazione; il bot analizza il testo, usa il database interno e, se manca qualcosa, ti fa domande mirate.\n\n"
         "/checklist = elenco controlli operativi sul posto.\n\n"
@@ -1455,8 +1544,18 @@ def help_command(message):
         "/art116 = leggi il richiamo operativo dell'art. 116 CdS\n"
         "/art3l21 = leggi il richiamo operativo dell'art. 3 L. 21/1992\n"
         "/art11l21 = leggi il richiamo operativo dell'art. 11 L. 21/1992\n\n"
+        "/riattiva = istruzioni per riattivare il servizio se il bot tarda a rispondere.\n\n"
         "/reset = annulla il caso in corso."
     )
+
+    if is_admin(message.from_user.id):
+        text += (
+            "\n\nComandi admin:\n"
+            "/restartbot = riavvia il servizio su Render\n"
+            "/deploybot = avvia un deploy su Render"
+        )
+
+    bot.reply_to(message, text)
 
 @bot.message_handler(commands=['norme'])
 def norme_command(message):
@@ -1506,6 +1605,14 @@ def reset_command(message):
         return
     clear_case(message.chat.id)
     bot.reply_to(message, "Procedura annullata.")
+
+@bot.message_handler(commands=['riattiva'])
+def riattiva_command(message):
+    # questo comando deve essere disponibile anche a utenti autorizzati normali
+    if not ensure_authorized(message):
+        return
+
+    bot.reply_to(message, public_wake_up_message(), disable_web_page_preview=True)
 
 @bot.message_handler(commands=['caso'])
 def caso_command(message):
