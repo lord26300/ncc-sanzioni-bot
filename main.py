@@ -819,16 +819,18 @@ def format_compact_violation(code):
         lines.append(f"  {v['short_ready_text']}")
     return "\n".join(lines)
 
-def format_multiple(main_code, concurrent_codes=None, extra_notes=None):
+def format_multiple(main_code, concurrent_codes=None, extra_notes=None, level=None):
     if concurrent_codes is None:
         concurrent_codes = []
     if extra_notes is None:
         extra_notes = []
 
-    v = VIOLATIONS[main_code]
-
+    v = VIOLATIONS[main_code] 
+        livello = level if level else "non specificato"
+  
     lines = []
     lines.append("ESITO FINALE")
+    lines.append(f"Livello di affidabilità: {livello}")
     lines.append(v["title"])
     lines.append("")
     lines.append("RIFERIMENTO")
@@ -1020,7 +1022,7 @@ def detect_from_text(text):
         "service_to_third": None,     # si/no/dubbio
         "service_context": None,      # a/b/c
         "violation_type": None,       # art3_11 / other_auth / none
-        "recurrence": None,           # first / second_3y / 1_5y / 2_5y / 3_5y / 4plus_5y
+        "recurrence": None,           # first / second_3y / 2_5y / 3_5y / 4plus_5y
         "kb": None,                   # si/no
         "public_waiting": None,       # si/no
         "taxi_commune": None,         # si/no
@@ -1028,46 +1030,138 @@ def detect_from_text(text):
         "separate_payment": None      # si/no
     }
 
-    # autorizzazione veicolo
+    # =========================
+    # MEZZO NON NCC
+    # =========================
     if any(x in t for x in [
-        "veicolo privato", "auto privata", "non autorizzato", "senza autorizzazione ncc",
-        "abusivo", "non ncc", "mezzo privato"
+        "veicolo privato", "auto privata", "macchina privata", "mezzo privato",
+        "senza autorizzazione ncc", "non autorizzato ncc", "abusivo",
+        "non ncc", "veicolo non ncc", "auto non ncc"
     ]):
         data["vehicle_authorized"] = "no"
 
     if any(x in t for x in [
-        "veicolo ncc", "autorizzato ncc", "con autorizzazione ncc", "ncc regolare"
+        "veicolo ncc", "autorizzato ncc", "con autorizzazione ncc",
+        "mezzo ncc", "auto ncc", "ncc regolare"
     ]):
         data["vehicle_authorized"] = "si"
 
-    # servizio verso clienti
+    # =========================
+    # SERVIZIO VERSO TERZI
+    # =========================
     if any(x in t for x in [
-        "clienti", "passeggeri", "turisti", "a pagamento", "trasporta persone",
-        "accompagna clienti", "servizio ncc", "utenza"
+        "clienti", "passeggeri", "turisti", "utenza", "trasporta persone",
+        "porta persone", "accompagna clienti", "accompagna turisti",
+        "prende clienti", "fa la corsa", "servizio a pagamento"
     ]):
         data["service_to_third"] = "si"
 
-    # contesto
-    if any(x in t for x in ["hotel", "albergo", "parcheggio", "parking", "struttura ricettiva", "navetta"]):
-        data["service_context"] = "b"
-    elif any(x in t for x in ["taxi", "ncc", "autobus autorizzato", "bus autorizzato"]):
-        data["service_context"] = "a"
-
-    # tipo violazione
     if any(x in t for x in [
-        "senza prenotazione", "manca prenotazione", "no prenotazione",
+        "trasporto interno", "servizio per clienti propri", "solo clienti hotel",
+        "solo clienti del parcheggio", "attività accessoria"
+    ]):
+        data["service_to_third"] = "dubbio"
+
+    # =========================
+    # CONTESTO SERVIZIO
+    # =========================
+    if any(x in t for x in [
+        "hotel", "albergo", "parcheggio", "parking", "struttura ricettiva",
+        "navetta", "shuttle", "resort"
+    ]):
+        data["service_context"] = "b"
+    elif any(x in t for x in [
+        "taxi", "ncc", "autobus autorizzato", "bus autorizzato"
+    ]):
+        data["service_context"] = "a"
+    else:
+        data["service_context"] = "c"
+
+    # =========================
+    # PAGAMENTO / CORRISPETTIVO
+    # =========================
+    if any(x in t for x in [
+        "pagamento", "a pagamento", "si fa pagare", "corrispettivo",
+        "prezzo", "tariffa", "150 euro", "100 euro", "contanti", "pagano il trasporto"
+    ]):
+        data["separate_payment"] = "si"
+
+    if any(x in t for x in [
+        "gratuito", "senza corrispettivo", "compreso nel servizio",
+        "servizio incluso", "cortesia"
+    ]):
+        data["separate_payment"] = "no"
+
+    # =========================
+    # PRENOTAZIONE
+    # =========================
+    if any(x in t for x in [
+        "senza prenotazione", "no prenotazione", "manca prenotazione",
+        "non esibisce prenotazione", "privo di prenotazione"
+    ]):
+        data["booking"] = "no"
+
+    if any(x in t for x in [
+        "con prenotazione", "prenotazione presente", "prenotazione documentabile",
+        "foglio di servizio presente", "contratto presente"
+    ]):
+        data["booking"] = "si"
+
+    # =========================
+    # VIOLAZIONI ARTT. 3/11
+    # =========================
+    if any(x in t for x in [
         "foglio di servizio", "staziona", "sosta su area pubblica", "attesa clienti",
-        "rimessa", "fuori rimessa"
+        "fuori rimessa", "in attesa al porto", "in attesa al terminal",
+        "in attesa in strada", "senza prenotazione"
     ]):
         data["violation_type"] = "art3_11"
 
     if any(x in t for x in [
-        "ztl", "regolamento comunale", "altra prescrizione", "condizioni autorizzazione",
-        "prescrizione autorizzativa"
+        "ztl", "regolamento comunale", "prescrizione autorizzativa",
+        "altra prescrizione", "condizioni autorizzazione"
     ]):
         data["violation_type"] = "other_auth"
 
-    # recidiva
+    if data["violation_type"] is None:
+        data["violation_type"] = "none"
+
+    # =========================
+    # SOSTA / ATTESA
+    # =========================
+    if any(x in t for x in [
+        "staziona", "sosta", "in attesa", "fermo in attesa", "attesa clienti",
+        "fuori terminal", "fuori porto", "davanti al terminal", "su area pubblica"
+    ]):
+        data["public_waiting"] = "si"
+
+    # =========================
+    # COMUNE CON TAXI
+    # =========================
+    if any(x in t for x in [
+        "porto di civitavecchia", "roma", "fiumicino", "milano", "napoli",
+        "stazione termini", "aeroporto"
+    ]):
+        data["taxi_commune"] = "si"
+
+    # =========================
+    # KB / CQC
+    # =========================
+    if any(x in t for x in [
+        "senza kb", "manca kb", "privo di kb",
+        "senza cqc", "manca cqc", "privo di cqc",
+        "senza ka", "manca ka"
+    ]):
+        data["kb"] = "no"
+
+    if any(x in t for x in [
+        "con kb", "kb presente", "cqc presente", "titolo presente"
+    ]):
+        data["kb"] = "si"
+
+    # =========================
+    # RECIDIVA
+    # =========================
     if any(x in t for x in ["seconda nel triennio", "2a nel triennio", "recidiva triennio"]):
         data["recurrence"] = "second_3y"
     elif any(x in t for x in ["seconda nel quinquennio", "2a nel quinquennio"]):
@@ -1076,34 +1170,8 @@ def detect_from_text(text):
         data["recurrence"] = "3_5y"
     elif any(x in t for x in ["quarta nel quinquennio", "quarta o successiva", "4a nel quinquennio"]):
         data["recurrence"] = "4plus_5y"
-    elif any(x in t for x in ["prima violazione", "1a violazione", "prima nel quinquennio"]):
+    elif any(x in t for x in ["prima violazione", "1a violazione", "prima volta"]):
         data["recurrence"] = "first"
-
-    # kb/cqc
-    if any(x in t for x in ["senza kb", "manca kb", "senza cqc", "manca cqc", "senza ka", "manca ka"]):
-        data["kb"] = "no"
-    elif any(x in t for x in ["con kb", "kb presente", "cqc presente", "titolo presente"]):
-        data["kb"] = "si"
-
-    # sosta/attesa
-    if any(x in t for x in ["staziona", "in attesa", "sosta", "fermo in attesa", "attesa clienti"]):
-        data["public_waiting"] = "si"
-
-    # comune taxi
-    if any(x in t for x in ["comune con taxi", "dove c'è taxi", "porto di civitavecchia", "roma", "milano"]):
-        data["taxi_commune"] = "si"
-
-    # prenotazione
-    if any(x in t for x in ["senza prenotazione", "no prenotazione", "manca prenotazione"]):
-        data["booking"] = "no"
-    elif any(x in t for x in ["prenotazione presente", "con prenotazione", "foglio di servizio presente", "contratto presente"]):
-        data["booking"] = "si"
-
-    # corrispettivo separato
-    if any(x in t for x in ["pagamento separato", "prezzo separato", "corrispettivo separato", "pagano il trasporto"]):
-        data["separate_payment"] = "si"
-    elif any(x in t for x in ["gratuito", "senza corrispettivo", "compreso nel servizio", "cortesia"]):
-        data["separate_payment"] = "no"
 
     return data
 
@@ -1169,70 +1237,67 @@ def missing_questions(answers):
     if answers.get("vehicle_authorized") is None:
         questions.append({
             "key": "vehicle_authorized",
-            "text": "Il veicolo è autorizzato/adibito a NCC?\nRispondi: si / no"
+            "text": "Il veicolo era regolarmente autorizzato/adibito a NCC?\nRispondi: si / no"
         })
 
     if answers.get("service_to_third") is None:
         questions.append({
             "key": "service_to_third",
-            "text": "Il conducente sta trasportando o mettendosi a disposizione di clienti/passeggeri?\nRispondi: si / no / dubbio"
+            "text": "Il conducente stava trasportando o mettendosi a disposizione di clienti/passeggeri?\nRispondi: si / no / dubbio"
         })
 
     if answers.get("service_context") is None:
         questions.append({
             "key": "service_context",
-            "text": "Il servizio sembra essere:\na = NCC/taxi/autobus autorizzato\nb = navetta o trasporto collegato a hotel/parcheggio/struttura\nc = non chiaro\nRispondi: a / b / c"
+            "text": "Il servizio sembra essere:\na = servizio NCC/taxi/autobus autorizzato\nb = navetta o trasporto collegato a hotel/parcheggio/struttura\nc = non chiaro\nRispondi: a / b / c"
         })
 
     if answers.get("separate_payment") is None:
         questions.append({
             "key": "separate_payment",
-            "text": "Il trasporto ha un prezzo/corrispettivo separato?\nRispondi: si / no"
+            "text": "Per il trasporto era previsto un pagamento o corrispettivo separato?\nRispondi: si / no"
         })
 
-    # se mezzo non ncc e servizio verso clienti, serve recidiva minima
     if answers.get("vehicle_authorized") == "no" and answers.get("service_to_third") == "si" and answers.get("recurrence") is None:
         questions.append({
             "key": "recurrence",
             "text": "Si tratta di prima violazione o seconda nel triennio?\nRispondi: first / second_3y"
         })
 
-    # se mezzo ncc, serve tipo violazione
-    if answers.get("vehicle_authorized") == "si" and answers.get("violation_type") is None:
+    if answers.get("vehicle_authorized") == "si" and answers.get("violation_type") in [None, "none"]:
         questions.append({
             "key": "violation_type",
-            "text": "La violazione riguarda:\nart3_11 = artt. 3 o 11 L. 21/1992\nother_auth = altre prescrizioni autorizzative\nnone = non chiaro\nRispondi: art3_11 / other_auth / none"
+            "text": "Il problema riguarda soprattutto:\nart3_11 = prenotazione / stazionamento / foglio di servizio / rimessa\nother_auth = altre prescrizioni dell'autorizzazione\nnone = non chiaro\nRispondi: art3_11 / other_auth / none"
         })
 
-    # se art3_11 serve recidiva quinquennio
     if answers.get("vehicle_authorized") == "si" and answers.get("violation_type") == "art3_11" and answers.get("recurrence") is None:
         questions.append({
             "key": "recurrence",
-            "text": "Indica la progressione nel quinquennio:\nfirst / 2_5y / 3_5y / 4plus_5y"
+            "text": "Questa violazione è:\nfirst = prima\n2_5y = seconda nel quinquennio\n3_5y = terza nel quinquennio\n4plus_5y = quarta o successiva\nRispondi con una di queste opzioni."
         })
 
     if answers.get("kb") is None:
         questions.append({
             "key": "kb",
-            "text": "Il conducente ha il titolo professionale richiesto (KB/KA/CQC se dovuto)?\nRispondi: si / no"
+            "text": "Il conducente aveva il titolo professionale richiesto (KB / KA / CQC se dovuto)?\nRispondi: si / no"
         })
 
     if answers.get("public_waiting") is None:
         questions.append({
             "key": "public_waiting",
-            "text": "Il veicolo era in sosta/stazionamento su area pubblica in attesa?\nRispondi: si / no"
+            "text": "Il veicolo era fermo o in attesa su area pubblica?\nRispondi: si / no"
         })
 
     if answers.get("taxi_commune") is None:
         questions.append({
             "key": "taxi_commune",
-            "text": "Il fatto avviene in un comune dove è esercitato il servizio taxi?\nRispondi: si / no"
+            "text": "Il fatto è avvenuto in un comune dove è attivo il servizio taxi?\nRispondi: si / no"
         })
 
     if answers.get("booking") is None:
         questions.append({
             "key": "booking",
-            "text": "Esiste prenotazione documentabile / foglio di servizio / contratto?\nRispondi: si / no"
+            "text": "C'era una prenotazione documentabile o un foglio di servizio?\nRispondi: si / no"
         })
 
     return questions
@@ -1285,7 +1350,8 @@ def process_case_description(chat_id, text):
 
     # Caso chiudibile con dati interni
     if main_code and len(questions) == 0 and not should_offer_external_search(state["answers"], notes):
-        result = format_multiple(main_code, concurrent, notes)
+        level = confidence_level(state["answers"], main_code)
+        result = format_multiple(main_code, concurrent, notes, level=level)
         clear_case(chat_id)
         return result
 
@@ -1353,7 +1419,8 @@ def process_clarification(chat_id, text):
 
     # chiusura completa con database interno
     if main_code and len(questions) == 0 and not should_offer_external_search(state["answers"], notes):
-        result = format_multiple(main_code, concurrent, notes)
+        level = confidence_level(state["answers"], main_code)
+        result = format_multiple(main_code, concurrent, notes, level=level)
         clear_case(chat_id)
         return result
 
@@ -1551,6 +1618,28 @@ def deploybot_command(message):
         )
     else:
         bot.reply_to(message, f"Deploy non riuscito.\n\n{msg}")
+
+def confidence_level(answers, main_code):
+    score = 0
+
+    if answers.get("vehicle_authorized") is not None:
+        score += 1
+    if answers.get("service_to_third") is not None:
+        score += 1
+    if answers.get("kb") is not None:
+        score += 1
+    if answers.get("booking") is not None:
+        score += 1
+    if answers.get("separate_payment") is not None:
+        score += 1
+    if main_code is not None:
+        score += 2
+
+    if score >= 6:
+        return "molto probabile"
+    if score >= 4:
+        return "probabile"
+    return "da approfondire"
 
 # =========================
 # COMANDI BOT
