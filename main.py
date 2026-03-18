@@ -532,6 +532,61 @@ NCC_DB = {
     ]
 }
 
+ARTICOLI_DB = {
+    "art85": {
+        "titolo": "CdS art. 85",
+        "testo": (
+            "Art. 85 CdS – Servizio di noleggio con conducente.\n\n"
+            "Uso operativo nel bot:\n"
+            "- comma 4: veicolo non adibito / non autorizzato a NCC\n"
+            "- comma 4-bis: violazioni degli artt. 3 e 11 della L. 21/1992\n"
+            "- comma 4-ter: altre prescrizioni dell’autorizzazione NCC\n\n"
+            "Per il dettaglio sanzionatorio il bot usa le voci:\n"
+            "085-02, 085-04, 085-05, 085-06, 085-07, 085-08, 085-09."
+        ),
+        "link": "https://www.normattiva.it/"
+    },
+    "art116": {
+        "titolo": "CdS art. 116",
+        "testo": (
+            "Art. 116 CdS – Requisiti per la guida dei veicoli.\n\n"
+            "Uso operativo nel bot:\n"
+            "- comma 14: incauto affidamento\n"
+            "- commi 15 e 17: guida senza patente / recidiva / reiterazione\n"
+            "- comma 15-bis: patente diversa in casi tipizzati\n"
+            "- commi 16 e 18: guida senza CAP / KB / KA / CQC\n\n"
+            "Per il dettaglio operativo il bot usa le voci:\n"
+            "116-01, 116-02, 116-03, 116-04, 116-05, 116-06."
+        ),
+        "link": "https://www.normattiva.it/"
+    },
+    "art3l21": {
+        "titolo": "L. 21/1992 art. 3",
+        "testo": (
+            "Legge 21/1992 – art. 3.\n\n"
+            "Uso operativo nel bot:\n"
+            "- la richiesta del servizio deve essere avanzata presso la sede o la rimessa, "
+            "anche mediante strumenti tecnologici;\n"
+            "- lo stazionamento dei mezzi deve avvenire all’interno delle rimesse;\n"
+            "- sede operativa e almeno una rimessa devono essere nel territorio consentito.\n\n"
+            "Se il mezzo è regolarmente NCC ma viola queste prescrizioni, il bot orienta verso il ramo 085-05 / 085-06 / 085-07 / 085-08."
+        ),
+        "link": "https://www.normattiva.it/"
+    },
+    "art11l21": {
+        "titolo": "L. 21/1992 art. 11",
+        "testo": (
+            "Legge 21/1992 – art. 11.\n\n"
+            "Uso operativo nel bot:\n"
+            "- divieto di sosta in posteggio di stazionamento su suolo pubblico nei comuni dove è esercitato il servizio taxi;\n"
+            "- nei casi consentiti, verifica dell’area di sosta autorizzata;\n"
+            "- controllo su prenotazione / foglio di servizio / modalità operative del servizio.\n\n"
+            "Se il mezzo è NCC e la violazione ricade su queste prescrizioni, il bot orienta verso il ramo 085-05 / 085-06 / 085-07 / 085-08."
+        ),
+        "link": "https://www.normattiva.it/"
+    }
+}
+
 # =========================
 # ACCESSO / AUTORIZZAZIONI
 # =========================
@@ -622,8 +677,11 @@ def authorized_start_text(user_id):
         "/caso - descrivi liberamente il fatto\n"
         "/checklist - controlli operativi\n"
         "/documenti - documenti da controllare\n"
-        "/help - guida\n"
         "/norme - riferimenti principali\n"
+        "/art85 - leggi art. 85 CdS\n"
+        "/art116 - leggi art. 116 CdS\n"
+        "/art3l21 - leggi art. 3 L. 21/1992\n"
+        "/art11l21 - leggi art. 11 L. 21/1992\n"
         "/reset - annulla caso in corso"
     )
 
@@ -762,10 +820,12 @@ def format_multiple(main_code, concurrent_codes=None, extra_notes=None):
         for note in extra_notes:
             lines.append(f"- {note}")
 
+    lines.append(article_shortcuts_from_result(main_code, concurrent_codes))
+    
     lines.append("")
     lines.append("AVVERTENZA")
     lines.append("Verificare sempre normativa vigente, prontuario del comando, disciplina locale e dati concreti del caso.")
-
+    
     return "\n".join(lines)
 
 def format_norme_from_db():
@@ -832,6 +892,61 @@ def format_case_hint(case_key):
     for n in case_data["note"]:
         lines.append(f"- {n}")
     return "\n".join(lines)
+
+ARTICOLI_DB = {
+    "art85": {
+        "titolo": "CdS art. 85",
+        "testo": (
+            "Art. 85 CdS – Servizio di noleggio con conducente.\n\n"
+            "Uso operativo nel bot:\n"
+            "- comma 4: veicolo non adibito / non autorizzato a NCC\n"
+            "- comma 4-bis: violazioni degli artt. 3 e 11 della L. 21/1992\n"
+            "- comma 4-ter: altre prescrizioni dell’autorizzazione NCC\n\n"
+            "Per il dettaglio sanzionatorio il bot usa le voci:\n"
+            "085-02, 085-04, 085-05, 085-06, 085-07, 085-08, 085-09."
+        ),
+        "link": "https://www.normattiva.it/"
+    },
+    "art116": {
+        "titolo": "CdS art. 116",
+        "testo": (
+            "Art. 116 CdS – Requisiti per la guida dei veicoli.\n\n"
+            "Uso operativo nel bot:\n"
+            "- comma 14: incauto affidamento\n"
+            "- commi 15 e 17: guida senza patente / recidiva / reiterazione\n"
+            "- comma 15-bis: patente diversa in casi tipizzati\n"
+            "- commi 16 e 18: guida senza CAP / KB / KA / CQC\n\n"
+            "Per il dettaglio operativo il bot usa le voci:\n"
+            "116-01, 116-02, 116-03, 116-04, 116-05, 116-06."
+        ),
+        "link": "https://www.normattiva.it/"
+    },
+    "art3l21": {
+        "titolo": "L. 21/1992 art. 3",
+        "testo": (
+            "Legge 21/1992 – art. 3.\n\n"
+            "Uso operativo nel bot:\n"
+            "- la richiesta del servizio deve essere avanzata presso la sede o la rimessa, "
+            "anche mediante strumenti tecnologici;\n"
+            "- lo stazionamento dei mezzi deve avvenire all’interno delle rimesse;\n"
+            "- sede operativa e almeno una rimessa devono essere nel territorio consentito.\n\n"
+            "Se il mezzo è regolarmente NCC ma viola queste prescrizioni, il bot orienta verso il ramo 085-05 / 085-06 / 085-07 / 085-08."
+        ),
+        "link": "https://www.normattiva.it/"
+    },
+    "art11l21": {
+        "titolo": "L. 21/1992 art. 11",
+        "testo": (
+            "Legge 21/1992 – art. 11.\n\n"
+            "Uso operativo nel bot:\n"
+            "- divieto di sosta in posteggio di stazionamento su suolo pubblico nei comuni dove è esercitato il servizio taxi;\n"
+            "- nei casi consentiti, verifica dell’area di sosta autorizzata;\n"
+            "- controllo su prenotazione / foglio di servizio / modalità operative del servizio.\n\n"
+            "Se il mezzo è NCC e la violazione ricade su queste prescrizioni, il bot orienta verso il ramo 085-05 / 085-06 / 085-07 / 085-08."
+        ),
+        "link": "https://www.normattiva.it/"
+    }
+}
 
 # =========================
 # ANALISI TESTO LIBERO
@@ -1098,6 +1213,7 @@ def begin_case_flow(chat_id):
 def process_case_description(chat_id, text):
     state = user_states[chat_id]
     state["free_text"] = text
+
     detected = detect_from_text(text)
     state["answers"].update({k: v for k, v in detected.items() if v is not None})
 
@@ -1105,13 +1221,21 @@ def process_case_description(chat_id, text):
     main_code, concurrent, notes = decide_violation(state["answers"])
     questions = missing_questions(state["answers"])
 
-    # Se il bot ha già una chiara soluzione e non mancano dati
+    # Se il bot ha una base interna sufficiente e nessun dato manca
     if main_code and len(questions) == 0:
         result = format_multiple(main_code, concurrent, notes)
+
+        if need_external_source_notice(state["answers"]):
+            result += (
+                "\n\nAVVISO OPERATORE\n"
+                "Il caso è stato analizzato principalmente con il database interno del bot, "
+                "ma alcuni profili restano da verificare su fonti esterne / normativa aggiornata."
+            )
+
         clear_case(chat_id)
         return result
 
-    # Se esiste un caso tipico riconosciuto, mostra orientamento e poi chiede il dato mancante
+    # Se esiste un caso tipico riconosciuto, mostra un orientamento e poi chiede il primo dato mancante
     if case_key and questions:
         q = questions[0]
         state["mode"] = "clarification"
@@ -1122,38 +1246,49 @@ def process_case_description(chat_id, text):
             f"{q['text']}"
         )
 
-    # Se ha già un'ipotesi e mancano pochi dati
-    if main_code and len(questions) <= 2:
+    # Se ha già un’ipotesi ma mancano pochi dati
+    if main_code and len(questions) <= 3:
         q = questions[0]
         state["mode"] = "clarification"
         state["pending_question"] = q
         return (
-            "Esito preliminare probabile individuato.\n"
-            "Per chiudere il caso mi serve ancora un dato:\n\n"
+            "Esito preliminare probabile individuato con il database interno.\n"
+            "Per chiudere il caso mi serve ancora questo dato:\n\n"
             f"{q['text']}"
         )
 
-    # Se mancano dati ma non ha matchato caso tipico
+    # Se non ha dati sufficienti, lo dice e inizia a chiedere ciò che manca
     if questions:
         q = questions[0]
         state["mode"] = "clarification"
         state["pending_question"] = q
         return (
-            "Per analizzare correttamente il caso mi serve un primo chiarimento:\n\n"
+            "Il bot non ha ancora dati sufficienti per una qualificazione affidabile.\n"
+            "Ti faccio una domanda mirata:\n\n"
             f"{q['text']}"
         )
 
+    # Se non riesce a chiudere neppure così
     result = (
-        "Non è stato possibile chiudere automaticamente il caso.\n\n"
-        "Verifiche necessarie:\n" +
+        "Non è stato possibile chiudere automaticamente il caso con il solo database interno del bot.\n\n"
+        "VERIFICHE NECESSARIE\n" +
         "\n".join([f"- {n}" for n in notes])
     )
+
+    if need_external_source_notice(state["answers"]):
+        result += (
+            "\n\nAVVISO OPERATORE\n"
+            "Per completare il caso potrebbe essere necessario verificare fonti esterne o aggiornamenti normativi "
+            "non presenti nel database interno."
+        )
+
     clear_case(chat_id)
     return result
 
 def process_clarification(chat_id, text):
     state = user_states[chat_id]
     q = state.get("pending_question")
+
     if not q:
         clear_case(chat_id)
         return "Procedura annullata. Usa /caso per ricominciare."
@@ -1167,11 +1302,18 @@ def process_clarification(chat_id, text):
     main_code, concurrent, notes = decide_violation(state["answers"])
     questions = missing_questions(state["answers"])
 
-    # rimuove la domanda appena completata
-    questions = [item for item in questions if item["key"] != q["key"] or item["text"] != q["text"]]
+    questions = [item for item in questions if item["key"] != q["key"]]
 
     if main_code and len(questions) == 0:
         result = format_multiple(main_code, concurrent, notes)
+
+        if need_external_source_notice(state["answers"]):
+            result += (
+                "\n\nAVVISO OPERATORE\n"
+                "Il caso è stato chiuso con il database interno del bot, "
+                "ma alcuni aspetti vanno comunque verificati su normativa vigente / fonti esterne."
+            )
+
         clear_case(chat_id)
         return result
 
@@ -1188,8 +1330,10 @@ def process_clarification(chat_id, text):
     clear_case(chat_id)
     return (
         "Non è stato possibile individuare automaticamente una voce sanzionatoria definitiva.\n\n"
-        "Verifiche necessarie:\n" +
-        "\n".join([f"- {n}" for n in notes])
+        "VERIFICHE NECESSARIE\n" +
+        "\n".join([f"- {n}" for n in notes]) +
+        "\n\nAVVISO OPERATORE\n"
+        "Il database interno non basta da solo a chiudere il caso."
     )
 
 # =========================
@@ -1303,10 +1447,14 @@ def help_command(message):
     bot.reply_to(
         message,
         "Comandi disponibili:\n\n"
-        "/caso = descrivi liberamente la situazione; il bot prova a individuare la sanzione e, se serve, ti chiede solo i dati mancanti.\n\n"
+        "/caso = descrivi liberamente la situazione; il bot analizza il testo, usa il database interno e, se manca qualcosa, ti fa domande mirate.\n\n"
         "/checklist = elenco controlli operativi sul posto.\n\n"
         "/documenti = documenti ed elementi che il conducente / servizio NCC deve esibire o consentire di verificare.\n\n"
         "/norme = riferimenti normativi principali NCC.\n\n"
+        "/art85 = leggi il richiamo operativo dell'art. 85 CdS\n"
+        "/art116 = leggi il richiamo operativo dell'art. 116 CdS\n"
+        "/art3l21 = leggi il richiamo operativo dell'art. 3 L. 21/1992\n"
+        "/art11l21 = leggi il richiamo operativo dell'art. 11 L. 21/1992\n\n"
         "/reset = annulla il caso in corso."
     )
 
@@ -1321,6 +1469,30 @@ def documenti_command(message):
     if not ensure_authorized(message):
         return
     bot.reply_to(message, format_documenti_from_db())
+
+@bot.message_handler(commands=['art85'])
+def art85_command(message):
+    if not ensure_authorized(message):
+        return
+    bot.reply_to(message, format_articolo("art85"))
+
+@bot.message_handler(commands=['art116'])
+def art116_command(message):
+    if not ensure_authorized(message):
+        return
+    bot.reply_to(message, format_articolo("art116"))
+
+@bot.message_handler(commands=['art3l21'])
+def art3l21_command(message):
+    if not ensure_authorized(message):
+        return
+    bot.reply_to(message, format_articolo("art3l21"))
+
+@bot.message_handler(commands=['art11l21'])
+def art11l21_command(message):
+    if not ensure_authorized(message):
+        return
+    bot.reply_to(message, format_articolo("art11l21"))
 
 @bot.message_handler(commands=['checklist'])
 def checklist_command(message):
