@@ -528,15 +528,15 @@ NCC_DB = {
     },
 
     "documenti_controllo": [
-        "Carta di circolazione / DU",
+        "Carta di circolazione / Documento Unico di circolazione e proprietà (DU)",
         "Autorizzazione NCC / titolo abilitativo",
         "Patente del conducente",
-        "KB / KA / CQC se richiesti",
-        "Iscrizione a ruolo / posizione del conducente",
+        "CAP (KB) / KA / CQC se richiesti",
+        "Iscrizione a ruolo prov. dei conducenti (CCIIAA)/ posizione del conducente",
         "Prenotazione documentabile",
-        "Foglio di servizio",
+        "Foglio di servizio compilato prima di ogni corsa",
         "Eventuale documentazione contrattuale / commerciale / fiscale",
-        "Eventuali regolamenti locali / accesso porto / ZTL"
+        "Autorizzazione Comunale / accesso porto / ZTL"
     ]
 }
 
