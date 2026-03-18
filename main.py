@@ -826,7 +826,7 @@ def format_multiple(main_code, concurrent_codes=None, extra_notes=None, level=No
         extra_notes = []
 
     v = VIOLATIONS[main_code] 
-        livello = level if level else "non specificato"
+    livello = level if level else "non specificato"
   
     lines = []
     lines.append("ESITO FINALE")
