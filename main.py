@@ -945,6 +945,62 @@ def build_article_markup(article_keys=None):
     return markup
 
 
+def get_question_buttons(question_key):
+    mapping = {
+        'vehicle_authorized': [('SI', 'si'), ('NO', 'no')],
+        'service_to_third': [('SI', 'si'), ('NO', 'no'), ('DUBBIO', 'dubbio')],
+        'separate_payment': [('SI', 'si'), ('NO', 'no')],
+        'kb': [('SI', 'si'), ('NO', 'no')],
+        'patente_idonea': [('SI', 'si'), ('NO', 'no')],
+        'rent_registered': [('SI', 'si'), ('NO', 'no')],
+        'ruolo_conducenti': [('SI', 'si'), ('NO', 'no')],
+        'incauto_affidamento': [('SI', 'si'), ('NO', 'no')],
+        'public_waiting': [('SI', 'si'), ('NO', 'no')],
+        'taxi_commune': [('SI', 'si'), ('NO', 'no')],
+        'booking': [('SI', 'si'), ('NO', 'no')],
+        'violation_type': [('ART. 3/11', 'art3_11'), ('ALTRE PRESCR.', 'other_auth'), ('NON CHIARO', 'none')],
+        'foglio_status': [('PRESENTE', 'presente'), ('ASSENTE', 'assente'), ('IRREGOLARE', 'irregolare'), ('NON ESIBITO', 'non_esibito')],
+        'recurrence': [('PRIMA', 'first'), ('2^ QUINQ.', '2_5y'), ('3^ QUINQ.', '3_5y'), ('4+', '4plus_5y'), ('2^ TRIENNIO', 'second_3y')],
+    }
+    return mapping.get(question_key, [])
+
+
+def build_combined_markup(article_keys=None, question_key=None):
+    article_keys = article_keys or []
+    q_buttons = get_question_buttons(question_key) if question_key else []
+    if not article_keys and not q_buttons:
+        return None
+
+    markup = types.InlineKeyboardMarkup(row_width=2)
+
+    if article_keys:
+        label_map = {
+            'art85': 'Art. 85 CdS',
+            'art116': 'Art. 116 CdS',
+            'art3l21': 'Art. 3 L. 21/1992',
+            'art11l21': 'Art. 11 L. 21/1992',
+        }
+        article_buttons = []
+        for key in article_keys:
+            label = label_map.get(key, key)
+            article_buttons.append(types.InlineKeyboardButton(label, callback_data=f'article:{key}'))
+        if article_buttons:
+            markup.add(*article_buttons)
+
+    if q_buttons:
+        row = []
+        for label, value in q_buttons:
+            row.append(types.InlineKeyboardButton(label, callback_data=f'answer:{value}'))
+            if len(row) == 2:
+                markup.row(*row)
+                row = []
+        if row:
+            markup.row(*row)
+
+    return markup
+
+
+
 def infer_article_keys_from_text(text):
     if not text:
         return []
@@ -964,8 +1020,13 @@ def infer_article_keys_from_text(text):
 
 def reply_with_article_buttons(message, text, article_keys=None, disable_web_page_preview=True):
     keys = article_keys or infer_article_keys_from_text(text)
-    markup = build_article_markup(keys)
+    state = get_state(message.chat.id)
+    question_key = None
+    if state and state.get('mode') == 'clarification' and state.get('pending_question'):
+        question_key = state['pending_question'].get('key')
+    markup = build_combined_markup(keys, question_key=question_key)
     bot.reply_to(message, text, reply_markup=markup, disable_web_page_preview=disable_web_page_preview)
+
 
 
 def article_shortcuts_from_result(main_code=None, concurrent_codes=None):
@@ -1339,7 +1400,7 @@ def _append_unique(lst, value):
 
 
 def detect_from_text(text):
-    t = text.lower()
+    t = _normalize_free_answer(text)
 
     data = {
         "vehicle_authorized": None,
@@ -1363,26 +1424,32 @@ def detect_from_text(text):
     if _contains_any(t, [
         "veicolo privato", "auto privata", "macchina privata", "mezzo privato",
         "senza autorizzazione ncc", "non autorizzato ncc", "abusivo",
-        "non ncc", "veicolo non ncc", "auto non ncc"
+        "non ncc", "veicolo non ncc", "auto non ncc", "veicolo ad uso proprio",
+        "vettura privata", "targa civile non ncc"
     ]):
         data["vehicle_authorized"] = "no"
 
     if _contains_any(t, [
         "veicolo ncc", "autorizzato ncc", "con autorizzazione ncc",
-        "mezzo ncc", "auto ncc", "ncc regolare", "licenza ncc", "autorizzazione comunale"
+        "mezzo ncc", "auto ncc", "ncc regolare", "licenza ncc",
+        "autorizzazione comunale", "autovettura ncc"
     ]):
         data["vehicle_authorized"] = "si"
 
     if _contains_any(t, [
         "clienti", "passeggeri", "turisti", "utenza", "trasporta persone",
         "porta persone", "accompagna clienti", "accompagna turisti",
-        "prende clienti", "fa la corsa", "servizio a pagamento", "trasporto terzi", "procaccia clienti", "utenza indifferenziata", "crocieristi", "arrivi", "meet and greet", "pickup", "chiama clienti"
+        "prende clienti", "fa la corsa", "servizio a pagamento", "trasporto terzi",
+        "procaccia clienti", "utenza indifferenziata", "crocieristi", "arrivi",
+        "meet and greet", "pickup", "chiama clienti", "stava trasportando",
+        "stava caricando passeggeri", "stava scaricando passeggeri"
     ]):
         data["service_to_third"] = "si"
 
     if _contains_any(t, [
         "trasporto interno", "servizio per clienti propri", "solo clienti hotel",
-        "solo clienti del parcheggio", "attività accessoria", "navetta interna"
+        "solo clienti del parcheggio", "attivita accessoria", "navetta interna",
+        "navetta dell'hotel", "servizio interno", "servizio di cortesia"
     ]):
         data["service_to_third"] = "dubbio"
 
@@ -1396,7 +1463,7 @@ def detect_from_text(text):
     if _contains_any(t, [
         "pagamento", "a pagamento", "si fa pagare", "corrispettivo",
         "prezzo", "tariffa", "contanti", "pagano il trasporto", "bonifico", "pos"
-    ]) or re.search(r"\b\d+[\.,]?\d*\s*euro\b", t):
+    ]) or re.search(r"\d+[\.,]?\d*\s*euro", t):
         data["separate_payment"] = "si"
 
     if _contains_any(t, ["gratuito", "senza corrispettivo", "compreso nel servizio", "servizio incluso", "cortesia"]):
@@ -1409,7 +1476,7 @@ def detect_from_text(text):
 
     if _contains_any(t, ["foglio di servizio assente", "senza foglio di servizio", "manca foglio di servizio", "foglio non compilato"]):
         data["foglio_status"] = "assente"
-        data["booking"] = "no"
+        data["booking"] = data["booking"] or "no"
         data["violation_type"] = "art3_11"
     elif _contains_any(t, ["foglio di servizio irregolare", "foglio incompleto", "foglio compilato male", "foglio irregolare"]):
         data["foglio_status"] = "irregolare"
@@ -1425,7 +1492,7 @@ def detect_from_text(text):
 
     if _contains_any(t, [
         "staziona", "sosta su area pubblica", "attesa clienti", "fuori rimessa", "in attesa al porto", "in attesa in aeroporto", "in attesa in stazione",
-        "in attesa al terminal", "in attesa in strada", "senza prenotazione"
+        "in attesa al terminal", "in attesa in strada", "senza prenotazione", "procaccia clienti", "utenza indifferenziata"
     ]):
         data["violation_type"] = "art3_11"
 
@@ -1441,9 +1508,13 @@ def detect_from_text(text):
     if _contains_any(t, ["porto di civitavecchia", "roma", "fiumicino", "milano", "napoli", "stazione termini", "aeroporto", "porto", "terminal crociere", "molo", "stazione"]):
         data["taxi_commune"] = "si"
 
-    if _contains_any(t, ["senza kb", "manca kb", "privo di kb", "senza cqc", "manca cqc", "privo di cqc", "senza ka", "manca ka"]):
+    if _contains_any(t, [
+        "senza kb", "manca kb", "privo di kb", "kb assente", "licenza kb assente", "senza licenza kb",
+        "senza titolo kb", "titolo kb assente", "senza ka", "manca ka", "senza cqc", "manca cqc",
+        "privo di cqc", "privo di ka", "cap kb mancante"
+    ]):
         data["kb"] = "no"
-    if _contains_any(t, ["con kb", "kb presente", "cqc presente", "titolo presente", "cap kb presente"]):
+    if _contains_any(t, ["con kb", "kb presente", "cqc presente", "titolo presente", "cap kb presente", "titolo kb presente", "licenza kb presente"]):
         data["kb"] = "si"
 
     if _contains_any(t, ["patente sospesa", "senza patente", "patente revocata", "patente non idonea", "patente scaduta"]):
@@ -1610,22 +1681,62 @@ def decide_violation(answers):
 def missing_questions(answers):
     questions = []
 
-    if answers.get("vehicle_authorized") is None:
-        questions.append({
+    vehicle_authorized = answers.get("vehicle_authorized")
+    service_to_third = answers.get("service_to_third")
+    violation_type = answers.get("violation_type")
+    foglio_status = answers.get("foglio_status")
+
+    if vehicle_authorized is None:
+        return [{
             "key": "vehicle_authorized",
             "text": "Il veicolo era regolarmente autorizzato/adibito a NCC?\nRispondi: si / no"
-        })
+        }]
 
-    if answers.get("service_to_third") is None:
-        questions.append({
+    if service_to_third is None:
+        return [{
             "key": "service_to_third",
             "text": "Il conducente stava trasportando o mettendosi a disposizione di clienti/passeggeri?\nRispondi: si / no / dubbio"
+        }]
+
+    if vehicle_authorized == "no":
+        if service_to_third == "si" and answers.get("recurrence") is None:
+            return [{
+                "key": "recurrence",
+                "text": "Per il ramo art. 85 c.4 si tratta di prima violazione o seconda nel triennio?\nRispondi: first / second_3y"
+            }]
+        if answers.get("kb") is None:
+            questions.append({
+                "key": "kb",
+                "text": "Il conducente aveva il titolo professionale richiesto (KB / KA / CQC se dovuto)?\nRispondi: si / no"
+            })
+        if answers.get("patente_idonea") is None:
+            questions.append({
+                "key": "patente_idonea",
+                "text": "La patente del conducente era valida e idonea al veicolo/servizio?\nRispondi: si / no"
+            })
+        if (answers.get("kb") == "no" or answers.get("patente_idonea") == "no") and answers.get("incauto_affidamento") is None:
+            questions.append({
+                "key": "incauto_affidamento",
+                "text": "Il veicolo è stato affidato dal titolare o da altro responsabile al conducente privo dei titoli richiesti?\nRispondi: si / no"
+            })
+        return questions
+
+    if foglio_status is None:
+        questions.append({
+            "key": "foglio_status",
+            "text": "Situazione foglio di servizio?\nRispondi con una sola opzione: presente / assente / irregolare / non_esibito"
         })
 
-    if answers.get("separate_payment") is None:
+    if answers.get("rent_registered") is None:
         questions.append({
-            "key": "separate_payment",
-            "text": "Per il trasporto era previsto un pagamento o corrispettivo separato?\nRispondi: si / no"
+            "key": "rent_registered",
+            "text": "Il vettore/titolo risultava iscritto al RENT?\nRispondi: si / no"
+        })
+
+    if answers.get("ruolo_conducenti") is None:
+        questions.append({
+            "key": "ruolo_conducenti",
+            "text": "Il conducente risultava iscritto al ruolo/albo conducenti quando richiesto?\nRispondi: si / no"
         })
 
     if answers.get("kb") is None:
@@ -1640,58 +1751,40 @@ def missing_questions(answers):
             "text": "La patente del conducente era valida e idonea al veicolo/servizio?\nRispondi: si / no"
         })
 
-    if answers.get("vehicle_authorized") == "si" and answers.get("rent_registered") is None:
-        questions.append({
-            "key": "rent_registered",
-            "text": "Il vettore/titolo risultava iscritto al RENT?\nRispondi: si / no"
-        })
-
-    if answers.get("vehicle_authorized") == "si" and answers.get("ruolo_conducenti") is None:
-        questions.append({
-            "key": "ruolo_conducenti",
-            "text": "Il conducente risultava iscritto al ruolo/albo conducenti quando richiesto?\nRispondi: si / no"
-        })
-
-    if answers.get("vehicle_authorized") == "si" and answers.get("foglio_status") is None:
-        questions.append({
-            "key": "foglio_status",
-            "text": "Situazione foglio di servizio?\nRispondi con una sola opzione: presente / assente / irregolare / non_esibito"
-        })
-
-    if answers.get("vehicle_authorized") == "no" and answers.get("service_to_third") == "si" and answers.get("recurrence") is None:
-        questions.append({
-            "key": "recurrence",
-            "text": "Per il ramo art. 85 c.4 si tratta di prima violazione o seconda nel triennio?\nRispondi: first / second_3y"
-        })
-
-    if answers.get("vehicle_authorized") == "si" and answers.get("violation_type") in [None, "none"] and answers.get("foglio_status") not in {"assente", "irregolare"}:
+    if violation_type in [None, "none"] and foglio_status not in {"assente", "irregolare"}:
         questions.append({
             "key": "violation_type",
             "text": "Il problema riguarda soprattutto:\nart3_11 = prenotazione / stazionamento / foglio di servizio / rimessa\nother_auth = altre prescrizioni dell'autorizzazione\nnone = non chiaro\nRispondi: art3_11 / other_auth / none"
         })
 
-    if answers.get("vehicle_authorized") == "si" and (answers.get("violation_type") == "art3_11" or answers.get("foglio_status") in {"assente", "irregolare"}) and answers.get("recurrence") is None:
+    if (violation_type == "art3_11" or foglio_status in {"assente", "irregolare"}) and answers.get("recurrence") is None:
         questions.append({
             "key": "recurrence",
             "text": "Per il ramo art. 85 c.4-bis questa violazione è:\nfirst = prima\n2_5y = seconda nel quinquennio\n3_5y = terza nel quinquennio\n4plus_5y = quarta o successiva\nRispondi con una di queste opzioni."
         })
 
-    if answers.get("service_to_third") != "no" and answers.get("public_waiting") is None:
+    if service_to_third != "no" and answers.get("public_waiting") is None:
         questions.append({
             "key": "public_waiting",
             "text": "Il veicolo era fermo o in attesa su area pubblica?\nRispondi: si / no"
         })
 
-    if answers.get("service_to_third") != "no" and answers.get("taxi_commune") is None:
+    if service_to_third != "no" and answers.get("taxi_commune") is None:
         questions.append({
             "key": "taxi_commune",
             "text": "Il fatto è avvenuto in un comune dove è attivo il servizio taxi?\nRispondi: si / no"
         })
 
-    if answers.get("vehicle_authorized") == "si" and answers.get("service_to_third") != "no" and answers.get("booking") is None:
+    if service_to_third != "no" and answers.get("booking") is None:
         questions.append({
             "key": "booking",
             "text": "C'era una prenotazione documentabile o un titolo di corsa verificabile?\nRispondi: si / no"
+        })
+
+    if answers.get("separate_payment") is None and service_to_third != "no":
+        questions.append({
+            "key": "separate_payment",
+            "text": "Per il trasporto era previsto un pagamento o corrispettivo separato?\nRispondi: si / no"
         })
 
     if (answers.get("kb") == "no" or answers.get("patente_idonea") == "no") and answers.get("incauto_affidamento") is None:
@@ -1707,15 +1800,18 @@ def _normalize_free_answer(text):
     t = (text or "").strip().lower()
     t = t.replace("sì", "si")
     t = re.sub(r"[\.,;:!\?]+$", "", t)
+    t = re.sub(r"\s+", " ", t)
     return t
+
 
 def _extract_yes_no(text):
     t = _normalize_free_answer(text)
-    if re.match(r"^(si|sii|yes|y|certo|confermo|esatto|ok)\b", t):
+    if re.match(r"^(si|yes|y|certo|confermo|esatto|ok)\b", t):
         return "si"
     if re.match(r"^(no|n|negativo|assolutamente no|non presente|manca|assente)\b", t):
         return "no"
     return None
+
 
 def _extract_choice(text, allowed):
     t = _normalize_free_answer(text)
@@ -1731,19 +1827,19 @@ def _extract_choice(text, allowed):
 
 
 def _extract_recurrence(text):
-    t = _normalize_free_answer(text)
-    if re.search(r"(first|prima|prima_violazione|1a|prima volta)", t):
-        return "first"
-    if re.search(r"(second_3y|seconda nel triennio|2a nel triennio|recidiva triennio)", t):
-        return "second_3y"
-    if re.search(r"(2_5y|seconda nel quinquennio|2a nel quinquennio)", t):
-        return "2_5y"
-    if re.search(r"(3_5y|terza nel quinquennio|3a nel quinquennio)", t):
-        return "3_5y"
-    if re.search(r"(4plus_5y|quarta o successiva|quarta nel quinquennio|4a nel quinquennio)", t):
-        return "4plus_5y"
+    t = _normalize_free_answer(text).replace("^", "")
+    mapping = {
+        "first": ["first", "prima", "prima violazione", "1a", "prima volta"],
+        "second_3y": ["second_3y", "seconda nel triennio", "2a nel triennio", "recidiva triennio"],
+        "2_5y": ["2_5y", "seconda nel quinquennio", "2a nel quinquennio"],
+        "3_5y": ["3_5y", "terza nel quinquennio", "3a nel quinquennio"],
+        "4plus_5y": ["4plus_5y", "quarta o successiva", "quarta nel quinquennio", "4a nel quinquennio", "quarta+", "4plus"],
+    }
+    for code, vals in mapping.items():
+        for v in vals:
+            if t == v or re.search(rf"\b{re.escape(v)}\b", t):
+                return code
     return None
-
 
 def _extract_foglio_status(text):
     t = _normalize_free_answer(text)
@@ -2308,6 +2404,26 @@ def article_callback(call):
     except Exception:
         pass
     bot.send_message(call.message.chat.id, text, reply_markup=markup, disable_web_page_preview=True)
+
+
+@bot.callback_query_handler(func=lambda call: str(call.data).startswith("answer:"))
+def answer_callback(call):
+    chat_id = call.message.chat.id
+    state = get_state(chat_id)
+    if not state or state.get("mode") != "clarification":
+        try:
+            bot.answer_callback_query(call.id, "Nessuna domanda attiva")
+        except Exception:
+            pass
+        return
+
+    value = str(call.data).split(":", 1)[1].strip()
+    response = process_clarification(chat_id, value)
+    try:
+        bot.answer_callback_query(call.id, "Risposta acquisita")
+    except Exception:
+        pass
+    reply_with_article_buttons(call.message, response)
 
 
 # =========================
