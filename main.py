@@ -2,6 +2,7 @@ import os
 import json
 import threading
 import requests
+import re
 from flask import Flask
 import telebot
 
@@ -19,9 +20,10 @@ RENDER_PUBLIC_URL = os.getenv("RENDER_PUBLIC_URL", "https://tuo-servizio.onrende
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1")
 
-# GIF/animazione di benvenuto
-WELCOME_MEDIA_PATH = "welcome.mp4"
-WELCOME_MEDIA_ENABLED = False
+# GIF/video di benvenuto
+WELCOME_MEDIA_PATH = os.getenv("WELCOME_MEDIA_PATH", "welcome.mp4")
+WELCOME_MEDIA_URL = os.getenv("WELCOME_MEDIA_URL", "")
+WELCOME_MEDIA_ENABLED = os.getenv("WELCOME_MEDIA_ENABLED", "true").lower() in {"1", "true", "yes", "si"}
 
 # =========================
 # DATI SANZIONI
@@ -819,15 +821,19 @@ def format_compact_violation(code):
         lines.append(f"  {v['short_ready_text']}")
     return "\n".join(lines)
 
-def format_multiple(main_code, concurrent_codes=None, extra_notes=None, level=None):
+def format_multiple(main_code, concurrent_codes=None, extra_notes=None, level=None, procedural_flags=None, ancillary_findings=None):
     if concurrent_codes is None:
         concurrent_codes = []
     if extra_notes is None:
         extra_notes = []
+    if procedural_flags is None:
+        procedural_flags = {}
+    if ancillary_findings is None:
+        ancillary_findings = []
 
-    v = VIOLATIONS[main_code] 
+    v = VIOLATIONS[main_code]
     livello = level if level else "non specificato"
-  
+
     lines = []
     lines.append("ESITO FINALE")
     lines.append(f"Livello di affidabilità: {livello}")
@@ -852,6 +858,12 @@ def format_multiple(main_code, concurrent_codes=None, extra_notes=None, level=No
     lines.append("DICITURA VERBALE")
     lines.append(v["verbal_text"])
 
+    if procedural_flags.get("verbale_additions"):
+        lines.append("")
+        lines.append("INTEGRAZIONE DA INSERIRE NEL VERBALE")
+        for item in procedural_flags["verbale_additions"]:
+            lines.append(f"- {item}")
+
     if v.get("fields_to_fill"):
         lines.append("")
         lines.append("DATI DA COMPLETARE")
@@ -873,8 +885,23 @@ def format_multiple(main_code, concurrent_codes=None, extra_notes=None, level=No
         lines.append("")
         lines.append("VIOLAZIONI CONCORRENTI POSSIBILI")
         for code in concurrent_codes:
-            lines.append("")
-            lines.append(format_compact_violation(code))
+            if code in VIOLATIONS:
+                lines.append("")
+                lines.append(format_compact_violation(code))
+            else:
+                lines.append(f"- {code}")
+
+    if ancillary_findings:
+        lines.append("")
+        lines.append("ULTERIORI INFRAZIONI / ACCERTAMENTI COMPLEMENTARI")
+        for item in ancillary_findings:
+            lines.append(f"- {item}")
+
+    if procedural_flags.get("segnalazioni"):
+        lines.append("")
+        lines.append("ULTERIORI PROVVEDIMENTI")
+        for item in procedural_flags["segnalazioni"]:
+            lines.append(f"- {item}")
 
     if extra_notes:
         lines.append("")
@@ -883,11 +910,11 @@ def format_multiple(main_code, concurrent_codes=None, extra_notes=None, level=No
             lines.append(f"- {note}")
 
     lines.append(article_shortcuts_from_result(main_code, concurrent_codes))
-    
+
     lines.append("")
     lines.append("AVVERTENZA")
     lines.append("Verificare sempre normativa vigente, prontuario del comando, disciplina locale e dati concreti del caso.")
-    
+
     return "\n".join(lines)
 
 def format_norme_from_db():
@@ -910,6 +937,17 @@ def format_checklist_from_db():
     for i, item in enumerate(NCC_DB["checklist_operativa"], start=1):
         lines.append(f"{i}. {item}")
     return "\n".join(lines)
+
+def format_verbale_template():
+    return (
+        "SCHEMA RAPIDO VERBALE / ANNOTAZIONE\n\n"
+        "1. Descrizione sintetica del fatto accertato.\n"
+        "2. Norma principale contestata.\n"
+        "3. Eventuali violazioni concorrenti.\n"
+        "4. Dicitura integrativa su RENT / ruolo conducenti / segnalazione Prefettura / ente rilasciante.\n"
+        "5. Dati da completare: prenotazione, foglio di servizio, passeggeri, titolo autorizzativo, UMC competente.\n\n"
+        "Formula utile: 'Si accerta inoltre ...; della circostanza si dà atto nel presente verbale e si procede alla segnalazione alla Prefettura e/o all'ente rilasciante per quanto di competenza.'"
+    )
 
 def match_case_from_text(text):
     t = text.lower()
@@ -1014,166 +1052,157 @@ ARTICOLI_DB = {
 # ANALISI TESTO LIBERO
 # =========================
 
+def _contains_any(text, needles):
+    return any(x in text for x in needles)
+
+
+def _append_unique(lst, value):
+    if value and value not in lst:
+        lst.append(value)
+
+
 def detect_from_text(text):
     t = text.lower()
 
     data = {
-        "vehicle_authorized": None,   # si/no
-        "service_to_third": None,     # si/no/dubbio
-        "service_context": None,      # a/b/c
-        "violation_type": None,       # art3_11 / other_auth / none
-        "recurrence": None,           # first / second_3y / 2_5y / 3_5y / 4plus_5y
-        "kb": None,                   # si/no
-        "public_waiting": None,       # si/no
-        "taxi_commune": None,         # si/no
-        "booking": None,              # si/no
-        "separate_payment": None      # si/no
+        "vehicle_authorized": None,
+        "service_to_third": None,
+        "service_context": None,
+        "violation_type": None,
+        "recurrence": None,
+        "kb": None,
+        "public_waiting": None,
+        "taxi_commune": None,
+        "booking": None,
+        "separate_payment": None,
+        "rent_registered": None,
+        "foglio_status": None,
+        "ruolo_conducenti": None,
+        "patente_idonea": None,
+        "incauto_affidamento": None,
+        "ente_rilasciante_known": None
     }
 
-    # =========================
-    # MEZZO NON NCC
-    # =========================
-    if any(x in t for x in [
+    if _contains_any(t, [
         "veicolo privato", "auto privata", "macchina privata", "mezzo privato",
         "senza autorizzazione ncc", "non autorizzato ncc", "abusivo",
         "non ncc", "veicolo non ncc", "auto non ncc"
     ]):
         data["vehicle_authorized"] = "no"
 
-    if any(x in t for x in [
+    if _contains_any(t, [
         "veicolo ncc", "autorizzato ncc", "con autorizzazione ncc",
-        "mezzo ncc", "auto ncc", "ncc regolare"
+        "mezzo ncc", "auto ncc", "ncc regolare", "licenza ncc", "autorizzazione comunale"
     ]):
         data["vehicle_authorized"] = "si"
 
-    # =========================
-    # SERVIZIO VERSO TERZI
-    # =========================
-    if any(x in t for x in [
+    if _contains_any(t, [
         "clienti", "passeggeri", "turisti", "utenza", "trasporta persone",
         "porta persone", "accompagna clienti", "accompagna turisti",
-        "prende clienti", "fa la corsa", "servizio a pagamento"
+        "prende clienti", "fa la corsa", "servizio a pagamento", "trasporto terzi"
     ]):
         data["service_to_third"] = "si"
 
-    if any(x in t for x in [
+    if _contains_any(t, [
         "trasporto interno", "servizio per clienti propri", "solo clienti hotel",
-        "solo clienti del parcheggio", "attività accessoria"
+        "solo clienti del parcheggio", "attività accessoria", "navetta interna"
     ]):
         data["service_to_third"] = "dubbio"
 
-    # =========================
-    # CONTESTO SERVIZIO
-    # =========================
-    if any(x in t for x in [
-        "hotel", "albergo", "parcheggio", "parking", "struttura ricettiva",
-        "navetta", "shuttle", "resort"
-    ]):
+    if _contains_any(t, ["hotel", "albergo", "parcheggio", "parking", "struttura ricettiva", "navetta", "shuttle", "resort"]):
         data["service_context"] = "b"
-    elif any(x in t for x in [
-        "taxi", "ncc", "autobus autorizzato", "bus autorizzato"
-    ]):
+    elif _contains_any(t, ["taxi", "ncc", "autobus autorizzato", "bus autorizzato"]):
         data["service_context"] = "a"
     else:
         data["service_context"] = "c"
 
-    # =========================
-    # PAGAMENTO / CORRISPETTIVO
-    # =========================
-    if any(x in t for x in [
+    if _contains_any(t, [
         "pagamento", "a pagamento", "si fa pagare", "corrispettivo",
-        "prezzo", "tariffa", "150 euro", "100 euro", "contanti", "pagano il trasporto"
-    ]):
+        "prezzo", "tariffa", "contanti", "pagano il trasporto", "bonifico", "pos"
+    ]) or re.search(r"\b\d+[\.,]?\d*\s*euro\b", t):
         data["separate_payment"] = "si"
 
-    if any(x in t for x in [
-        "gratuito", "senza corrispettivo", "compreso nel servizio",
-        "servizio incluso", "cortesia"
-    ]):
+    if _contains_any(t, ["gratuito", "senza corrispettivo", "compreso nel servizio", "servizio incluso", "cortesia"]):
         data["separate_payment"] = "no"
 
-    # =========================
-    # PRENOTAZIONE
-    # =========================
-    if any(x in t for x in [
-        "senza prenotazione", "no prenotazione", "manca prenotazione",
-        "non esibisce prenotazione", "privo di prenotazione"
-    ]):
+    if _contains_any(t, ["senza prenotazione", "no prenotazione", "manca prenotazione", "privo di prenotazione"]):
         data["booking"] = "no"
-
-    if any(x in t for x in [
-        "con prenotazione", "prenotazione presente", "prenotazione documentabile",
-        "foglio di servizio presente", "contratto presente"
-    ]):
+    if _contains_any(t, ["con prenotazione", "prenotazione presente", "prenotazione documentabile", "contratto presente"]):
         data["booking"] = "si"
 
-    # =========================
-    # VIOLAZIONI ARTT. 3/11
-    # =========================
-    if any(x in t for x in [
-        "foglio di servizio", "staziona", "sosta su area pubblica", "attesa clienti",
-        "fuori rimessa", "in attesa al porto", "in attesa al terminal",
-        "in attesa in strada", "senza prenotazione"
+    if _contains_any(t, ["foglio di servizio assente", "senza foglio di servizio", "manca foglio di servizio", "foglio non compilato"]):
+        data["foglio_status"] = "assente"
+        data["booking"] = "no"
+        data["violation_type"] = "art3_11"
+    elif _contains_any(t, ["foglio di servizio irregolare", "foglio incompleto", "foglio compilato male", "foglio irregolare"]):
+        data["foglio_status"] = "irregolare"
+        data["violation_type"] = "art3_11"
+    elif _contains_any(t, ["foglio di servizio non esibito", "non esibisce il foglio", "rifiuta di esibire il foglio"]):
+        data["foglio_status"] = "non_esibito"
+        if data["booking"] is None:
+            data["booking"] = "si"
+    elif _contains_any(t, ["foglio di servizio presente", "esibisce il foglio", "foglio regolare"]):
+        data["foglio_status"] = "presente"
+        if data["booking"] is None:
+            data["booking"] = "si"
+
+    if _contains_any(t, [
+        "staziona", "sosta su area pubblica", "attesa clienti", "fuori rimessa", "in attesa al porto",
+        "in attesa al terminal", "in attesa in strada", "senza prenotazione"
     ]):
         data["violation_type"] = "art3_11"
 
-    if any(x in t for x in [
-        "ztl", "regolamento comunale", "prescrizione autorizzativa",
-        "altra prescrizione", "condizioni autorizzazione"
-    ]):
+    if _contains_any(t, ["ztl", "regolamento comunale", "prescrizione autorizzativa", "altra prescrizione", "condizioni autorizzazione"]):
         data["violation_type"] = "other_auth"
 
     if data["violation_type"] is None:
         data["violation_type"] = "none"
 
-    # =========================
-    # SOSTA / ATTESA
-    # =========================
-    if any(x in t for x in [
-        "staziona", "sosta", "in attesa", "fermo in attesa", "attesa clienti",
-        "fuori terminal", "fuori porto", "davanti al terminal", "su area pubblica"
-    ]):
+    if _contains_any(t, ["staziona", "sosta", "in attesa", "fermo in attesa", "attesa clienti", "fuori terminal", "fuori porto", "davanti al terminal", "su area pubblica"]):
         data["public_waiting"] = "si"
 
-    # =========================
-    # COMUNE CON TAXI
-    # =========================
-    if any(x in t for x in [
-        "porto di civitavecchia", "roma", "fiumicino", "milano", "napoli",
-        "stazione termini", "aeroporto"
-    ]):
+    if _contains_any(t, ["porto di civitavecchia", "roma", "fiumicino", "milano", "napoli", "stazione termini", "aeroporto"]):
         data["taxi_commune"] = "si"
 
-    # =========================
-    # KB / CQC
-    # =========================
-    if any(x in t for x in [
-        "senza kb", "manca kb", "privo di kb",
-        "senza cqc", "manca cqc", "privo di cqc",
-        "senza ka", "manca ka"
-    ]):
+    if _contains_any(t, ["senza kb", "manca kb", "privo di kb", "senza cqc", "manca cqc", "privo di cqc", "senza ka", "manca ka"]):
         data["kb"] = "no"
-
-    if any(x in t for x in [
-        "con kb", "kb presente", "cqc presente", "titolo presente"
-    ]):
+    if _contains_any(t, ["con kb", "kb presente", "cqc presente", "titolo presente", "cap kb presente"]):
         data["kb"] = "si"
 
-    # =========================
-    # RECIDIVA
-    # =========================
-    if any(x in t for x in ["seconda nel triennio", "2a nel triennio", "recidiva triennio"]):
+    if _contains_any(t, ["patente sospesa", "senza patente", "patente revocata", "patente non idonea", "patente scaduta"]):
+        data["patente_idonea"] = "no"
+    if _contains_any(t, ["patente regolare", "patente valida", "patente idonea"]):
+        data["patente_idonea"] = "si"
+
+    if _contains_any(t, ["non iscritto al rent", "manca rent", "assenza rent", "rent non registrato"]):
+        data["rent_registered"] = "no"
+    if _contains_any(t, ["rent presente", "iscritto al rent", "registrato rent"]):
+        data["rent_registered"] = "si"
+
+    if _contains_any(t, ["non iscritto al ruolo", "manca iscrizione al ruolo", "ruolo conducenti assente", "non iscritto albo conducenti"]):
+        data["ruolo_conducenti"] = "no"
+    if _contains_any(t, ["iscritto al ruolo", "ruolo conducenti presente", "albo conducenti presente"]):
+        data["ruolo_conducenti"] = "si"
+
+    if _contains_any(t, ["incauto affidamento", "affidato dal titolare", "veicolo affidato", "dato in uso dal titolare"]):
+        data["incauto_affidamento"] = "si"
+
+    if _contains_any(t, ["comune rilasciante noto", "ente rilasciante noto", "autorizzazione del comune di"]):
+        data["ente_rilasciante_known"] = "si"
+
+    if _contains_any(t, ["seconda nel triennio", "2a nel triennio", "recidiva triennio"]):
         data["recurrence"] = "second_3y"
-    elif any(x in t for x in ["seconda nel quinquennio", "2a nel quinquennio"]):
+    elif _contains_any(t, ["seconda nel quinquennio", "2a nel quinquennio"]):
         data["recurrence"] = "2_5y"
-    elif any(x in t for x in ["terza nel quinquennio", "3a nel quinquennio"]):
+    elif _contains_any(t, ["terza nel quinquennio", "3a nel quinquennio"]):
         data["recurrence"] = "3_5y"
-    elif any(x in t for x in ["quarta nel quinquennio", "quarta o successiva", "4a nel quinquennio"]):
+    elif _contains_any(t, ["quarta nel quinquennio", "quarta o successiva", "4a nel quinquennio"]):
         data["recurrence"] = "4plus_5y"
-    elif any(x in t for x in ["prima violazione", "1a violazione", "prima volta"]):
+    elif _contains_any(t, ["prima violazione", "1a violazione", "prima volta"]):
         data["recurrence"] = "first"
 
     return data
+
 
 def decide_violation(answers):
     vehicle_authorized = answers.get("vehicle_authorized")
@@ -1186,12 +1215,54 @@ def decide_violation(answers):
     taxi_commune = answers.get("taxi_commune")
     booking = answers.get("booking")
     separate_payment = answers.get("separate_payment")
+    rent_registered = answers.get("rent_registered")
+    foglio_status = answers.get("foglio_status")
+    ruolo_conducenti = answers.get("ruolo_conducenti")
+    patente_idonea = answers.get("patente_idonea")
+    incauto_affidamento = answers.get("incauto_affidamento")
 
     concurrent = []
     notes = []
+    ancillary_findings = []
+    procedural_flags = {"segnalazioni": [], "verbale_additions": []}
 
     if kb == "no":
-        concurrent.append("116-06")
+        _append_unique(concurrent, "116-06")
+
+    if patente_idonea == "no":
+        _append_unique(concurrent, "116-02")
+        ancillary_findings.append("Conducente privo di patente/titolo di guida idoneo: verificare se ricorrono recidiva biennale, reiterazione o fattispecie 15-bis.")
+
+    if incauto_affidamento == "si" and (kb == "no" or patente_idonea == "no"):
+        _append_unique(concurrent, "116-01")
+
+    if rent_registered == "no":
+        _append_unique(procedural_flags["segnalazioni"], "Segnalazione alla Prefettura per mancata iscrizione RENT da riportare nel verbale unitamente alle altre infrazioni accertate.")
+        _append_unique(procedural_flags["segnalazioni"], "Segnalazione all'ente/comune rilasciante per le valutazioni di competenza sulla regolarità del titolo.")
+        _append_unique(procedural_flags["verbale_additions"], "Accertata mancata iscrizione al RENT; si procede a segnalazione alla Prefettura e all'ente rilasciante.")
+        ancillary_findings.append("Mancata iscrizione RENT: anomalia amministrativa da segnalazione, da cumulare nel verbale con le altre violazioni contestate.")
+
+    if ruolo_conducenti == "no":
+        _append_unique(procedural_flags["segnalazioni"], "Segnalazione alla Prefettura per conducente privo di iscrizione al ruolo/albo conducenti.")
+        _append_unique(procedural_flags["segnalazioni"], "Segnalazione all'ente/comune rilasciante per verifica requisiti soggettivi del conducente e del titolo NCC.")
+        _append_unique(procedural_flags["verbale_additions"], "Accertata assenza di iscrizione al ruolo/albo conducenti; effettuata segnalazione alla Prefettura e all'ente rilasciante.")
+        ancillary_findings.append("Conducente non iscritto al ruolo/albo: requisito soggettivo mancante da evidenziare nel verbale e da segnalare.")
+
+    if foglio_status == "assente":
+        violation_type = "art3_11"
+        booking = "no"
+        ancillary_findings.append("Foglio di servizio assente/non compilato: integra violazione sostanziale delle modalità di esercizio del servizio.")
+    elif foglio_status == "irregolare":
+        violation_type = "art3_11"
+        ancillary_findings.append("Foglio di servizio irregolare/incompleto: trattare come violazione sostanziale delle modalità di esercizio del servizio.")
+    elif foglio_status == "non_esibito":
+        ancillary_findings.append("Foglio di servizio esistente ma non esibito: valutare separatamente la mancata esibizione documentale ex art. 180 CdS.")
+
+    if service_to_third == "no" and vehicle_authorized == "si" and violation_type in {None, "none"} and not concurrent:
+        return None, concurrent, [
+            "Dagli elementi forniti non emerge al momento una violazione NCC tipica già chiudibile con art. 85.",
+            "Verificare comunque documenti, prenotazione, foglio di servizio e prescrizioni locali."
+        ], procedural_flags, ancillary_findings
 
     if service_context == "b" and separate_payment == "no":
         return None, concurrent, [
@@ -1199,37 +1270,38 @@ def decide_violation(answers):
             "Verificare che il servizio sia riservato a clienti propri della struttura o attività.",
             "Verificare che non vi sia corrispettivo separato specifico per il trasporto.",
             "Verificare che non si tratti in concreto di servizio aperto a utenza indifferenziata."
-        ]
+        ], procedural_flags, ancillary_findings
 
     if vehicle_authorized == "no" and service_to_third == "si":
         if recurrence == "second_3y":
-            return "085-04", concurrent, notes
-        return "085-02", concurrent, notes
+            return "085-04", concurrent, notes, procedural_flags, ancillary_findings
+        return "085-02", concurrent, notes, procedural_flags, ancillary_findings
 
     if vehicle_authorized == "si" and violation_type == "art3_11":
         if recurrence == "2_5y":
-            return "085-06", concurrent, notes
+            return "085-06", concurrent, notes, procedural_flags, ancillary_findings
         elif recurrence == "3_5y":
-            return "085-07", concurrent, notes
+            return "085-07", concurrent, notes, procedural_flags, ancillary_findings
         elif recurrence == "4plus_5y":
-            return "085-08", concurrent, notes
+            return "085-08", concurrent, notes, procedural_flags, ancillary_findings
         else:
-            return "085-05", concurrent, notes
+            return "085-05", concurrent, notes, procedural_flags, ancillary_findings
 
     if vehicle_authorized == "si" and violation_type == "other_auth":
-        return "085-09", concurrent, notes
+        return "085-09", concurrent, notes, procedural_flags, ancillary_findings
 
     if vehicle_authorized == "si" and public_waiting == "si" and taxi_commune == "si" and booking == "no":
         notes.extend([
             "Possibile violazione art. 11 L. 21/1992 per stazionamento fuori rimessa.",
             "Verificare se il veicolo era in attesa di utenza indifferenziata o già in servizio su prenotazione."
         ])
-        return "085-05", concurrent, notes
+        return "085-05", concurrent, notes, procedural_flags, ancillary_findings
 
     return None, concurrent, [
         "Caso non chiudibile automaticamente.",
         "Servono ulteriori elementi su autorizzazione, prenotazione, natura del servizio e progressione."
-    ]
+    ], procedural_flags, ancillary_findings
+
 
 def missing_questions(answers):
     questions = []
@@ -1246,34 +1318,10 @@ def missing_questions(answers):
             "text": "Il conducente stava trasportando o mettendosi a disposizione di clienti/passeggeri?\nRispondi: si / no / dubbio"
         })
 
-    if answers.get("service_context") is None:
-        questions.append({
-            "key": "service_context",
-            "text": "Il servizio sembra essere:\na = servizio NCC/taxi/autobus autorizzato\nb = navetta o trasporto collegato a hotel/parcheggio/struttura\nc = non chiaro\nRispondi: a / b / c"
-        })
-
     if answers.get("separate_payment") is None:
         questions.append({
             "key": "separate_payment",
             "text": "Per il trasporto era previsto un pagamento o corrispettivo separato?\nRispondi: si / no"
-        })
-
-    if answers.get("vehicle_authorized") == "no" and answers.get("service_to_third") == "si" and answers.get("recurrence") is None:
-        questions.append({
-            "key": "recurrence",
-            "text": "Si tratta di prima violazione o seconda nel triennio?\nRispondi: first / second_3y"
-        })
-
-    if answers.get("vehicle_authorized") == "si" and answers.get("violation_type") in [None, "none"]:
-        questions.append({
-            "key": "violation_type",
-            "text": "Il problema riguarda soprattutto:\nart3_11 = prenotazione / stazionamento / foglio di servizio / rimessa\nother_auth = altre prescrizioni dell'autorizzazione\nnone = non chiaro\nRispondi: art3_11 / other_auth / none"
-        })
-
-    if answers.get("vehicle_authorized") == "si" and answers.get("violation_type") == "art3_11" and answers.get("recurrence") is None:
-        questions.append({
-            "key": "recurrence",
-            "text": "Questa violazione è:\nfirst = prima\n2_5y = seconda nel quinquennio\n3_5y = terza nel quinquennio\n4plus_5y = quarta o successiva\nRispondi con una di queste opzioni."
         })
 
     if answers.get("kb") is None:
@@ -1282,30 +1330,105 @@ def missing_questions(answers):
             "text": "Il conducente aveva il titolo professionale richiesto (KB / KA / CQC se dovuto)?\nRispondi: si / no"
         })
 
-    if answers.get("public_waiting") is None:
+    if answers.get("patente_idonea") is None:
+        questions.append({
+            "key": "patente_idonea",
+            "text": "La patente del conducente era valida e idonea al veicolo/servizio?\nRispondi: si / no"
+        })
+
+    if answers.get("vehicle_authorized") == "si" and answers.get("rent_registered") is None:
+        questions.append({
+            "key": "rent_registered",
+            "text": "Il vettore/titolo risultava iscritto al RENT?\nRispondi: si / no"
+        })
+
+    if answers.get("vehicle_authorized") == "si" and answers.get("ruolo_conducenti") is None:
+        questions.append({
+            "key": "ruolo_conducenti",
+            "text": "Il conducente risultava iscritto al ruolo/albo conducenti quando richiesto?\nRispondi: si / no"
+        })
+
+    if answers.get("vehicle_authorized") == "si" and answers.get("foglio_status") is None:
+        questions.append({
+            "key": "foglio_status",
+            "text": "Situazione foglio di servizio?\nRispondi con una sola opzione: presente / assente / irregolare / non_esibito"
+        })
+
+    if answers.get("vehicle_authorized") == "no" and answers.get("service_to_third") == "si" and answers.get("recurrence") is None:
+        questions.append({
+            "key": "recurrence",
+            "text": "Per il ramo art. 85 c.4 si tratta di prima violazione o seconda nel triennio?\nRispondi: first / second_3y"
+        })
+
+    if answers.get("vehicle_authorized") == "si" and answers.get("violation_type") in [None, "none"] and answers.get("foglio_status") not in {"assente", "irregolare"}:
+        questions.append({
+            "key": "violation_type",
+            "text": "Il problema riguarda soprattutto:\nart3_11 = prenotazione / stazionamento / foglio di servizio / rimessa\nother_auth = altre prescrizioni dell'autorizzazione\nnone = non chiaro\nRispondi: art3_11 / other_auth / none"
+        })
+
+    if answers.get("vehicle_authorized") == "si" and (answers.get("violation_type") == "art3_11" or answers.get("foglio_status") in {"assente", "irregolare"}) and answers.get("recurrence") is None:
+        questions.append({
+            "key": "recurrence",
+            "text": "Per il ramo art. 85 c.4-bis questa violazione è:\nfirst = prima\n2_5y = seconda nel quinquennio\n3_5y = terza nel quinquennio\n4plus_5y = quarta o successiva\nRispondi con una di queste opzioni."
+        })
+
+    if answers.get("service_to_third") != "no" and answers.get("public_waiting") is None:
         questions.append({
             "key": "public_waiting",
             "text": "Il veicolo era fermo o in attesa su area pubblica?\nRispondi: si / no"
         })
 
-    if answers.get("taxi_commune") is None:
+    if answers.get("service_to_third") != "no" and answers.get("taxi_commune") is None:
         questions.append({
             "key": "taxi_commune",
             "text": "Il fatto è avvenuto in un comune dove è attivo il servizio taxi?\nRispondi: si / no"
         })
 
-    if answers.get("booking") is None:
+    if answers.get("vehicle_authorized") == "si" and answers.get("service_to_third") != "no" and answers.get("booking") is None:
         questions.append({
             "key": "booking",
-            "text": "C'era una prenotazione documentabile o un foglio di servizio?\nRispondi: si / no"
+            "text": "C'era una prenotazione documentabile o un titolo di corsa verificabile?\nRispondi: si / no"
+        })
+
+    if (answers.get("kb") == "no" or answers.get("patente_idonea") == "no") and answers.get("incauto_affidamento") is None:
+        questions.append({
+            "key": "incauto_affidamento",
+            "text": "Il veicolo è stato affidato dal titolare o da altro responsabile al conducente privo dei titoli richiesti?\nRispondi: si / no"
         })
 
     return questions
 
+
+def _normalize_free_answer(text):
+    t = (text or "").strip().lower()
+    t = t.replace("sì", "si")
+    t = re.sub(r"[\.,;:!\?]+$", "", t)
+    return t
+
+def _extract_yes_no(text):
+    t = _normalize_free_answer(text)
+    if re.match(r"^(si|sii|yes|y|certo|confermo|esatto|ok)\b", t):
+        return "si"
+    if re.match(r"^(no|n|negativo|assolutamente no|non presente|manca|assente)\b", t):
+        return "no"
+    return None
+
+def _extract_choice(text, allowed):
+    t = _normalize_free_answer(text)
+    if t in allowed:
+        return t
+    compact = t.replace(" ", "_").replace("-", "_")
+    if compact in allowed:
+        return compact
+    for choice in allowed:
+        if re.search(rf"\b{re.escape(choice)}\b", t):
+            return choice
+    return None
+
 def parse_answer_for_key(key, text):
     t = text.strip().lower()
 
-    if key in ["vehicle_authorized", "kb", "public_waiting", "taxi_commune", "booking", "separate_payment"]:
+    if key in ["vehicle_authorized", "kb", "public_waiting", "taxi_commune", "booking", "separate_payment", "rent_registered", "ruolo_conducenti", "patente_idonea", "incauto_affidamento", "ente_rilasciante_known"]:
         if t in {"si", "no"}:
             return t
 
@@ -1325,7 +1448,18 @@ def parse_answer_for_key(key, text):
         if t in {"first", "second_3y", "2_5y", "3_5y", "4plus_5y"}:
             return t
 
+    if key == "foglio_status":
+        if t in {"presente", "assente", "irregolare", "non_esibito"}:
+            return t
+
     return None
+
+
+def merge_detected_answers(state, text):
+    detected = detect_from_text(text)
+    for key, value in detected.items():
+        if value is not None:
+            state["answers"][key] = value
 
 def begin_case_flow(chat_id):
     user_states[chat_id] = {
@@ -1334,70 +1468,73 @@ def begin_case_flow(chat_id):
         "answers": {},
         "pending_question": None,
         "awaiting_external_consent": False,
-        "awaiting_web_query": False
+        "awaiting_web_query": False,
+        "questions_asked": []
     }
 
 def process_case_description(chat_id, text):
     state = user_states[chat_id]
     state["free_text"] = text
 
-    detected = detect_from_text(text)
-    state["answers"].update({k: v for k, v in detected.items() if v is not None})
+    merge_detected_answers(state, text)
 
     case_key = match_case_from_text(text)
-    main_code, concurrent, notes = decide_violation(state["answers"])
+    main_code, concurrent, notes, procedural_flags, ancillary_findings = decide_violation(state["answers"])
     questions = missing_questions(state["answers"])
 
-    # Caso chiudibile con dati interni
     if main_code and len(questions) == 0 and not should_offer_external_search(state["answers"], notes):
         level = confidence_level(state["answers"], main_code)
-        result = format_multiple(main_code, concurrent, notes, level=level)
+        result = format_multiple(main_code, concurrent, notes, level=level, procedural_flags=procedural_flags, ancillary_findings=ancillary_findings)
         clear_case(chat_id)
         return result
 
-    # Caso tipico riconosciuto + servono ancora dati interni
     if case_key and questions:
         q = questions[0]
         state["mode"] = "clarification"
         state["pending_question"] = q
+        state["questions_asked"].append(q["key"])
         return (
             f"{format_case_hint(case_key)}\n\n"
-            "Per chiudere correttamente il caso mi serve questo chiarimento:\n\n"
+            "Prima valutazione completata. Per chiudere correttamente il caso mi serve questo chiarimento:\n\n"
             f"{q['text']}"
         )
 
-    # Ha ipotesi ma mancano pochi dati
-    if main_code and len(questions) <= 3 and len(questions) > 0:
+    if main_code and len(questions) <= 5 and len(questions) > 0:
         q = questions[0]
         state["mode"] = "clarification"
         state["pending_question"] = q
+        state["questions_asked"].append(q["key"])
         return (
             "Esito preliminare probabile individuato con il database interno.\n"
-            "Per chiudere il caso mi serve ancora questo dato:\n\n"
+            "Per completare il quadro sanzionatorio e le eventuali segnalazioni mi serve ancora questo dato:\n\n"
             f"{q['text']}"
         )
 
-    # Nessun dato sufficiente interno: propone ricerca esterna
     if len(questions) == 0 and should_offer_external_search(state["answers"], notes):
         state["mode"] = "external_consent"
         state["awaiting_external_consent"] = True
         return ask_external_search_consent()
 
-    # Mancano dati interni: continua a chiedere prima quelli
+    if len(questions) == 0 and not main_code:
+        result = format_partial_assessment(state["answers"], concurrent, notes, procedural_flags, ancillary_findings)
+        clear_case(chat_id)
+        return result
+
     if questions:
         q = questions[0]
         state["mode"] = "clarification"
         state["pending_question"] = q
+        state["questions_asked"].append(q["key"])
         return (
             "Il bot non ha ancora dati sufficienti per una qualificazione affidabile.\n"
-            "Ti faccio una domanda mirata:\n\n"
+            "Ti faccio una domanda mirata per ricostruire tutte le possibili infrazioni:\n\n"
             f"{q['text']}"
         )
 
-    # fallback finale
     state["mode"] = "external_consent"
     state["awaiting_external_consent"] = True
     return ask_external_search_consent()
+
 
 def process_clarification(chat_id, text):
     state = user_states[chat_id]
@@ -1407,46 +1544,45 @@ def process_clarification(chat_id, text):
         clear_case(chat_id)
         return "Procedura annullata. Usa /caso per ricominciare."
 
+    merge_detected_answers(state, text)
     value = parse_answer_for_key(q["key"], text)
     if value is None:
         return f"Risposta non valida.\n\n{q['text']}"
 
     state["answers"][q["key"]] = value
 
-    main_code, concurrent, notes = decide_violation(state["answers"])
-    questions = missing_questions(state["answers"])
-    questions = [item for item in questions if item["key"] != q["key"]]
+    main_code, concurrent, notes, procedural_flags, ancillary_findings = decide_violation(state["answers"])
+    questions = [item for item in missing_questions(state["answers"]) if item["key"] != q["key"]]
 
-    # chiusura completa con database interno
     if main_code and len(questions) == 0 and not should_offer_external_search(state["answers"], notes):
         level = confidence_level(state["answers"], main_code)
-        result = format_multiple(main_code, concurrent, notes, level=level)
+        result = format_multiple(main_code, concurrent, notes, level=level, procedural_flags=procedural_flags, ancillary_findings=ancillary_findings)
         clear_case(chat_id)
         return result
 
-    # servono altre domande interne
     if questions:
         next_q = questions[0]
         state["pending_question"] = next_q
-        return f"Mi serve ancora questo chiarimento:\n\n{next_q['text']}"
+        if next_q["key"] not in state["questions_asked"]:
+            state["questions_asked"].append(next_q["key"])
+        return f"Mi serve ancora questo chiarimento per avere il quadro completo:\n\n{next_q['text']}"
 
-    # nessuna altra domanda interna, ma caso ancora da approfondire all'esterno
     if should_offer_external_search(state["answers"], notes):
         state["mode"] = "external_consent"
         state["awaiting_external_consent"] = True
         state["pending_question"] = None
         return ask_external_search_consent()
 
-    # se comunque ha una soluzione, la restituisce
     if main_code:
-        result = format_multiple(main_code, concurrent, notes)
+        level = confidence_level(state["answers"], main_code)
+        result = format_multiple(main_code, concurrent, notes, level=level, procedural_flags=procedural_flags, ancillary_findings=ancillary_findings)
         clear_case(chat_id)
         return result
 
-    state["mode"] = "external_consent"
-    state["awaiting_external_consent"] = True
-    state["pending_question"] = None
-    return ask_external_search_consent()
+    result = format_partial_assessment(state["answers"], concurrent, notes, procedural_flags, ancillary_findings)
+    clear_case(chat_id)
+    return result
+
 
 def ask_external_search_consent():
     return (
@@ -1667,7 +1803,7 @@ def help_command(message):
     text = (
         "Comandi disponibili:\n\n"
         "/caso = descrivi liberamente la situazione; il bot analizza il testo, usa il database interno e, se manca qualcosa, ti fa domande mirate. "
-        "Se il database interno non basta, può chiederti se autorizzare una ricerca esterna su internet.\n\n"
+        "Se mancano elementi, ti fa domande mirate; se il database interno non basta, può chiederti se autorizzare una ricerca esterna su internet.\n\n"
         "/checklist = elenco controlli operativi sul posto.\n\n"
         "/documenti = documenti ed elementi che il conducente / servizio NCC deve esibire o consentire di verificare.\n\n"
         "/norme = riferimenti normativi principali NCC.\n\n"
@@ -1724,6 +1860,12 @@ def art11l21_command(message):
         return
     bot.reply_to(message, format_articolo("art11l21"))
 
+@bot.message_handler(commands=['verbale'])
+def verbale_command(message):
+    if not ensure_authorized(message):
+        return
+    bot.reply_to(message, format_verbale_template())
+
 @bot.message_handler(commands=['checklist'])
 def checklist_command(message):
     if not ensure_authorized(message):
@@ -1752,9 +1894,9 @@ def caso_command(message):
     begin_case_flow(message.chat.id)
     bot.reply_to(
         message,
-        "Descrivi liberamente la situazione in un solo messaggio.\n\n"
+        "Descrivi liberamente la situazione in un solo messaggio. Il bot cercherà tutte le possibili infrazioni; se mancano dati ti farà domande mirate fino a chiudere il quadro.\n\n"
         "Esempio:\n"
-        "veicolo privato prende due turisti al porto, li accompagna a Roma, pagamento concordato, conducente senza KB"
+        "veicolo ncc fermo al porto, foglio di servizio assente, rent non registrato, conducente senza kb, mezzo affidato dal titolare"
     )
 
 # =========================
