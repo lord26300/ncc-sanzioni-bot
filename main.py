@@ -5,6 +5,7 @@ import requests
 import re
 from flask import Flask
 import telebot
+from telebot import types
 
 TOKEN = os.getenv("TOKEN")
 bot = telebot.TeleBot(TOKEN)
@@ -846,6 +847,143 @@ def clear_case(chat_id):
 
 def get_state(chat_id):
     return user_states.get(chat_id)
+
+
+def normalize_article_key(article_key):
+    if not article_key:
+        return None
+    key = str(article_key).strip().lower().replace('/', '')
+    aliases = {
+        'art85': 'art85',
+        '85': 'art85',
+        'art116': 'art116',
+        '116': 'art116',
+        'art3l21': 'art3l21',
+        'art3': 'art3l21',
+        '3l21': 'art3l21',
+        'art11l21': 'art11l21',
+        'art11': 'art11l21',
+        '11l21': 'art11l21',
+    }
+    return aliases.get(key)
+
+
+def format_articolo(article_key):
+    key = normalize_article_key(article_key)
+    item = ARTICOLI_DB.get(key) if key else None
+    if not item:
+        return (
+            'Articolo non disponibile nel database interno.\n\n'
+            'Usa uno di questi comandi: /art85, /art116, /art3l21, /art11l21'
+        )
+
+    lines = [item['titolo'], '', item['testo']]
+    link = item.get('link')
+    if link:
+        lines.extend(['', f'Fonte normativa / consultazione: {link}'])
+    return '\n'.join(lines)
+
+
+def get_article_keys_for_result(main_code=None, concurrent_codes=None):
+    concurrent_codes = concurrent_codes or []
+    article_keys = []
+
+    def add(key):
+        norm = normalize_article_key(key)
+        if norm and norm not in article_keys:
+            article_keys.append(norm)
+
+    code_to_article = {
+        '085-02': 'art85',
+        '085-04': 'art85',
+        '085-05': 'art85',
+        '085-06': 'art85',
+        '085-07': 'art85',
+        '085-08': 'art85',
+        '085-09': 'art85',
+        '116-01': 'art116',
+        '116-02': 'art116',
+        '116-03': 'art116',
+        '116-04': 'art116',
+        '116-05': 'art116',
+        '116-06': 'art116',
+    }
+
+    add(code_to_article.get(main_code))
+
+    if main_code in {'085-05', '085-06', '085-07', '085-08'}:
+        add('art3l21')
+        add('art11l21')
+
+    for code in concurrent_codes:
+        add(code_to_article.get(code))
+
+    return article_keys
+
+
+def build_article_markup(article_keys=None):
+    article_keys = article_keys or []
+    article_keys = [normalize_article_key(k) for k in article_keys]
+    article_keys = [k for k in article_keys if k]
+    if not article_keys:
+        return None
+
+    label_map = {
+        'art85': 'Art. 85 CdS',
+        'art116': 'Art. 116 CdS',
+        'art3l21': 'Art. 3 L. 21/1992',
+        'art11l21': 'Art. 11 L. 21/1992',
+    }
+
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    buttons = []
+    for key in article_keys:
+        label = label_map.get(key, key)
+        buttons.append(types.InlineKeyboardButton(label, callback_data=f'article:{key}'))
+    if buttons:
+        markup.add(*buttons)
+    return markup
+
+
+def infer_article_keys_from_text(text):
+    if not text:
+        return []
+    mapping = {
+        '/art85': 'art85',
+        '/art116': 'art116',
+        '/art3l21': 'art3l21',
+        '/art11l21': 'art11l21',
+    }
+    found = []
+    lowered = str(text).lower()
+    for cmd, key in mapping.items():
+        if cmd in lowered and key not in found:
+            found.append(key)
+    return found
+
+
+def reply_with_article_buttons(message, text, article_keys=None, disable_web_page_preview=True):
+    keys = article_keys or infer_article_keys_from_text(text)
+    markup = build_article_markup(keys)
+    bot.reply_to(message, text, reply_markup=markup, disable_web_page_preview=disable_web_page_preview)
+
+
+def article_shortcuts_from_result(main_code=None, concurrent_codes=None):
+    article_keys = get_article_keys_for_result(main_code, concurrent_codes)
+    if not article_keys:
+        return ''
+
+    label_map = {
+        'art85': '/art85',
+        'art116': '/art116',
+        'art3l21': '/art3l21',
+        'art11l21': '/art11l21',
+    }
+    commands = [label_map[k] for k in article_keys if k in label_map]
+    if not commands:
+        return ''
+
+    return 'ARTICOLI RICHIAMABILI\n' + '\n'.join(f'- {cmd}' for cmd in commands)
 
 def format_compact_violation(code):
     v = VIOLATIONS[code]
@@ -2059,7 +2197,7 @@ def help_command(message):
 def norme_command(message):
     if not ensure_authorized(message):
         return
-    bot.reply_to(message, format_norme_from_db())
+    reply_with_article_buttons(message, format_norme_from_db(), ['art85', 'art116', 'art3l21', 'art11l21'])
 
 @bot.message_handler(commands=['documenti'])
 def documenti_command(message):
@@ -2160,6 +2298,18 @@ def navetta_command(message):
         return
     bot.reply_to(message, begin_preset_case(message.chat.id, "navetta"))
 
+@bot.callback_query_handler(func=lambda call: str(call.data).startswith("article:"))
+def article_callback(call):
+    key = str(call.data).split(":", 1)[1].strip()
+    text = format_articolo(key)
+    markup = build_article_markup([key])
+    try:
+        bot.answer_callback_query(call.id, "Articolo richiamato")
+    except Exception:
+        pass
+    bot.send_message(call.message.chat.id, text, reply_markup=markup, disable_web_page_preview=True)
+
+
 # =========================
 # MESSAGGI GENERICI
 # =========================
@@ -2180,12 +2330,12 @@ def all_messages(message):
 
     if mode == "free_case":
         response = process_case_description(chat_id, message.text.strip())
-        bot.reply_to(message, response)
+        reply_with_article_buttons(message, response)
         return
 
     if mode == "clarification":
         response = process_clarification(chat_id, message.text.strip())
-        bot.reply_to(message, response)
+        reply_with_article_buttons(message, response)
         return
 
     if mode == "external_consent":
