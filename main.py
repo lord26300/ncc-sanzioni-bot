@@ -49,6 +49,24 @@ PRESET_SCENARIOS = {
     }
 }
 
+
+
+CONTROL_DOCS = [
+    {"id": "patente", "label": "Patente"},
+    {"id": "kb", "label": "KB / KA / CQC"},
+    {"id": "autorizzazione", "label": "Licenza / Autorizzazione NCC"},
+    {"id": "carta", "label": "Carta di circolazione / DU"},
+    {"id": "assicurazione", "label": "Assicurazione"},
+    {"id": "foglio", "label": "Foglio di servizio"},
+]
+
+CONTROL_ASSUME_NCC_DEFAULTS = {
+    "vehicle_authorized": "si",
+    "service_to_third": "si",
+    "service_context": "a",
+}
+
+CONTROL_DOC_LABELS = {item["id"]: item["label"] for item in CONTROL_DOCS}
 # =========================
 # DATI SANZIONI
 # =========================
@@ -349,6 +367,92 @@ VIOLATIONS["180-01"] = {
     "notes": ["Da usare come richiamo operativo separato e solo se la fattispecie concreta è documentale/non sostanziale."],
     "fields_to_fill": ["documento richiesto", "modalità della richiesta", "esito del controllo"],
     "short_ready_text": "Valutare autonoma contestazione documentale per mancata esibizione immediata del foglio di servizio/codice identificativo del servizio."
+}
+
+
+VIOLATIONS["180-DOC"] = {
+    "title": "Mancata esibizione di documento obbligatorio a bordo",
+    "article": "CdS art. 180 (da definire in base al documento)",
+    "pmr": "Verificare prontuario",
+    "reduced_30": "Verificare prontuario",
+    "over_60": "Verificare prontuario",
+    "edictal": "Verificare fattispecie concreta",
+    "accessories": ["Verificare"],
+    "verbal_text": "Il conducente non esibiva all'atto del controllo uno o più documenti obbligatori per la circolazione o per il servizio.",
+    "notes": [
+        "Usare come richiamo operativo per patente, autorizzazione NCC, carta di circolazione o assicurazione non esibite.",
+        "La voce specifica di prontuario va individuata in base al documento mancante all'atto del controllo."
+    ],
+    "fields_to_fill": ["documento richiesto", "modalità della richiesta", "ufficio di presentazione se previsto"],
+    "short_ready_text": "Valutare autonoma contestazione documentale ex art. 180 CdS per i documenti non esibiti all'atto del controllo."
+}
+
+VIOLATIONS["180-01DOC"] = {
+    "title": "Mancanza momentanea di documenti di guida/circolazione",
+    "article": "CdS art. 180 c. 1 e c. 7",
+    "pmr": "€ 42,00",
+    "reduced_30": "€ 29,40",
+    "over_60": "€ 86,50",
+    "edictal": "da € 42,00 a € 173,00",
+    "accessories": ["Nessuna"],
+    "verbal_text": "Circolava alla guida del veicolo sopra indicato senza portare con sé, pur dichiarando di esserne in possesso, la patente di guida valida per la categoria del veicolo condotto e/o il documento di circolazione. L'interessato è invitato a presentarsi entro 30 giorni presso un ufficio di polizia per esibire il documento mancante. L'inosservanza a quanto intimato comporterà la sanzione di cui all'art. 180 c. 8 CdS.",
+    "notes": [
+        "Usare questa voce per patente o carta di circolazione non al seguito quando il documento esiste.",
+        "Se alla verifica il documento risulta inesistente o revocato, applicare la norma specifica e non l'art. 180."
+    ],
+    "fields_to_fill": ["documento mancante", "situazione di fatto da precisare", "ufficio di polizia", "termine per presentazione"],
+    "short_ready_text": "Art. 180 c.1 e c.7: PMR € 42,00; riduzione 30% € 29,40; oltre 60 giorni € 86,50; edittale da € 42,00 a € 173,00. Invito a presentare il documento mancante entro il termine fissato."
+}
+
+VIOLATIONS["180-03"] = {
+    "title": "Mancanza momentanea del certificato assicurativo",
+    "article": "CdS art. 180 c. 1 e c. 7",
+    "pmr": "€ 42,00",
+    "reduced_30": "€ 29,40",
+    "over_60": "€ 86,50",
+    "edictal": "da € 42,00 a € 173,00",
+    "accessories": ["Nessuna"],
+    "verbal_text": "Conducente del veicolo sopra indicato non aveva con sé il certificato di assicurazione obbligatoria. Avendo l'utente dichiarato l'esistenza dell'assicurazione con la compagnia/agenzia da indicare, l'interessato è invitato a presentarsi entro 30 giorni presso un ufficio di polizia per esibire il documento mancante. L'inosservanza a quanto intimato comporterà la sanzione di cui all'art. 180 c. 8 CdS.",
+    "notes": [
+        "Usare solo se la copertura esiste ed è solo non esibita.",
+        "Se la copertura manca, applicare l'art. 193."
+    ],
+    "fields_to_fill": ["compagnia assicurativa", "agenzia", "motivo dell'impossibilità di accertamento immediato", "ufficio di polizia"],
+    "short_ready_text": "Art. 180 c.1 e c.7 per certificato assicurativo non al seguito: PMR € 42,00; riduzione 30% € 29,40; oltre 60 giorni € 86,50. Invito a presentare il documento mancante."
+}
+
+VIOLATIONS["180-06"] = {
+    "title": "Mancanza momentanea di autorizzazioni, licenze o altri documenti",
+    "article": "CdS art. 180 c. 3 e c. 7",
+    "pmr": "€ 42,00",
+    "reduced_30": "€ 29,40",
+    "over_60": "€ 86,50",
+    "edictal": "da € 42,00 a € 173,00",
+    "accessories": ["Nessuna"],
+    "verbal_text": "Conducente del veicolo sopra indicato, adibito a servizio NCC, non portava con sé la specifica autorizzazione o licenza prescritta. L'interessato è invitato a presentarsi entro 30 giorni presso un ufficio di polizia per esibire il documento mancante. L'inosservanza a quanto intimato comporterà la sanzione di cui all'art. 180 c. 8 CdS.",
+    "notes": [
+        "Per i veicoli adibiti agli usi previsti dall'art. 82 il conducente deve avere con sé la specifica autorizzazione/licenza.",
+        "Se il titolo risulta inesistente, sospeso o revocato, applicare la norma specifica del settore e non l'art. 180."
+    ],
+    "fields_to_fill": ["tipo di servizio", "licenza/autorizzazione mancante", "ufficio di polizia", "termine per presentazione"],
+    "short_ready_text": "Art. 180 c.3 e c.7 per licenza/autorizzazione NCC non al seguito: PMR € 42,00; riduzione 30% € 29,40; oltre 60 giorni € 86,50. Invito a esibire il documento mancante."
+}
+
+VIOLATIONS["180-09"] = {
+    "title": "Mancanza di CAP, CQC, CFP o certificato di idoneità",
+    "article": "CdS art. 180 c. 5 e c. 7",
+    "pmr": "€ 42,00",
+    "reduced_30": "€ 29,40",
+    "over_60": "€ 86,50",
+    "edictal": "da € 42,00 a € 173,00",
+    "accessories": ["Nessuna"],
+    "verbal_text": "Conducente del veicolo sopra indicato, per il quale era prescritto il possesso di CAP o CQC, non portava con sé tale documento. L'interessato è invitato a presentarsi entro 30 giorni presso un ufficio di polizia per esibire il documento mancante. L'inosservanza a quanto intimato comporterà la sanzione di cui all'art. 180 c. 8 CdS.",
+    "notes": [
+        "Usare se il titolo professionale esiste ma non è stato esibito.",
+        "Se il titolo manca o non è idoneo, applicare l'art. 116 c. 16 e 18."
+    ],
+    "fields_to_fill": ["titolo mancante", "ufficio di polizia", "termine per presentazione"],
+    "short_ready_text": "Art. 180 c.5 e c.7 per CAP/KB/CQC non al seguito: PMR € 42,00; riduzione 30% € 29,40; oltre 60 giorni € 86,50. Invito a presentare il titolo mancante."
 }
 
 NCC_DB = {
@@ -733,7 +837,7 @@ def authorized_start_text(user_id):
         f"Accesso autorizzato.\n"
         f"Il tuo user id è: {user_id}\n\n"
         "Comandi disponibili:\n"
-        "/caso - descrivi liberamente il fatto\n"
+        "/controllo - checklist documentale guidata\n/caso - descrivi liberamente il fatto\n"
         "/checklist - controlli operativi\n"
         "/documenti - documenti da controllare\n"
         "/norme - riferimenti principali\n"
@@ -961,6 +1065,15 @@ def get_question_buttons(question_key):
         'violation_type': [('ART. 3/11', 'art3_11'), ('ALTRE PRESCR.', 'other_auth'), ('NON CHIARO', 'none')],
         'foglio_status': [('PRESENTE', 'presente'), ('ASSENTE', 'assente'), ('IRREGOLARE', 'irregolare'), ('NON ESIBITO', 'non_esibito')],
         'recurrence': [('PRIMA', 'first'), ('2^ QUINQ.', '2_5y'), ('3^ QUINQ.', '3_5y'), ('4+', '4plus_5y'), ('2^ TRIENNIO', 'second_3y')],
+        'control_patente_status': [('VALIDA', 'valida'), ('SCADUTA', 'scaduta'), ('NON IDONEA', 'non_idonea'), ('NON ESIBITA', 'non_esibita')],
+        'control_kb_status': [('VALIDO', 'valido'), ('SCADUTO', 'scaduto'), ('NON IDONEO/MAI', 'non_idoneo'), ('NON ESIBITO', 'non_esibito'), ('NON DOVUTO', 'non_dovuto')],
+        'control_autorizzazione_status': [('REGOLARE', 'regolare'), ('NON ESIBITA', 'non_esibita'), ('NON AUTORIZZATO', 'non_autorizzato')],
+        'control_foglio_status': [('REGOLARE', 'regolare'), ('IRREGOLARE', 'irregolare'), ('ASSENTE', 'assente'), ('NON ESIBITO', 'non_esibito')],
+        'control_rent_status': [('REGOLARE', 'si'), ('NON REGOLARE', 'no'), ('NON VERIF.', 'non_verificato')],
+        'control_ruolo_status': [('REGOLARE', 'si'), ('ASSENTE', 'no'), ('NON VERIF.', 'non_verificato')],
+        'control_owner_type': [('PERSONA FISICA', 'persona_fisica'), ('COOP./SRL', 'cooperativa_srl'), ('AGENZIA VIAGGI', 'agenzia_viaggi'), ('ALTRO', 'altro')],
+        'control_circulation_use': [('USO TERZI/NCC', 'uso_terzi_ncc'), ('USO PROPRIO', 'uso_proprio'), ('NON LETTO', 'non_letto')],
+        'control_trip_nature': [('NCC PURO', 'ncc_puro'), ('PACCHETTO AGENZIA', 'agenzia_pacchetto'), ('NAVETTA ACCESS.', 'navetta_accessoria'), ('DUBBIO', 'dubbio')],
     }
     return mapping.get(question_key, [])
 
@@ -990,7 +1103,8 @@ def build_combined_markup(article_keys=None, question_key=None):
     if q_buttons:
         row = []
         for label, value in q_buttons:
-            row.append(types.InlineKeyboardButton(label, callback_data=f'answer:{value}'))
+            prefix = 'ctrl_answer' if (question_key or '').startswith('control_') else 'answer'
+            row.append(types.InlineKeyboardButton(label, callback_data=f'{prefix}:{value}'))
             if len(row) == 2:
                 markup.row(*row)
                 row = []
@@ -1568,6 +1682,9 @@ def decide_violation(answers):
     ruolo_conducenti = answers.get("ruolo_conducenti")
     patente_idonea = answers.get("patente_idonea")
     incauto_affidamento = answers.get("incauto_affidamento")
+    owner_type = answers.get("owner_type")
+    circulation_use = answers.get("circulation_use")
+    trip_nature = answers.get("trip_nature")
 
     concurrent = []
     notes = []
@@ -1622,6 +1739,27 @@ def decide_violation(answers):
     if public_waiting == "si" and booking == "no" and vehicle_authorized == "si":
         violation_type = "art3_11"
         add_verbal("Il veicolo stazionava o sostava su area pubblica in attesa di utenza senza prenotazione documentabile.")
+
+    if circulation_use == "uso_proprio" and service_to_third == "si":
+        if owner_type == "agenzia_viaggi" and trip_nature == "agenzia_pacchetto":
+            notes.extend([
+                "Il mezzo risulta in uso proprio ma il servizio appare collegato a pacchetto/escursione organizzata da agenzia.",
+                "Acquisire voucher, contratto, programma del viaggio, corrispettivo complessivo e prova che il trasporto sia accessorio al servizio turistico.",
+                "In questo scenario il caso non va chiuso automaticamente come NCC abusivo senza prima verifica documentale completa."
+            ])
+            add_verbal("Nel corso del controllo il trasporto dichiarato risultava inserito in iniziativa organizzata da agenzia di viaggi; si acquisiva/documentava la relativa documentazione commerciale al fine di verificare se il trasporto costituisse prestazione accessoria a pacchetto turistico ovvero autonomo servizio di trasporto persone.")
+            return None, concurrent, notes, procedural_flags, ancillary_findings
+        if trip_nature == "navetta_accessoria":
+            notes.extend([
+                "Il mezzo risulta in uso proprio e il servizio appare come navetta/accessorio.",
+                "Verificare che sia riservato a clienti propri, senza corrispettivo separato per il trasporto e senza apertura a utenza indifferenziata."
+            ])
+            add_verbal("Il trasporto appariva dichiarato come servizio accessorio/navetta: acquisire elementi su prenotazione, platea dei destinatari e corrispettivo del trasporto prima di contestare la violazione principale.")
+            return None, concurrent, notes, procedural_flags, ancillary_findings
+        add_verbal("Accertato servizio di trasporto persone verso corrispettivo con veicolo risultante dal documento di circolazione adibito a uso proprio.")
+        add_signal("Comunicazione al Prefetto del luogo della violazione nei casi di art. 85 comma 4 CdS.")
+        ancillary_findings.append("Uso proprio sul documento di circolazione incompatibile, allo stato, con servizio NCC/trasporto verso terzi a pagamento: verificare e verbalizzare dettagli del DU/libretto e del rapporto con i passeggeri.")
+        vehicle_authorized = "no"
 
     if service_to_third == "no" and vehicle_authorized == "si" and violation_type in {None, "none"} and not concurrent:
         return None, concurrent, [
@@ -1903,6 +2041,22 @@ def parse_answer_for_key(key, text):
         if fs:
             return fs
 
+    custom_map = {
+        "control_patente_status": {"valida", "scaduta", "non_idonea", "non_esibita"},
+        "control_kb_status": {"valido", "scaduto", "non_idoneo", "non_esibito", "non_dovuto"},
+        "control_autorizzazione_status": {"regolare", "non_esibita", "non_autorizzato"},
+        "control_foglio_status": {"regolare", "irregolare", "assente", "non_esibito"},
+        "control_rent_status": {"si", "no", "non_verificato"},
+        "control_ruolo_status": {"si", "no", "non_verificato"},
+        "control_owner_type": {"persona_fisica", "cooperativa_srl", "agenzia_viaggi", "altro"},
+        "control_circulation_use": {"uso_terzi_ncc", "uso_proprio", "non_letto"},
+        "control_trip_nature": {"ncc_puro", "agenzia_pacchetto", "navetta_accessoria", "dubbio"},
+    }
+    if key in custom_map:
+        choice = _extract_choice(t, custom_map[key])
+        if choice:
+            return choice
+
     return None
 
 
@@ -1911,6 +2065,254 @@ def merge_detected_answers(state, text):
     for key, value in detected.items():
         if value is not None:
             state["answers"][key] = value
+
+def begin_control_flow(chat_id):
+    user_states[chat_id] = {
+        "mode": "control_docs",
+        "answers": {},
+        "selected_docs": [],
+        "control_queue": [],
+        "pending_question": None,
+        "control_concurrent": [],
+        "control_notes": [],
+        "control_flags": {"segnalazioni": [], "verbale_additions": []},
+        "preset_name": None,
+    }
+
+
+def _control_text_from_state(state):
+    selected = state.get("selected_docs", [])
+    selected_labels = [CONTROL_DOC_LABELS.get(k, k) for k in selected]
+    lines = [
+        "CONTROLLO DOCUMENTALE NCC - CHECKLIST OPERATIVA",
+        "",
+        "Premi i documenti/materiali che il conducente ha esibito.",
+        "Quando hai finito premi CONFERMA DOCUMENTI.",
+        "",
+        "Selezionati:"
+    ]
+    if selected_labels:
+        lines.extend([f"- {x}" for x in selected_labels])
+    else:
+        lines.append("- nessuno")
+    lines.append("")
+    lines.append("I documenti non selezionati verranno trattati come non esibiti/mancanti. Il bot farà solo le domande strettamente necessarie per distinguere tra mancata esibizione, mancanza sostanziale, documento scaduto/non valido e, se serve, uso proprio/uso terzi o servizio tramite agenzia.")
+    return "\n".join(lines)
+
+
+def build_control_docs_markup(state):
+    selected = set(state.get("selected_docs", []))
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    buttons = []
+    for item in CONTROL_DOCS:
+        active = item["id"] in selected
+        label = f"✅ {item['label']}" if active else item["label"]
+        buttons.append(types.InlineKeyboardButton(label, callback_data=f"ctrl_doc_toggle:{item['id']}"))
+    for i in range(0, len(buttons), 2):
+        markup.row(*buttons[i:i+2])
+    markup.row(types.InlineKeyboardButton("CONFERMA DOCUMENTI", callback_data="ctrl_doc_done"))
+    markup.row(types.InlineKeyboardButton("ANNULLA", callback_data="ctrl_doc_cancel"))
+    return markup
+
+
+def _append_unique_local(lst, item):
+    if item and item not in lst:
+        lst.append(item)
+
+
+def _queue_control_question(state, key, text):
+    state.setdefault("control_queue", []).append({"key": key, "text": text})
+
+
+def build_control_queue(state):
+    state["control_queue"] = []
+    selected = set(state.get("selected_docs", []))
+
+    if "patente" in selected:
+        _queue_control_question(state, "control_patente_status", "Patente esibita: è valida e idonea al veicolo/servizio?\nScegli: valida / scaduta / non_idonea / non_esibita")
+    else:
+        _queue_control_question(state, "control_patente_status", "Patente non esibita: si tratta di mera mancata esibizione oppure di patente scaduta o non idonea?\nScegli: non_esibita / scaduta / non_idonea")
+
+    if "kb" in selected:
+        _queue_control_question(state, "control_kb_status", "KB / KA / CQC esibito: scegli lo stato corretto.\nScegli: valido / scaduto / non_idoneo / non_dovuto")
+    else:
+        _queue_control_question(state, "control_kb_status", "KB / KA / CQC non esibito: scegli lo stato corretto.\nScegli: non_esibito / non_idoneo / scaduto / non_dovuto")
+
+    if "autorizzazione" in selected:
+        _queue_control_question(state, "control_autorizzazione_status", "Licenza / autorizzazione NCC esibita: era regolare?\nScegli: regolare / non_esibita / non_autorizzato")
+    else:
+        _queue_control_question(state, "control_autorizzazione_status", "Licenza / autorizzazione NCC non esibita: scegli il caso corretto.\nScegli: non_esibita / non_autorizzato / regolare")
+
+    if "foglio" in selected:
+        _queue_control_question(state, "control_foglio_status", "Foglio di servizio esibito: scegli lo stato corretto.\nScegli: regolare / irregolare / assente / non_esibito")
+    else:
+        _queue_control_question(state, "control_foglio_status", "Foglio di servizio non esibito: scegli il caso corretto.\nScegli: non_esibito / assente / irregolare")
+
+    _queue_control_question(state, "control_owner_type", "Intestatario/proprietario del mezzo: scegli il tipo.\nScegli: persona_fisica / cooperativa_srl / agenzia_viaggi / altro")
+    _queue_control_question(state, "control_circulation_use", "Sul libretto / DU quale uso risulta?\nScegli: uso_terzi_ncc / uso_proprio / non_letto")
+    _queue_control_question(state, "control_trip_nature", "Il servizio controllato sembra: NCC puro, pacchetto agenzia, navetta accessoria o dubbio?\nScegli: ncc_puro / agenzia_pacchetto / navetta_accessoria / dubbio")
+    _queue_control_question(state, "control_rent_status", "Esito verifica RENT?\nScegli: si / no / non_verificato")
+    _queue_control_question(state, "control_ruolo_status", "Esito verifica ruolo/albo conducenti?\nScegli: si / no / non_verificato")
+
+
+def _apply_control_answer_to_state(state, key, value):
+    answers = state.setdefault("answers", {})
+    concurrent = state.setdefault("control_concurrent", [])
+    notes = state.setdefault("control_notes", [])
+    flags = state.setdefault("control_flags", {"segnalazioni": [], "verbale_additions": []})
+
+    def add_note(n):
+        _append_unique_local(notes, n)
+
+    def add_flag(text, bucket="verbale_additions"):
+        _append_unique_local(flags.setdefault(bucket, []), text)
+
+    if key == "control_patente_status":
+        if value == "valida":
+            answers["patente_idonea"] = "si"
+        elif value == "scaduta":
+            answers["patente_idonea"] = "si"
+            _append_unique_local(concurrent, "CDS_126_11")
+            add_flag("Circolava alla guida del predetto veicolo con patente scaduta di validità; indicare la data di scadenza. La patente è ritirata e sarà inviata alla Prefettura-UTG competente.")
+        elif value == "non_esibita":
+            add_note("Patente non esibita all'atto del controllo: usare la voce documentale ex art. 180 se il titolo esiste ma non è stato mostrato.")
+            _append_unique_local(concurrent, "180-01DOC")
+        else:
+            answers["patente_idonea"] = "no"
+
+    elif key == "control_kb_status":
+        if value in {"valido", "non_dovuto"}:
+            answers["kb"] = "si"
+        elif value == "scaduto":
+            answers["kb"] = "si"
+            _append_unique_local(concurrent, "CDS_126_11")
+            add_flag("Circolava alla guida del predetto veicolo con CAP/KB/CQC scaduto di validità; indicare la data di scadenza. Il titolo è ritirato e sarà inviato all'UMC competente.")
+        elif value == "non_esibito":
+            add_note("KB / KA / CQC non esibito: se il titolo esiste ma non è stato mostrato, usare la voce documentale ex art. 180; se manca, ricorre l'art. 116 c.16 e c.18.")
+            _append_unique_local(concurrent, "180-09")
+        else:
+            answers["kb"] = "no"
+
+    elif key == "control_autorizzazione_status":
+        if value == "regolare":
+            answers["vehicle_authorized"] = "si"
+        elif value == "non_esibita":
+            answers["vehicle_authorized"] = "si"
+            add_note("Licenza/autorizzazione NCC non esibita all'atto del controllo: usare la voce documentale ex art. 180 c.3 e c.7 secondo prontuario.")
+            _append_unique_local(concurrent, "180-06")
+        else:
+            answers["vehicle_authorized"] = "no"
+            answers["service_to_third"] = "si"
+
+    elif key == "control_foglio_status":
+        if value == "regolare":
+            answers["foglio_status"] = "presente"
+        elif value == "irregolare":
+            answers["foglio_status"] = "irregolare"
+            answers["violation_type"] = "art3_11"
+        else:
+            answers["foglio_status"] = value
+
+    elif key == "control_owner_type":
+        answers["owner_type"] = value
+        if value == "agenzia_viaggi":
+            add_note("Intestatario/organizzatore qualificato come agenzia viaggi: verificare se il trasporto è accessorio a pacchetto turistico documentato.")
+
+    elif key == "control_circulation_use":
+        answers["circulation_use"] = value
+        if value == "uso_proprio":
+            add_note("Dal libretto/DU risulta uso proprio: verificare compatibilità con il servizio effettivamente svolto e con l'eventuale titolo NCC.")
+
+    elif key == "control_trip_nature":
+        answers["trip_nature"] = value
+        if value == "agenzia_pacchetto":
+            add_note("Servizio dichiarato/emerso come inserito in pacchetto o escursione organizzata da agenzia: acquisire voucher, contratto, programma e prova del corrispettivo complessivo.")
+
+    elif key == "control_rent_status":
+        if value in {"si", "no"}:
+            answers["rent_registered"] = value
+
+    elif key == "control_ruolo_status":
+        if value in {"si", "no"}:
+            answers["ruolo_conducenti"] = value
+
+
+def _finalize_control(chat_id):
+    state = user_states[chat_id]
+    main_code, concurrent, notes, procedural_flags, ancillary_findings = decide_violation(state.get("answers", {}))
+
+    for code in state.get("control_concurrent", []):
+        _append_unique_local(concurrent, code)
+    for note in state.get("control_notes", []):
+        _append_unique_local(notes, note)
+    for bucket, items in state.get("control_flags", {}).items():
+        for item in items:
+            _append_unique_local(procedural_flags.setdefault(bucket, []), item)
+
+    if main_code:
+        level = confidence_level(state.get("answers", {}), main_code)
+        result = format_multiple(main_code, concurrent, notes, level=level, procedural_flags=procedural_flags, ancillary_findings=ancillary_findings)
+        clear_case(chat_id)
+        return result
+
+    if concurrent:
+        result = format_partial_assessment(state.get("answers", {}), concurrent, notes, procedural_flags, ancillary_findings)
+        clear_case(chat_id)
+        return result
+
+    result = "Dalla checklist documentale non emerge, allo stato, una violazione chiudibile automaticamente. Se il mezzo e il conducente sono in regola, il controllo può chiudersi senza contestazioni. In presenza di ulteriori elementi di fatto usa /caso oppure ripeti /controllo."
+    clear_case(chat_id)
+    return result
+
+
+def control_additional_questions(answers):
+    questions = []
+    if answers.get("rent_registered") is None:
+        questions.append({
+            "key": "rent_registered",
+            "text": "Il vettore/titolo risultava iscritto al RENT?\nRispondi: si / no"
+        })
+    if answers.get("ruolo_conducenti") is None:
+        questions.append({
+            "key": "ruolo_conducenti",
+            "text": "Il conducente risultava iscritto al ruolo/albo conducenti quando richiesto?\nRispondi: si / no"
+        })
+    if answers.get("foglio_status") in {"assente", "irregolare"} and answers.get("recurrence") is None:
+        questions.append({
+            "key": "recurrence",
+            "text": "Per il ramo art. 85 c.4-bis questa violazione è:\nfirst = prima\n2_5y = seconda nel quinquennio\n3_5y = terza nel quinquennio\n4plus_5y = quarta o successiva\nRispondi con una di queste opzioni."
+        })
+    if (answers.get("kb") == "no" or answers.get("patente_idonea") == "no") and answers.get("incauto_affidamento") is None:
+        questions.append({
+            "key": "incauto_affidamento",
+            "text": "Il veicolo è stato affidato dal titolare o da altro responsabile a soggetto privo dei titoli richiesti?\nRispondi: si / no"
+        })
+    return questions
+
+
+def next_control_question_or_result(chat_id):
+    state = user_states[chat_id]
+    queue = state.get("control_queue", [])
+    if queue:
+        q = queue.pop(0)
+        state["mode"] = "control_followup"
+        state["pending_question"] = q
+        return q["text"], q["key"]
+
+    followup_questions = control_additional_questions(state.get("answers", {}))
+    if followup_questions:
+        q = followup_questions[0]
+        state["mode"] = "clarification"
+        state["pending_question"] = q
+        return q["text"], q["key"]
+
+    return _finalize_control(chat_id), None
+
+
+def send_control_intro(chat_id):
+    state = get_state(chat_id)
+    return _control_text_from_state(state), build_control_docs_markup(state)
+
 
 def begin_case_flow(chat_id):
     user_states[chat_id] = {
@@ -2337,6 +2739,14 @@ def checklist_command(message):
         return
     bot.reply_to(message, format_checklist_from_db())
 
+@bot.message_handler(commands=['controllo'])
+def controllo_command(message):
+    if not ensure_authorized(message):
+        return
+    begin_control_flow(message.chat.id)
+    text, markup = send_control_intro(message.chat.id)
+    bot.send_message(message.chat.id, text, reply_markup=markup)
+
 @bot.message_handler(commands=['reset'])
 def reset_command(message):
     if not ensure_authorized(message):
@@ -2359,7 +2769,7 @@ def caso_command(message):
     begin_case_flow(message.chat.id)
     bot.reply_to(
         message,
-        "Descrivi liberamente la situazione in un solo messaggio. Il bot cercherà tutte le possibili infrazioni; se mancano dati ti farà domande mirate fino a chiudere il quadro.\n\n"
+        "Descrivi liberamente la situazione in un solo messaggio. Per i controlli documentali standard è preferibile /controllo, che usa pulsanti e riduce le domande inutili.\nIl bot cercherà tutte le possibili infrazioni; se mancano dati ti farà domande mirate fino a chiudere il quadro.\n\n"
         "Esempio:\n"
         "veicolo ncc fermo al porto, foglio di servizio assente, rent non registrato, conducente senza kb, mezzo affidato dal titolare"
     )
@@ -2393,6 +2803,89 @@ def navetta_command(message):
     if not ensure_authorized(message):
         return
     bot.reply_to(message, begin_preset_case(message.chat.id, "navetta"))
+
+@bot.callback_query_handler(func=lambda call: str(call.data).startswith("ctrl_doc_toggle:"))
+def control_doc_toggle_callback(call):
+    chat_id = call.message.chat.id
+    state = get_state(chat_id)
+    if not state or state.get("mode") != "control_docs":
+        try:
+            bot.answer_callback_query(call.id, "Nessun controllo documentale attivo")
+        except Exception:
+            pass
+        return
+
+    doc_id = str(call.data).split(":", 1)[1].strip()
+    selected = state.setdefault("selected_docs", [])
+    if doc_id in selected:
+        selected.remove(doc_id)
+    else:
+        selected.append(doc_id)
+    try:
+        bot.answer_callback_query(call.id, "Selezione aggiornata")
+    except Exception:
+        pass
+    bot.edit_message_text(_control_text_from_state(state), chat_id, call.message.message_id, reply_markup=build_control_docs_markup(state))
+
+
+@bot.callback_query_handler(func=lambda call: str(call.data) == "ctrl_doc_cancel")
+def control_doc_cancel_callback(call):
+    clear_case(call.message.chat.id)
+    try:
+        bot.answer_callback_query(call.id, "Controllo annullato")
+    except Exception:
+        pass
+    bot.send_message(call.message.chat.id, "Procedura /controllo annullata.")
+
+
+@bot.callback_query_handler(func=lambda call: str(call.data) == "ctrl_doc_done")
+def control_doc_done_callback(call):
+    chat_id = call.message.chat.id
+    state = get_state(chat_id)
+    if not state or state.get("mode") != "control_docs":
+        try:
+            bot.answer_callback_query(call.id, "Nessun controllo documentale attivo")
+        except Exception:
+            pass
+        return
+
+    apply_control_defaults_from_selection(state)
+    build_control_queue(state)
+    try:
+        bot.answer_callback_query(call.id, "Documenti acquisiti")
+    except Exception:
+        pass
+    result, qkey = next_control_question_or_result(chat_id)
+    markup = build_combined_markup([], qkey) if qkey else build_article_markup(infer_article_keys_from_text(result))
+    bot.send_message(chat_id, result, reply_markup=markup, disable_web_page_preview=True)
+
+
+@bot.callback_query_handler(func=lambda call: str(call.data).startswith("ctrl_answer:"))
+def control_answer_callback(call):
+    chat_id = call.message.chat.id
+    state = get_state(chat_id)
+    if not state or state.get("mode") != "control_followup":
+        try:
+            bot.answer_callback_query(call.id, "Nessuna domanda attiva")
+        except Exception:
+            pass
+        return
+    value = str(call.data).split(":", 1)[1].strip()
+    q = state.get("pending_question")
+    if not q:
+        clear_case(chat_id)
+        bot.send_message(chat_id, "Procedura annullata. Usa /controllo per ricominciare.")
+        return
+    _apply_control_answer_to_state(state, q["key"], value)
+    state["pending_question"] = None
+    try:
+        bot.answer_callback_query(call.id, "Risposta acquisita")
+    except Exception:
+        pass
+    result, qkey = next_control_question_or_result(chat_id)
+    markup = build_combined_markup([], qkey) if qkey else build_article_markup(infer_article_keys_from_text(result))
+    bot.send_message(chat_id, result, reply_markup=markup, disable_web_page_preview=True)
+
 
 @bot.callback_query_handler(func=lambda call: str(call.data).startswith("article:"))
 def article_callback(call):
@@ -2439,7 +2932,7 @@ def all_messages(message):
     state = get_state(chat_id)
 
     if not state:
-        bot.reply_to(message, "Usa /caso per descrivere il fatto, oppure uno scenario guidato tra /porto /aeroporto /stazione /hotel /navetta. In alternativa usa /checklist per i controlli operativi.")
+        bot.reply_to(message, "Usa /controllo per la checklist documentale guidata, /caso per il testo libero, oppure uno scenario guidato tra /porto /aeroporto /stazione /hotel /navetta.")
         return
 
     mode = state.get("mode")
@@ -2452,6 +2945,28 @@ def all_messages(message):
     if mode == "clarification":
         response = process_clarification(chat_id, message.text.strip())
         reply_with_article_buttons(message, response)
+        return
+
+    if mode == "control_docs":
+        bot.reply_to(message, "Usa i pulsanti del controllo documentale oppure /reset per annullare.")
+        return
+
+    if mode == "control_followup":
+        q = state.get("pending_question")
+        if not q:
+            clear_case(chat_id)
+            bot.reply_to(message, "Procedura annullata. Usa /controllo per ricominciare.")
+            return
+        value = parse_answer_for_key(q["key"], message.text.strip())
+        if value is None:
+            markup = build_combined_markup([], q["key"])
+            bot.reply_to(message, f"Risposta non valida.\n\n{q['text']}", reply_markup=markup)
+            return
+        _apply_control_answer_to_state(state, q["key"], value)
+        state["pending_question"] = None
+        result, qkey = next_control_question_or_result(chat_id)
+        markup = build_combined_markup([], qkey) if qkey else build_article_markup(infer_article_keys_from_text(result))
+        bot.reply_to(message, result, reply_markup=markup, disable_web_page_preview=True)
         return
 
     if mode == "external_consent":
