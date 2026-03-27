@@ -2120,6 +2120,40 @@ def _append_unique_local(lst, item):
         lst.append(item)
 
 
+def apply_control_defaults_from_selection(state):
+    answers = state.setdefault("answers", {})
+    selected = set(state.get("selected_docs", []))
+
+    # Default operativo: il controllo /controllo nasce per servizi NCC,
+    # salvo successiva emersione di uso proprio/servizio accessorio o titolo assente.
+    for k, v in CONTROL_ASSUME_NCC_DEFAULTS.items():
+        answers.setdefault(k, v)
+
+    # Memorizza quali documenti sono stati esibiti: questo evita domande ridondanti
+    # e consente di chiudere correttamente i rami documentali ex art. 180.
+    answers["doc_patente_esibita"] = "si" if "patente" in selected else "no"
+    answers["doc_kb_esibito"] = "si" if "kb" in selected else "no"
+    answers["doc_autorizzazione_esibita"] = "si" if "autorizzazione" in selected else "no"
+    answers["doc_carta_esibita"] = "si" if "carta" in selected else "no"
+    answers["doc_assicurazione_esibita"] = "si" if "assicurazione" in selected else "no"
+    answers["doc_foglio_esibito"] = "si" if "foglio" in selected else "no"
+
+    # Se carta/assicurazione non sono state selezionate, predisponi subito la nota documentale.
+    concurrent = state.setdefault("control_concurrent", [])
+    notes = state.setdefault("control_notes", [])
+    if "carta" not in selected:
+        if "180-01DOC" not in concurrent:
+            concurrent.append("180-01DOC")
+        note = "Documento di circolazione / DU non esibito all'atto del controllo: se esistente, contestare art. 180 c.1 e c.7 con invito a presentazione."
+        if note not in notes:
+            notes.append(note)
+    if "assicurazione" not in selected:
+        if "180-03" not in concurrent:
+            concurrent.append("180-03")
+        note = "Certificato/documento assicurativo non esibito all'atto del controllo: contestare art. 180 c.1 e c.7 con invito a presentazione, salvo verifica immediata positiva."
+        if note not in notes:
+            notes.append(note)
+
 def _queue_control_question(state, key, text):
     state.setdefault("control_queue", []).append({"key": key, "text": text})
 
