@@ -1967,11 +1967,11 @@ def _extract_choice(text, allowed):
 def _extract_recurrence(text):
     t = _normalize_free_answer(text).replace("^", "")
     mapping = {
-        "first": ["first", "prima", "prima violazione", "1a", "1", "prima volta"],
-        "second_3y": ["second_3y", "seconda nel triennio", "2a nel triennio", "2", "recidiva triennio"],
-        "2_5y": ["2_5y", "seconda nel quinquennio", "2a nel quinquennio", "seconda"],
-        "3_5y": ["3_5y", "terza nel quinquennio", "3a nel quinquennio", "terza", "3"],
-        "4plus_5y": ["4plus_5y", "quarta o successiva", "quarta nel quinquennio", "4a nel quinquennio", "quarta+", "4plus", "quarta", "4"],
+        "first": ["first", "prima", "prima violazione", "1a", "1", "prima volta", "prima quinq", "prima nel quinquennio"],
+        "second_3y": ["second_3y", "seconda nel triennio", "2a nel triennio", "recidiva triennio", "2 triennio"],
+        "2_5y": ["2_5y", "seconda nel quinquennio", "2a nel quinquennio", "2 quinquennio", "seconda"],
+        "3_5y": ["3_5y", "terza nel quinquennio", "3a nel quinquennio", "3 quinquennio", "terza"],
+        "4plus_5y": ["4plus_5y", "quarta o successiva", "quarta nel quinquennio", "4a nel quinquennio", "quarta+", "4plus", "4", "quarta"],
     }
     for code, vals in mapping.items():
         for v in vals:
@@ -1992,39 +1992,6 @@ def _extract_foglio_status(text):
     return None
 
 
-def build_recurrence_prompt(answers, branch="4bis"):
-    foglio_status = answers.get("foglio_status")
-    violation_type = answers.get("violation_type")
-    public_waiting = answers.get("public_waiting")
-    booking = answers.get("booking")
-    if branch == "4":
-        title = "INFRAZIONE RISCONTRATA FINORA"
-        body = "Possibile art. 85 c.4 CdS (servizio NCC svolto con veicolo non regolarmente adibito/autorizzato)."
-        choices = "first = prima\nsecond_3y = seconda nel triennio"
-    else:
-        title = "INFRAZIONE RISCONTRATA FINORA"
-        if foglio_status == "assente":
-            body = "Possibile art. 85 c.4-bis CdS per foglio di servizio assente / non compilato e violazione dell'art. 11 L. 21/1992."
-        elif foglio_status == "irregolare":
-            body = "Possibile art. 85 c.4-bis CdS per foglio di servizio irregolare / incompleto e violazione dell'art. 11 L. 21/1992."
-        elif violation_type == "art3_11":
-            body = "Possibile art. 85 c.4-bis CdS per violazione degli artt. 3 e/o 11 L. 21/1992."
-        elif public_waiting == "si" and booking == "no":
-            body = "Possibile art. 85 c.4-bis CdS per stazionamento/utenza indifferenziata senza prenotazione documentabile."
-        else:
-            body = "Possibile art. 85 c.4-bis CdS per violazione delle modalità di esercizio del servizio NCC."
-        choices = (
-            "first = prima\n"
-            "2_5y = seconda nel quinquennio\n"
-            "3_5y = terza nel quinquennio\n"
-            "4plus_5y = quarta o successiva"
-        )
-    return (
-        f"{title}\n{body}\n\n"
-        "Per qualificare correttamente la sanzione mi serve la progressione della violazione:\n"
-        f"{choices}\n"
-        "Rispondi con una di queste opzioni oppure usa i pulsanti qui sotto."
-    )
 def parse_answer_for_key(key, text):
     t = text.strip().lower()
 
@@ -2220,6 +2187,49 @@ def build_control_queue(state):
     _queue_control_question(state, "control_trip_nature", "Il servizio controllato sembra: NCC puro, pacchetto agenzia, navetta accessoria o dubbio?\nScegli: ncc_puro / agenzia_pacchetto / navetta_accessoria / dubbio")
     _queue_control_question(state, "control_rent_status", "Esito verifica RENT?\nScegli: si / no / non_verificato")
     _queue_control_question(state, "control_ruolo_status", "Esito verifica ruolo/albo conducenti?\nScegli: si / no / non_verificato")
+
+
+def describe_control_violation(answers):
+    parts = []
+    if answers.get("patente_idonea") == "no":
+        parts.append("il conducente guidava senza patente/titolo di guida idoneo")
+    if answers.get("kb") == "no":
+        parts.append("il conducente svolgeva il servizio senza CAP/KB/CQC richiesto")
+    foglio = answers.get("foglio_status")
+    if foglio == "assente":
+        parts.append("il servizio NCC era svolto con foglio di servizio assente o non compilato")
+    elif foglio == "irregolare":
+        parts.append("il servizio NCC era svolto con foglio di servizio irregolare o incompleto")
+    elif foglio == "non_esibito":
+        parts.append("il foglio di servizio non veniva esibito all'atto del controllo")
+    if answers.get("vehicle_authorized") == "no":
+        parts.append("il veicolo risultava privo di licenza/autorizzazione NCC riferibile al servizio controllato")
+    if answers.get("circulation_use") == "uso_proprio" and answers.get("trip_nature") == "ncc_puro":
+        parts.append("il veicolo risultava in uso proprio ma veniva impiegato per trasporto di persone a pagamento")
+    if answers.get("rent_registered") == "no":
+        parts.append("il titolo/vettore non risultava iscritto al RENT")
+    if answers.get("ruolo_conducenti") == "no":
+        parts.append("il conducente non risultava iscritto al ruolo/albo conducenti")
+    if not parts:
+        return "Sono emersi elementi di possibile violazione in materia NCC da qualificare in base agli accertamenti svolti."
+    text = "; ".join(parts)
+    return text[0].upper() + text[1:] + "."
+
+
+def build_recurrence_prompt(answers):
+    descr = describe_control_violation(answers)
+    return (
+        "VIOLAZIONE RISCONTRATA:\n"
+        f"{descr}\n\n"
+        "INQUADRAMENTO NORMATIVO:\n"
+        "Ramo sanzionatorio art. 85 c.4-bis CdS, in relazione agli artt. 3 e/o 11 L. 21/1992.\n\n"
+        "Ora indica la progressione della violazione nel quinquennio:\n"
+        "first = prima\n"
+        "2_5y = seconda nel quinquennio\n"
+        "3_5y = terza nel quinquennio\n"
+        "4plus_5y = quarta o successiva\n"
+        "Rispondi con una di queste opzioni oppure usa i pulsanti qui sotto."
+    )
 
 
 def _apply_control_answer_to_state(state, key, value):
@@ -2978,7 +2988,31 @@ def answer_callback(call):
         return
 
     value = str(call.data).split(":", 1)[1].strip()
-    response = process_clarification(chat_id, value)
+    q = state.get("pending_question")
+    if q and q.get("key") == "recurrence":
+        rec = _extract_recurrence(value)
+        if rec:
+            state.setdefault("answers", {})["recurrence"] = rec
+            state["pending_question"] = None
+            main_code, concurrent, notes, procedural_flags, ancillary_findings = decide_violation(state["answers"])
+            questions = [item for item in missing_questions(state["answers"]) if item["key"] != "recurrence"]
+            if questions:
+                next_q = questions[0]
+                state["pending_question"] = next_q
+                if next_q["key"] not in state.get("questions_asked", []):
+                    state.setdefault("questions_asked", []).append(next_q["key"])
+                response = f"Mi serve ancora questo chiarimento per avere il quadro completo:\n\n{next_q['text']}"
+            elif main_code:
+                level = confidence_level(state["answers"], main_code)
+                response = format_multiple(main_code, concurrent, notes, level=level, procedural_flags=procedural_flags, ancillary_findings=ancillary_findings)
+                clear_case(chat_id)
+            else:
+                response = format_partial_assessment(state["answers"], concurrent, notes, procedural_flags, ancillary_findings)
+                clear_case(chat_id)
+        else:
+            response = process_clarification(chat_id, value)
+    else:
+        response = process_clarification(chat_id, value)
     try:
         bot.answer_callback_query(call.id, "Risposta acquisita")
     except Exception:
