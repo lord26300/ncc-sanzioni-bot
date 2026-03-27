@@ -1967,11 +1967,11 @@ def _extract_choice(text, allowed):
 def _extract_recurrence(text):
     t = _normalize_free_answer(text).replace("^", "")
     mapping = {
-        "first": ["first", "prima", "prima violazione", "1a", "prima volta"],
-        "second_3y": ["second_3y", "seconda nel triennio", "2a nel triennio", "recidiva triennio"],
-        "2_5y": ["2_5y", "seconda nel quinquennio", "2a nel quinquennio"],
-        "3_5y": ["3_5y", "terza nel quinquennio", "3a nel quinquennio"],
-        "4plus_5y": ["4plus_5y", "quarta o successiva", "quarta nel quinquennio", "4a nel quinquennio", "quarta+", "4plus"],
+        "first": ["first", "prima", "prima violazione", "1a", "1", "prima volta"],
+        "second_3y": ["second_3y", "seconda nel triennio", "2a nel triennio", "2", "recidiva triennio"],
+        "2_5y": ["2_5y", "seconda nel quinquennio", "2a nel quinquennio", "seconda"],
+        "3_5y": ["3_5y", "terza nel quinquennio", "3a nel quinquennio", "terza", "3"],
+        "4plus_5y": ["4plus_5y", "quarta o successiva", "quarta nel quinquennio", "4a nel quinquennio", "quarta+", "4plus", "quarta", "4"],
     }
     for code, vals in mapping.items():
         for v in vals:
@@ -1991,6 +1991,46 @@ def _extract_foglio_status(text):
         return "presente"
     return None
 
+
+def build_recurrence_prompt(answers, branch="4bis"):
+    foglio_status = answers.get("foglio_status")
+    violation_type = answers.get("violation_type")
+    public_waiting = answers.get("public_waiting")
+    booking = answers.get("booking")
+    pieces = []
+    if branch == "4":
+        title = "INFRAZIONE RISCONTRATA FINORA"
+        body = "Possibile art. 85 c.4 CdS (servizio NCC svolto con veicolo non regolarmente adibito/autorizzato)."
+    else:
+        title = "INFRAZIONE RISCONTRATA FINORA"
+        if foglio_status == "assente":
+            body = "Possibile art. 85 c.4-bis CdS per foglio di servizio assente / non compilato e violazione dell'art. 11 L. 21/1992."
+        elif foglio_status == "irregolare":
+            body = "Possibile art. 85 c.4-bis CdS per foglio di servizio irregolare / incompleto e violazione dell'art. 11 L. 21/1992."
+        elif violation_type == "art3_11":
+            body = "Possibile art. 85 c.4-bis CdS per violazione degli artt. 3 e/o 11 L. 21/1992."
+        elif public_waiting == "si" and booking == "no":
+            body = "Possibile art. 85 c.4-bis CdS per stazionamento/utenza indifferenziata senza prenotazione documentabile."
+        else:
+            body = "Possibile art. 85 c.4-bis CdS per violazione delle modalità di esercizio del servizio NCC."
+    choices = (
+        "first = prima
+"
+        "2_5y = seconda nel quinquennio
+"
+        "3_5y = terza nel quinquennio
+"
+        "4plus_5y = quarta o successiva"
+    )
+    if branch == "4":
+        choices = "first = prima
+second_3y = seconda nel triennio"
+    return f"{title}
+{body}
+
+Per qualificare correttamente la sanzione mi serve la progressione della violazione:
+{choices}
+Rispondi con una di queste opzioni oppure usa i pulsanti qui sotto."
 
 def parse_answer_for_key(key, text):
     t = text.strip().lower()
