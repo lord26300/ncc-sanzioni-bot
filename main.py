@@ -2263,11 +2263,11 @@ def _apply_control_answer_to_state(state, key, value):
             add_note("Servizio dichiarato/emerso come inserito in pacchetto o escursione organizzata da agenzia: acquisire voucher, contratto, programma e prova del corrispettivo complessivo.")
 
     elif key == "control_rent_status":
-        if value in {"si", "no"}:
+        if value in {"si", "no", "non_verificato"}:
             answers["rent_registered"] = value
 
     elif key == "control_ruolo_status":
-        if value in {"si", "no"}:
+        if value in {"si", "no", "non_verificato"}:
             answers["ruolo_conducenti"] = value
 
 
