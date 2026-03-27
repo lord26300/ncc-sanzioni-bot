@@ -1997,10 +1997,10 @@ def build_recurrence_prompt(answers, branch="4bis"):
     violation_type = answers.get("violation_type")
     public_waiting = answers.get("public_waiting")
     booking = answers.get("booking")
-    pieces = []
     if branch == "4":
         title = "INFRAZIONE RISCONTRATA FINORA"
         body = "Possibile art. 85 c.4 CdS (servizio NCC svolto con veicolo non regolarmente adibito/autorizzato)."
+        choices = "first = prima\nsecond_3y = seconda nel triennio"
     else:
         title = "INFRAZIONE RISCONTRATA FINORA"
         if foglio_status == "assente":
@@ -2013,25 +2013,18 @@ def build_recurrence_prompt(answers, branch="4bis"):
             body = "Possibile art. 85 c.4-bis CdS per stazionamento/utenza indifferenziata senza prenotazione documentabile."
         else:
             body = "Possibile art. 85 c.4-bis CdS per violazione delle modalità di esercizio del servizio NCC."
-    choices = (
-        "first = prima
-"
-        "2_5y = seconda nel quinquennio
-"
-        "3_5y = terza nel quinquennio
-"
-        "4plus_5y = quarta o successiva"
+        choices = (
+            "first = prima\n"
+            "2_5y = seconda nel quinquennio\n"
+            "3_5y = terza nel quinquennio\n"
+            "4plus_5y = quarta o successiva"
+        )
+    return (
+        f"{title}\n{body}\n\n"
+        "Per qualificare correttamente la sanzione mi serve la progressione della violazione:\n"
+        f"{choices}\n"
+        "Rispondi con una di queste opzioni oppure usa i pulsanti qui sotto."
     )
-    if branch == "4":
-        choices = "first = prima
-second_3y = seconda nel triennio"
-    return f"{title}
-{body}
-
-Per qualificare correttamente la sanzione mi serve la progressione della violazione:
-{choices}
-Rispondi con una di queste opzioni oppure usa i pulsanti qui sotto."
-
 def parse_answer_for_key(key, text):
     t = text.strip().lower()
 
