@@ -2232,6 +2232,56 @@ def build_recurrence_prompt(answers):
     )
 
 
+def build_article_verification_prompt(answers, key, base_text):
+    descr = describe_control_violation(answers)
+    title = "VERIFICA MIRATA"
+    framing = ""
+
+    art85_keys = {"recurrence", "violation_type", "foglio_status", "booking", "public_waiting", "taxi_commune", "separate_payment"}
+    kb_keys = {"kb", "control_kb_status"}
+    patente_keys = {"patente_idonea", "control_patente_status"}
+    auth_keys = {"vehicle_authorized", "control_autorizzazione_status"}
+    rent_keys = {"rent_registered", "control_rent_status"}
+    ruolo_keys = {"ruolo_conducenti", "control_ruolo_status"}
+    uso_keys = {"circulation_use", "trip_nature", "owner_type", "control_circulation_use", "control_trip_nature", "control_owner_type"}
+    incauto_keys = {"incauto_affidamento"}
+
+    if key in art85_keys:
+        title = "VIOLAZIONE IPOTIZZATA"
+        if descr.startswith("Sono emersi elementi"):
+            descr = "Possibile esercizio del servizio NCC in violazione delle modalità operative o delle prescrizioni autorizzative."
+        framing = "INQUADRAMENTO PROVVISORIO:\nPossibile art. 85 c.4-bis CdS, in relazione agli artt. 3 e/o 11 L. 21/1992."
+    elif key in kb_keys:
+        descr = "Possibile irregolarità del titolo professionale richiesto (CAP/KB/CQC) per lo svolgimento del servizio."
+        framing = "INQUADRAMENTO PROVVISORIO:\nVerifica necessaria per distinguere tra art. 180, art. 126 e art. 116 CdS."
+    elif key in patente_keys:
+        descr = "Possibile irregolarità della patente di guida rispetto al veicolo o al servizio controllato."
+        framing = "INQUADRAMENTO PROVVISORIO:\nVerifica necessaria per distinguere tra art. 180, art. 126 e art. 116 CdS."
+    elif key in auth_keys:
+        descr = "Possibile irregolarità della licenza/autorizzazione NCC riferibile al servizio controllato."
+        framing = "INQUADRAMENTO PROVVISORIO:\nVerifica necessaria per distinguere tra mera mancata esibizione documentale e violazione sostanziale in materia NCC."
+    elif key in rent_keys:
+        descr = "Occorre definire la posizione RENT del vettore/titolo controllato."
+        framing = "INQUADRAMENTO PROVVISORIO:\nEsito utile per eventuali segnalazioni amministrative e per il quadro complessivo della regolarità NCC."
+    elif key in ruolo_keys:
+        descr = "Occorre definire la posizione del conducente rispetto al ruolo/albo conducenti."
+        framing = "INQUADRAMENTO PROVVISORIO:\nEsito utile per eventuali segnalazioni all'ente competente e per la qualificazione finale del servizio."
+    elif key in uso_keys:
+        descr = "Occorre verificare la coerenza tra uso del veicolo risultante dal documento di circolazione e servizio effettivamente svolto."
+        framing = "INQUADRAMENTO PROVVISORIO:\nPossibile art. 82 CdS oppure caso da approfondire se legato ad agenzia viaggi / trasporto accessorio."
+    elif key in incauto_keys:
+        descr = "Occorre verificare se ricorre l'incauto affidamento del veicolo a persona priva dei titoli richiesti."
+        framing = "INQUADRAMENTO PROVVISORIO:\nPossibile art. 116 c.14 CdS in concorso con la violazione del conducente."
+    else:
+        framing = "INQUADRAMENTO PROVVISORIO:\nLa risposta serve a qualificare con precisione la norma applicabile."
+
+    return (
+        f"{title}:\n{descr}\n\n"
+        f"{framing}\n\n"
+        f"DOMANDA DI VERIFICA:\n{base_text}"
+    )
+
+
 def _apply_control_answer_to_state(state, key, value):
     answers = state.setdefault("answers", {})
     concurrent = state.setdefault("control_concurrent", [])
@@ -2374,14 +2424,14 @@ def next_control_question_or_result(chat_id):
         q = queue.pop(0)
         state["mode"] = "control_followup"
         state["pending_question"] = q
-        return q["text"], q["key"]
+        return build_article_verification_prompt(state.get("answers", {}), q["key"], q["text"]), q["key"]
 
     followup_questions = control_additional_questions(state.get("answers", {}))
     if followup_questions:
         q = followup_questions[0]
         state["mode"] = "clarification"
         state["pending_question"] = q
-        return q["text"], q["key"]
+        return build_article_verification_prompt(state.get("answers", {}), q["key"], q["text"]), q["key"]
 
     return _finalize_control(chat_id), None
 
