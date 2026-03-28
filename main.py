@@ -1056,8 +1056,8 @@ def get_question_buttons(question_key):
         'separate_payment': [('SI', 'si'), ('NO', 'no')],
         'kb': [('SI', 'si'), ('NO', 'no')],
         'patente_idonea': [('SI', 'si'), ('NO', 'no')],
-        'rent_registered': [('SI', 'si'), ('NO', 'no')],
-        'ruolo_conducenti': [('SI', 'si'), ('NO', 'no')],
+        'rent_registered': [('SI', 'si'), ('NO', 'no'), ('NON VERIF.', 'non_verificato')],
+        'ruolo_conducenti': [('SI', 'si'), ('NO', 'no'), ('NON VERIF.', 'non_verificato')],
         'incauto_affidamento': [('SI', 'si'), ('NO', 'no')],
         'public_waiting': [('SI', 'si'), ('NO', 'no')],
         'taxi_commune': [('SI', 'si'), ('NO', 'no')],
@@ -2358,13 +2358,25 @@ def _apply_control_answer_to_state(state, key, value):
         if value == "agenzia_pacchetto":
             add_note("Servizio dichiarato/emerso come inserito in pacchetto o escursione organizzata da agenzia: acquisire voucher, contratto, programma e prova del corrispettivo complessivo.")
 
-    elif key == "control_rent_status":
+    elif key in {"control_rent_status", "rent_registered"}:
         if value in {"si", "no", "non_verificato"}:
             answers["rent_registered"] = value
 
-    elif key == "control_ruolo_status":
+    elif key in {"control_ruolo_status", "ruolo_conducenti"}:
         if value in {"si", "no", "non_verificato"}:
             answers["ruolo_conducenti"] = value
+
+    elif key == "recurrence":
+        if value in {"first", "2_5y", "3_5y", "4plus_5y"}:
+            answers["recurrence"] = value
+
+    elif key == "recurrence_triennio":
+        if value in {"first", "second_3y"}:
+            answers["recurrence_triennio"] = value
+
+    elif key == "incauto_affidamento":
+        if value in {"si", "no"}:
+            answers["incauto_affidamento"] = value
 
 
 def _finalize_control(chat_id):
