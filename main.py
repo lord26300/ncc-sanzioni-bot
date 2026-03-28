@@ -2424,14 +2424,16 @@ def next_control_question_or_result(chat_id):
         q = queue.pop(0)
         state["mode"] = "control_followup"
         state["pending_question"] = q
-        return build_article_verification_prompt(state.get("answers", {}), q["key"], q["text"]), q["key"]
+        prompt = build_recurrence_prompt(state.get("answers", {})) if q["key"] == "recurrence" else build_article_verification_prompt(state.get("answers", {}), q["key"], q["text"])
+        return prompt, q["key"]
 
     followup_questions = control_additional_questions(state.get("answers", {}))
     if followup_questions:
         q = followup_questions[0]
         state["mode"] = "clarification"
         state["pending_question"] = q
-        return build_article_verification_prompt(state.get("answers", {}), q["key"], q["text"]), q["key"]
+        prompt = build_recurrence_prompt(state.get("answers", {})) if q["key"] == "recurrence" else build_article_verification_prompt(state.get("answers", {}), q["key"], q["text"])
+        return prompt, q["key"]
 
     return _finalize_control(chat_id), None
 
@@ -3038,37 +3040,19 @@ def answer_callback(call):
         return
 
     value = str(call.data).split(":", 1)[1].strip()
-    q = state.get("pending_question")
-    if q and q.get("key") == "recurrence":
-        rec = _extract_recurrence(value)
-        if rec:
-            state.setdefault("answers", {})["recurrence"] = rec
-            state["pending_question"] = None
-            main_code, concurrent, notes, procedural_flags, ancillary_findings = decide_violation(state["answers"])
-            questions = [item for item in missing_questions(state["answers"]) if item["key"] != "recurrence"]
-            if questions:
-                next_q = questions[0]
-                state["pending_question"] = next_q
-                if next_q["key"] not in state.get("questions_asked", []):
-                    state.setdefault("questions_asked", []).append(next_q["key"])
-                response = f"Mi serve ancora questo chiarimento per avere il quadro completo:\n\n{next_q['text']}"
-            elif main_code:
-                level = confidence_level(state["answers"], main_code)
-                response = format_multiple(main_code, concurrent, notes, level=level, procedural_flags=procedural_flags, ancillary_findings=ancillary_findings)
-                clear_case(chat_id)
-            else:
-                response = format_partial_assessment(state["answers"], concurrent, notes, procedural_flags, ancillary_findings)
-                clear_case(chat_id)
-        else:
-            response = process_clarification(chat_id, value)
-    else:
-        response = process_clarification(chat_id, value)
+    response = process_clarification(chat_id, value)
     try:
         bot.answer_callback_query(call.id, "Risposta acquisita")
     except Exception:
         pass
-    reply_with_article_buttons(call.message, response)
-
+    # usa sempre lo stato aggiornato per mostrare i pulsanti della domanda successiva
+    state = get_state(chat_id)
+    question_key = None
+    article_keys = infer_article_keys_from_text(response)
+    if state and state.get("mode") == "clarification" and state.get("pending_question"):
+        question_key = state["pending_question"].get("key")
+    markup = build_combined_markup(article_keys, question_key=question_key)
+    bot.send_message(chat_id, response, reply_markup=markup, disable_web_page_preview=True)
 
 # =========================
 # MESSAGGI GENERICI
