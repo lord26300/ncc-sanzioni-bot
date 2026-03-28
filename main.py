@@ -1064,7 +1064,8 @@ def get_question_buttons(question_key):
         'booking': [('SI', 'si'), ('NO', 'no')],
         'violation_type': [('ART. 3/11', 'art3_11'), ('ALTRE PRESCR.', 'other_auth'), ('NON CHIARO', 'none')],
         'foglio_status': [('PRESENTE', 'presente'), ('ASSENTE', 'assente'), ('IRREGOLARE', 'irregolare'), ('NON ESIBITO', 'non_esibito')],
-        'recurrence': [('PRIMA', 'first'), ('2^ QUINQ.', '2_5y'), ('3^ QUINQ.', '3_5y'), ('4+', '4plus_5y'), ('2^ TRIENNIO', 'second_3y')],
+        'recurrence': [('PRIMA', 'first'), ('2^ QUINQ.', '2_5y'), ('3^ QUINQ.', '3_5y'), ('4+', '4plus_5y')],
+        'recurrence_triennio': [('PRIMA', 'first'), ('2^ TRIENNIO', 'second_3y')],
         'control_patente_status': [('VALIDA', 'valida'), ('SCADUTA', 'scaduta'), ('NON IDONEA', 'non_idonea'), ('NON ESIBITA', 'non_esibita')],
         'control_kb_status': [('VALIDO', 'valido'), ('SCADUTO', 'scaduto'), ('NON IDONEO/MAI', 'non_idoneo'), ('NON ESIBITO', 'non_esibito'), ('NON DOVUTO', 'non_dovuto')],
         'control_autorizzazione_status': [('REGOLARE', 'regolare'), ('NON ESIBITA', 'non_esibita'), ('NON AUTORIZZATO', 'non_autorizzato')],
@@ -2031,7 +2032,7 @@ def parse_answer_for_key(key, text):
         if yn == "no":
             return "none"
 
-    if key == "recurrence":
+    if key in {"recurrence", "recurrence_triennio"}:
         rec = _extract_recurrence(t)
         if rec:
             return rec
@@ -2216,7 +2217,8 @@ def describe_control_violation(answers):
     return text[0].upper() + text[1:] + "."
 
 
-def build_recurrence_prompt(answers):
+def build_recurrence_prompt(answers, key="recurrence"):
+
     descr = describe_control_violation(answers)
     return (
         "VIOLAZIONE RISCONTRATA:\n"
@@ -2237,7 +2239,7 @@ def build_article_verification_prompt(answers, key, base_text):
     title = "VERIFICA MIRATA"
     framing = ""
 
-    art85_keys = {"recurrence", "violation_type", "foglio_status", "booking", "public_waiting", "taxi_commune", "separate_payment"}
+    art85_keys = {"recurrence", "recurrence_triennio", "violation_type", "foglio_status", "booking", "public_waiting", "taxi_commune", "separate_payment"}
     kb_keys = {"kb", "control_kb_status"}
     patente_keys = {"patente_idonea", "control_patente_status"}
     auth_keys = {"vehicle_authorized", "control_autorizzazione_status"}
@@ -2424,7 +2426,7 @@ def next_control_question_or_result(chat_id):
         q = queue.pop(0)
         state["mode"] = "control_followup"
         state["pending_question"] = q
-        prompt = build_recurrence_prompt(state.get("answers", {})) if q["key"] == "recurrence" else build_article_verification_prompt(state.get("answers", {}), q["key"], q["text"])
+        prompt = build_recurrence_prompt(state.get("answers", {}), q["key"]) if q["key"] in {"recurrence", "recurrence_triennio"} else build_article_verification_prompt(state.get("answers", {}), q["key"], q["text"])
         return prompt, q["key"]
 
     followup_questions = control_additional_questions(state.get("answers", {}))
@@ -2432,7 +2434,7 @@ def next_control_question_or_result(chat_id):
         q = followup_questions[0]
         state["mode"] = "clarification"
         state["pending_question"] = q
-        prompt = build_recurrence_prompt(state.get("answers", {})) if q["key"] == "recurrence" else build_article_verification_prompt(state.get("answers", {}), q["key"], q["text"])
+        prompt = build_recurrence_prompt(state.get("answers", {}), q["key"]) if q["key"] in {"recurrence", "recurrence_triennio"} else build_article_verification_prompt(state.get("answers", {}), q["key"], q["text"])
         return prompt, q["key"]
 
     return _finalize_control(chat_id), None
@@ -2545,7 +2547,8 @@ def process_clarification(chat_id, text):
     if value is None:
         return f"Risposta non valida.\n\n{q['text']}"
 
-    state["answers"][q["key"]] = value
+    target_key = "recurrence" if q["key"] == "recurrence_triennio" else q["key"]
+    state["answers"][target_key] = value
 
     main_code, concurrent, notes, procedural_flags, ancillary_findings = decide_violation(state["answers"])
     questions = [item for item in missing_questions(state["answers"]) if item["key"] != q["key"]]
@@ -3040,19 +3043,25 @@ def answer_callback(call):
         return
 
     value = str(call.data).split(":", 1)[1].strip()
-    response = process_clarification(chat_id, value)
     try:
-        bot.answer_callback_query(call.id, "Risposta acquisita")
-    except Exception:
-        pass
-    # usa sempre lo stato aggiornato per mostrare i pulsanti della domanda successiva
-    state = get_state(chat_id)
-    question_key = None
-    article_keys = infer_article_keys_from_text(response)
-    if state and state.get("mode") == "clarification" and state.get("pending_question"):
-        question_key = state["pending_question"].get("key")
-    markup = build_combined_markup(article_keys, question_key=question_key)
-    bot.send_message(chat_id, response, reply_markup=markup, disable_web_page_preview=True)
+        response = process_clarification(chat_id, value)
+        state = get_state(chat_id)
+        question_key = None
+        article_keys = infer_article_keys_from_text(response)
+        if state and state.get("mode") == "clarification" and state.get("pending_question"):
+            question_key = state["pending_question"].get("key")
+        markup = build_combined_markup(article_keys, question_key=question_key)
+        try:
+            bot.answer_callback_query(call.id, "Risposta acquisita")
+        except Exception:
+            pass
+        bot.send_message(chat_id, response, reply_markup=markup, disable_web_page_preview=True)
+    except Exception as e:
+        try:
+            bot.answer_callback_query(call.id, "Errore nel flusso")
+        except Exception:
+            pass
+        bot.send_message(chat_id, f"Errore interno nel flusso risposte: {e}")
 
 # =========================
 # MESSAGGI GENERICI
