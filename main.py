@@ -2078,6 +2078,7 @@ def begin_control_flow(chat_id):
         "control_notes": [],
         "control_flags": {"segnalazioni": [], "verbale_additions": []},
         "preset_name": None,
+        "questions_asked": [],
     }
 
 
@@ -2432,8 +2433,11 @@ def next_control_question_or_result(chat_id):
     followup_questions = control_additional_questions(state.get("answers", {}))
     if followup_questions:
         q = followup_questions[0]
-        state["mode"] = "clarification"
+        state["mode"] = "control_followup"
         state["pending_question"] = q
+        qa = state.setdefault("questions_asked", [])
+        if q["key"] not in qa:
+            qa.append(q["key"])
         prompt = build_recurrence_prompt(state.get("answers", {}), q["key"]) if q["key"] in {"recurrence", "recurrence_triennio"} else build_article_verification_prompt(state.get("answers", {}), q["key"], q["text"])
         return prompt, q["key"]
 
@@ -2605,6 +2609,16 @@ def manual_verification_message():
         "Il caso non può essere chiuso con il solo database interno del bot.\n"
         "Procedere con verifica manuale su normativa vigente, prontuario e fonti esterne."
     )
+
+def need_external_source_notice(answers):
+    """Fallback prudenziale: segnala ricerca esterna solo nei casi davvero dubbi."""
+    if not isinstance(answers, dict):
+        return False
+    if answers.get("owner_type") == "agenzia_viaggi" and answers.get("trip_nature") in {None, "dubbio", "agenzia_pacchetto"}:
+        return True
+    if answers.get("circulation_use") == "uso_proprio" and answers.get("service_to_third") in {None, "dubbio"}:
+        return True
+    return False
 
 def should_offer_external_search(answers, notes):
     if need_external_source_notice(answers):
@@ -3008,15 +3022,22 @@ def control_answer_callback(call):
         clear_case(chat_id)
         bot.send_message(chat_id, "Procedura annullata. Usa /controllo per ricominciare.")
         return
-    _apply_control_answer_to_state(state, q["key"], value)
-    state["pending_question"] = None
     try:
-        bot.answer_callback_query(call.id, "Risposta acquisita")
-    except Exception:
-        pass
-    result, qkey = next_control_question_or_result(chat_id)
-    markup = build_combined_markup([], qkey) if qkey else build_article_markup(infer_article_keys_from_text(result))
-    bot.send_message(chat_id, result, reply_markup=markup, disable_web_page_preview=True)
+        _apply_control_answer_to_state(state, q["key"], value)
+        state["pending_question"] = None
+        try:
+            bot.answer_callback_query(call.id, "Risposta acquisita")
+        except Exception:
+            pass
+        result, qkey = next_control_question_or_result(chat_id)
+        markup = build_combined_markup([], qkey) if qkey else build_article_markup(infer_article_keys_from_text(result))
+        bot.send_message(chat_id, result, reply_markup=markup, disable_web_page_preview=True)
+    except Exception as e:
+        try:
+            bot.answer_callback_query(call.id, "Errore nel flusso")
+        except Exception:
+            pass
+        bot.send_message(chat_id, f"Errore interno nel flusso risposte: {e}")
 
 
 @bot.callback_query_handler(func=lambda call: str(call.data).startswith("article:"))
