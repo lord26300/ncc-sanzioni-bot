@@ -68,7 +68,7 @@ CONTROL_ASSUME_NCC_DEFAULTS = {
 
 CONTROL_DOC_LABELS = {item["id"]: item["label"] for item in CONTROL_DOCS}
 
-TARGHE_FILE_PATH = os.getenv("TARGHE_FILE_PATH", "targhe_ncc.xlsx")
+TARGHE_FILE_PATH = os.getenv("TARGHE_FILE_PATH", "prospetto_mezzi.xlsx")
 TARGHE_SHEET_NAME = os.getenv("TARGHE_SHEET_NAME", "NCC")
 
 # =========================
