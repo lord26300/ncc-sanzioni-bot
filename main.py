@@ -3490,6 +3490,24 @@ def all_messages(message):
 # AVVIO BOT
 # =========================
 
+def setup_bot_commands():
+    commands = [
+        types.BotCommand("start", "avvio bot"),
+        types.BotCommand("help", "aiuto comandi"),
+        types.BotCommand("caso", "analisi libera del fatto"),
+        types.BotCommand("controllo", "checklist documentale guidata"),
+        types.BotCommand("checklist", "controlli operativi"),
+        types.BotCommand("documenti", "documenti da controllare"),
+        types.BotCommand("norme", "riferimenti normativi"),
+        types.BotCommand("targa", "verifica targa archivio NCC"),
+        types.BotCommand("reset", "annulla procedura"),
+        types.BotCommand("riattiva", "riattiva servizio"),
+    ]
+    try:
+        bot.set_my_commands(commands)
+    except Exception as e:
+        print(f"Errore setup comandi bot: {e}")
+
 def run_bot():
     bot.remove_webhook()
     setup_bot_commands()
