@@ -841,10 +841,6 @@ def authorized_start_text(user_id):
         "/checklist - controlli operativi\n"
         "/documenti - documenti da controllare\n"
         "/norme - riferimenti principali\n"
-        "/art85 - leggi art. 85 CdS\n"
-        "/art116 - leggi art. 116 CdS\n"
-        "/art3l21 - leggi art. 3 L. 21/1992\n"
-        "/art11l21 - leggi art. 11 L. 21/1992\n"
         "/riattiva - istruzioni per riattivare il servizio\n"
         "/reset - annulla caso in corso"
     )
