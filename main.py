@@ -2849,7 +2849,18 @@ def help_command(message):
 def norme_command(message):
     if not ensure_authorized(message):
         return
-    reply_with_article_buttons(message, format_norme_from_db(), ['art85', 'art116', 'art3l21', 'art11l21'])
+
+    text = format_norme_from_db() + "\n\nSeleziona un articolo per leggerlo:"
+    
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    markup.add(
+        types.InlineKeyboardButton("Art. 85 CdS", callback_data="article:art85"),
+        types.InlineKeyboardButton("Art. 116 CdS", callback_data="article:art116"),
+        types.InlineKeyboardButton("Art. 3 L.21/1992", callback_data="article:art3l21"),
+        types.InlineKeyboardButton("Art. 11 L.21/1992", callback_data="article:art11l21"),
+    )
+
+    bot.reply_to(message, text, reply_markup=markup)
 
 @bot.message_handler(commands=['documenti'])
 def documenti_command(message):
@@ -3076,12 +3087,17 @@ def control_answer_callback(call):
 def article_callback(call):
     key = str(call.data).split(":", 1)[1].strip()
     text = format_articolo(key)
-    markup = build_article_markup([key])
+
     try:
         bot.answer_callback_query(call.id, "Articolo richiamato")
     except Exception:
         pass
-    bot.send_message(call.message.chat.id, text, reply_markup=markup, disable_web_page_preview=True)
+
+    bot.send_message(
+        call.message.chat.id,
+        text,
+        disable_web_page_preview=True
+    )
 
 
 @bot.callback_query_handler(func=lambda call: str(call.data).startswith("answer:"))
