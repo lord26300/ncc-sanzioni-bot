@@ -3492,6 +3492,7 @@ def all_messages(message):
 
 def run_bot():
     bot.remove_webhook()
+    setup_bot_commands()
     bot.infinity_polling(timeout=30, long_polling_timeout=30)
 
 if __name__ == "__main__":
