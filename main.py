@@ -1454,8 +1454,7 @@ def lookup_plate_in_registry(plate_text):
         return {
             "ok": False,
             "message": (
-                f"Archivio targhe non trovato: {TARGHE_FILE_PATH}.
-"
+                f"Archivio targhe non trovato: {TARGHE_FILE_PATH}."
                 "Carica il file Excel nel repository e verifica il percorso in TARGHE_FILE_PATH."
             )
         }
