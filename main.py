@@ -1570,8 +1570,7 @@ def lookup_plate_in_registry(plate_text):
             "owner": intestatario,
             "owner_residence": residenza,
             "sanctionable": sanctionable,
-            "message": "
-".join(lines)
+            "message": "\n".join(lines)
         }
     except Exception as e:
         return {"ok": False, "message": f"Errore lettura archivio targhe: {e}"}
@@ -3118,11 +3117,8 @@ def targa_command(message):
     begin_plate_lookup_flow(message.chat.id)
     bot.reply_to(
         message,
-        "Inserisci la targa del mezzo da verificare.
-
-"
-        "Esempio: AB123CD
-"
+        "Inserisci la targa del mezzo da verificare.\n\n"
+        "Esempio: AB123CD\n"
         "Il bot controllerà l'archivio Excel aggiornato nel repository e ti dirà se il mezzo è adibito o meno al servizio NCC."
     )
 
