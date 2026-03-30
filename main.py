@@ -67,6 +67,10 @@ CONTROL_ASSUME_NCC_DEFAULTS = {
 }
 
 CONTROL_DOC_LABELS = {item["id"]: item["label"] for item in CONTROL_DOCS}
+
+TARGHE_FILE_PATH = os.getenv("TARGHE_FILE_PATH", "targhe_ncc.xlsx")
+TARGHE_SHEET_NAME = os.getenv("TARGHE_SHEET_NAME", "NCC")
+
 # =========================
 # DATI SANZIONI
 # =========================
@@ -841,6 +845,7 @@ def authorized_start_text(user_id):
         "/checklist - controlli operativi\n"
         "/documenti - documenti da controllare\n"
         "/norme - riferimenti principali\n"
+        "/targa - verifica targa in archivio NCC\n"
         "/riattiva - istruzioni per riattivare il servizio\n"
         "/reset - annulla caso in corso"
     )
@@ -1365,6 +1370,225 @@ def format_partial_assessment(answers, concurrent_codes=None, extra_notes=None, 
     lines.append("AVVERTENZA")
     lines.append("Completa il quadro con ulteriori risposte oppure verifica su prontuario, normativa vigente e disciplina locale.")
     return "\n".join(lines)
+
+def normalize_plate_value(value):
+    if value is None:
+        return ""
+    return re.sub(r"[^A-Z0-9]", "", str(value).upper().strip())
+
+
+def normalize_header_value(value):
+    if value is None:
+        return ""
+    raw = str(value).strip().lower()
+    raw = raw.replace("à", "a").replace("è", "e").replace("é", "e").replace("ì", "i").replace("ò", "o").replace("ù", "u")
+    raw = raw.replace("_", " ").replace("-", " ")
+    raw = re.sub(r"\s+", " ", raw)
+    return raw
+
+
+def _find_first_matching_column(headers, aliases):
+    for idx, header in enumerate(headers):
+        if header in aliases:
+            return idx
+    return None
+
+
+def _interpret_ncc_status(value):
+    normalized = normalize_header_value(value)
+    compact = normalized.replace(" ", "")
+
+    yes_values = {
+        "si", "s", "yes", "y", "true", "1", "ncc", "adibito",
+        "abilitato", "autorizzato", "attivo", "presente", "iscritto"
+    }
+    no_values = {
+        "no", "n", "false", "0", "non ncc", "non adibito", "non abilitato",
+        "non autorizzato", "revocato", "sospeso", "cessato", "assente"
+    }
+
+    if compact in yes_values or normalized in yes_values:
+        return "si"
+    if compact in no_values or normalized in no_values:
+        return "no"
+    if "non" in normalized and any(x in normalized for x in ["ncc", "adibito", "autorizzato", "abilitato"]):
+        return "no"
+    if any(x in normalized for x in ["ncc", "adibito", "autorizzato", "abilitato", "attivo"]):
+        return "si"
+    return None
+
+
+def _plate_registry_header_row_index(sheet, max_scan_rows=10):
+    target_headers = {
+        "targa", "modello", "colore", "destinazione uso veicoli", "uso veicolo",
+        "licenza autoveicolo", "intestatario", "residenza intestatario"
+    }
+    for row_index, row in enumerate(sheet.iter_rows(min_row=1, max_row=max_scan_rows, values_only=True), start=1):
+        normalized = {normalize_header_value(cell) for cell in row if cell not in (None, "")}
+        if "targa" in normalized and len(normalized.intersection(target_headers)) >= 3:
+            return row_index
+    return 1
+
+
+
+def _is_persona_fisica_owner(owner_name):
+    if owner_name in (None, ""):
+        return False
+    normalized = normalize_header_value(owner_name).upper()
+    company_markers = {
+        "SRL", "S R L", "SPA", "S P A", "SAS", "S A S", "SNC", "S N C",
+        "SAPA", "S A P A", "COOP", "COOPERATIVA", "SOC", "SOCIETA", "DITTA",
+        "IMPRESA", "CONSORZIO", "ASSOCIAZIONE", "FONDAZIONE", "GROUP", "SERVICE",
+        "SERVICES", "VIAGGI", "TRAVEL", "TRASPORTI"
+    }
+    return not any(marker in normalized for marker in company_markers)
+
+
+
+def lookup_plate_in_registry(plate_text):
+    plate = normalize_plate_value(plate_text)
+    if not plate:
+        return {"ok": False, "message": "Inserisci una targa valida."}
+
+    if not os.path.exists(TARGHE_FILE_PATH):
+        return {
+            "ok": False,
+            "message": (
+                f"Archivio targhe non trovato: {TARGHE_FILE_PATH}.
+"
+                "Carica il file Excel nel repository e verifica il percorso in TARGHE_FILE_PATH."
+            )
+        }
+
+    try:
+        from openpyxl import load_workbook
+    except Exception as e:
+        return {
+            "ok": False,
+            "message": f"Libreria openpyxl non disponibile sul server: {e}"
+        }
+
+    try:
+        workbook = load_workbook(TARGHE_FILE_PATH, data_only=True, read_only=True)
+        target_sheet_name = TARGHE_SHEET_NAME if TARGHE_SHEET_NAME in workbook.sheetnames else None
+        if not target_sheet_name:
+            for candidate in workbook.sheetnames:
+                if str(candidate).strip().lower() == 'ncc':
+                    target_sheet_name = candidate
+                    break
+        sheet = workbook[target_sheet_name] if target_sheet_name else workbook[workbook.sheetnames[0]]
+
+        header_row_index = _plate_registry_header_row_index(sheet)
+        rows = sheet.iter_rows(min_row=header_row_index, values_only=True)
+        headers_raw = next(rows, None)
+        if not headers_raw:
+            return {"ok": False, "message": "Il file Excel targhe è vuoto."}
+
+        headers = [normalize_header_value(h) for h in headers_raw]
+
+        targa_idx = _find_first_matching_column(headers, {"targa", "plate", "telaio/targa", "veicolo", "mezzo"})
+        uso_idx = _find_first_matching_column(headers, {"uso veicolo", "uso", "uso del veicolo"})
+        intestatario_idx = _find_first_matching_column(headers, {"intestatario", "proprietario", "ragione sociale", "titolare"})
+        residenza_idx = _find_first_matching_column(headers, {"residenza intestatario", "residenza", "indirizzo intestatario", "comune intestatario"})
+        modello_idx = _find_first_matching_column(headers, {"modello", "veicolo modello", "marca modello"})
+        destinazione_idx = _find_first_matching_column(headers, {"destinazione uso veicoli", "destinazione uso", "destinazione"})
+        licenza_idx = _find_first_matching_column(headers, {"licenza autoveicolo", "licenza", "autorizzazione", "licenza ncc"})
+        note_idx = _find_first_matching_column(headers, {"note", "annotazioni", "osservazioni"})
+
+        if targa_idx is None:
+            return {
+                "ok": False,
+                "message": "Nel file Excel manca una colonna riconoscibile per la targa (es. 'targa')."
+            }
+
+        found_row = None
+        for row in rows:
+            cell_value = row[targa_idx] if targa_idx < len(row) else None
+            if normalize_plate_value(cell_value) == plate:
+                found_row = row
+                break
+
+        if not found_row:
+            return {
+                "ok": True,
+                "found": False,
+                "plate": plate,
+                "message": f"Il mezzo con targa {plate} non è stato censito."
+            }
+
+        def get_value(idx):
+            if idx is None or idx >= len(found_row):
+                return ""
+            value = found_row[idx]
+            if value is None:
+                return ""
+            return str(value).strip()
+
+        uso = get_value(uso_idx).upper()
+        intestatario = get_value(intestatario_idx)
+        residenza = get_value(residenza_idx)
+        modello = get_value(modello_idx)
+        destinazione = get_value(destinazione_idx)
+        licenza = get_value(licenza_idx)
+        note = get_value(note_idx)
+        owner_is_person = _is_persona_fisica_owner(intestatario)
+        sanctionable = uso == 'PROPRIO' and owner_is_person
+
+        lines = [
+            f"Targa: {plate}",
+            "",
+            "Mezzo presente nel censimento.",
+        ]
+        if modello:
+            lines.append(f"Modello: {modello}")
+        if destinazione:
+            lines.append(f"Destinazione uso veicolo: {destinazione}")
+        if uso:
+            lines.append(f"Uso veicolo: {uso}")
+        if intestatario:
+            lines.append(f"Intestatario: {intestatario}")
+        if residenza:
+            lines.append(f"Residenza proprietario: {residenza}")
+        if licenza:
+            lines.append(f"Licenza/autorizzazione: {licenza}")
+
+        lines.append("")
+        if sanctionable:
+            lines.append("ESITO OPERATIVO: mezzo già sanzionabile.")
+            lines.append("Motivo: veicolo censito, uso proprio e intestatario persona fisica.")
+        else:
+            lines.append("ESITO OPERATIVO: mezzo censito.")
+            lines.append("Valutare comunque licenza, foglio di servizio e modalità del trasporto concreto.")
+
+        if note:
+            lines.extend(["", f"Note archivio: {note}"])
+
+        return {
+            "ok": True,
+            "found": True,
+            "plate": plate,
+            "usage": uso,
+            "owner": intestatario,
+            "owner_residence": residenza,
+            "sanctionable": sanctionable,
+            "message": "
+".join(lines)
+        }
+    except Exception as e:
+        return {"ok": False, "message": f"Errore lettura archivio targhe: {e}"}
+
+
+def begin_plate_lookup_flow(chat_id):
+    user_states[chat_id] = {
+        "mode": "plate_lookup"
+    }
+
+
+def process_plate_lookup(chat_id, text):
+    result = lookup_plate_in_registry(text)
+    clear_case(chat_id)
+    return result.get("message", "Errore nella ricerca targa.")
+
 
 def format_norme_from_db():
     lines = ["RIFERIMENTI NORMATIVI NCC\n"]
@@ -2844,6 +3068,7 @@ def help_command(message):
         "/checklist = elenco controlli operativi sul posto.\n\n"
         "/documenti = documenti ed elementi che il conducente / servizio NCC deve esibire o consentire di verificare.\n\n"
         "/norme = riferimenti normativi principali NCC.\n\n"
+        "/targa = verifica una targa nell'archivio Excel NCC caricato nel repository.\n\n"
         "/art85 = leggi il richiamo operativo dell'art. 85 CdS\n"
         "/art116 = leggi il richiamo operativo dell'art. 116 CdS\n"
         "/art3l21 = leggi il richiamo operativo dell'art. 3 L. 21/1992\n"
@@ -2877,6 +3102,31 @@ def norme_command(message):
     )
 
     bot.reply_to(message, text, reply_markup=markup)
+
+@bot.message_handler(commands=['targa'])
+def targa_command(message):
+    if not ensure_authorized(message):
+        return
+
+    text = (message.text or "").strip()
+    parts = text.split(maxsplit=1)
+
+    if len(parts) > 1 and parts[1].strip():
+        result = lookup_plate_in_registry(parts[1].strip())
+        bot.reply_to(message, result.get("message", "Errore nella ricerca targa."))
+        return
+
+    begin_plate_lookup_flow(message.chat.id)
+    bot.reply_to(
+        message,
+        "Inserisci la targa del mezzo da verificare.
+
+"
+        "Esempio: AB123CD
+"
+        "Il bot controllerà l'archivio Excel aggiornato nel repository e ti dirà se il mezzo è adibito o meno al servizio NCC."
+    )
+
 
 @bot.message_handler(commands=['documenti'])
 def documenti_command(message):
@@ -3192,7 +3442,7 @@ def all_messages(message):
     state = get_state(chat_id)
 
     if not state:
-        bot.reply_to(message, "Usa /controllo per la checklist documentale guidata, /caso per il testo libero, oppure uno scenario guidato tra /porto /aeroporto /stazione /hotel /navetta.")
+        bot.reply_to(message, "Usa /controllo per la checklist documentale guidata, /caso per il testo libero, /targa per verificare una targa, oppure uno scenario guidato tra /porto /aeroporto /stazione /hotel /navetta.")
         return
 
     mode = state.get("mode")
@@ -3205,6 +3455,11 @@ def all_messages(message):
     if mode == "clarification":
         response = process_clarification(chat_id, text)
         reply_with_article_buttons(message, response)
+        return
+
+    if mode == "plate_lookup":
+        response = process_plate_lookup(chat_id, text)
+        bot.reply_to(message, response)
         return
 
     if mode == "control_docs":
