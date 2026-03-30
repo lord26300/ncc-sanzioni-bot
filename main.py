@@ -1162,6 +1162,33 @@ def article_shortcuts_from_result(main_code=None, concurrent_codes=None):
 
     return 'ARTICOLI RICHIAMABILI\n' + '\n'.join(f'- {cmd}' for cmd in commands)
 
+
+def send_long_message(chat_id, text, reply_markup=None, disable_web_page_preview=True, chunk_size=3500):
+    text = text or ""
+    chunks = []
+
+    while len(text) > chunk_size:
+        split_at = text.rfind("\n", 0, chunk_size)
+        if split_at == -1:
+            split_at = chunk_size
+        chunks.append(text[:split_at])
+        text = text[split_at:].lstrip("\n")
+
+    if text:
+        chunks.append(text)
+
+    if not chunks:
+        chunks = [""]
+
+    for i, chunk in enumerate(chunks):
+        markup = reply_markup if i == 0 else None
+        bot.send_message(
+            chat_id,
+            chunk,
+            reply_markup=markup,
+            disable_web_page_preview=disable_web_page_preview
+        )
+
 def format_compact_violation(code):
     v = VIOLATIONS[code]
     lines = []
@@ -3307,7 +3334,7 @@ def control_doc_done_callback(call):
         pass
     result, qkey = next_control_question_or_result(chat_id)
     markup = build_combined_markup([], qkey) if qkey else build_article_markup(infer_article_keys_from_text(result))
-    bot.send_message(chat_id, result, reply_markup=markup, disable_web_page_preview=True)
+    send_long_message(chat_id, result, reply_markup=markup, disable_web_page_preview=True)
 
 
 @bot.callback_query_handler(func=lambda call: str(call.data).startswith("ctrl_answer:"))
@@ -3335,8 +3362,9 @@ def control_answer_callback(call):
             pass
         result, qkey = next_control_question_or_result(chat_id)
         markup = build_combined_markup([], qkey) if qkey else build_article_markup(infer_article_keys_from_text(result))
-        bot.send_message(chat_id, result, reply_markup=markup, disable_web_page_preview=True)
+        send_long_message(chat_id, result, reply_markup=markup, disable_web_page_preview=True)
     except Exception as e:
+        print(f"ERRORE control_answer_callback: {e}")
         try:
             bot.answer_callback_query(call.id, "Errore nel flusso")
         except Exception:
@@ -3409,7 +3437,7 @@ def answer_callback(call):
             bot.answer_callback_query(call.id, "Risposta acquisita")
         except Exception:
             pass
-        bot.send_message(chat_id, response, reply_markup=markup, disable_web_page_preview=True)
+        send_long_message(chat_id, response, reply_markup=markup, disable_web_page_preview=True)
     except Exception as e:
         try:
             bot.answer_callback_query(call.id, "Errore nel flusso")
@@ -3476,7 +3504,7 @@ def all_messages(message):
         state["pending_question"] = None
         result, qkey = next_control_question_or_result(chat_id)
         markup = build_combined_markup([], qkey) if qkey else build_article_markup(infer_article_keys_from_text(result))
-        bot.reply_to(message, result, reply_markup=markup, disable_web_page_preview=True)
+        send_long_message(chat_id, result, reply_markup=markup, disable_web_page_preview=True)
         return
 
     if mode == "external_consent":
@@ -3489,6 +3517,7 @@ def all_messages(message):
 # =========================
 # AVVIO BOT
 # =========================
+
 
 def setup_bot_commands():
     commands = [
@@ -3509,9 +3538,17 @@ def setup_bot_commands():
         print(f"Errore setup comandi bot: {e}")
 
 def run_bot():
-    bot.remove_webhook()
-    setup_bot_commands()
-    bot.infinity_polling(timeout=30, long_polling_timeout=30)
+    try:
+        print("AVVIO BOT TELEGRAM...")
+        if not TOKEN:
+            raise RuntimeError("TOKEN mancante nelle variabili environment di Render")
+        bot.remove_webhook()
+        setup_bot_commands()
+        print("Polling Telegram in avvio...")
+        bot.infinity_polling(timeout=30, long_polling_timeout=30)
+    except Exception as e:
+        print(f"ERRORE AVVIO BOT: {e}")
+        raise
 
 if __name__ == "__main__":
     threading.Thread(target=run_bot, daemon=True).start()
