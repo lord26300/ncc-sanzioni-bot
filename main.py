@@ -1669,6 +1669,7 @@ def decide_violation(answers):
     service_context = answers.get("service_context")
     violation_type = answers.get("violation_type")
     recurrence = answers.get("recurrence")
+    recurrence_triennio = answers.get("recurrence_triennio") or recurrence
     kb = answers.get("kb")
     public_waiting = answers.get("public_waiting")
     taxi_commune = answers.get("taxi_commune")
@@ -1775,7 +1776,7 @@ def decide_violation(answers):
     if vehicle_authorized == "no" and service_to_third == "si":
         add_signal("Trasmettere il verbale al Prefetto del luogo della violazione nei casi previsti dall'art. 85 comma 4 CdS.")
         add_verbal("Accertato servizio di noleggio con conducente svolto con veicolo non adibito/autorizzato a tale uso.")
-        if recurrence == "second_3y":
+        if recurrence_triennio == "second_3y":
             add_signal("Comunicazione al Prefetto entro 5 giorni per i presupposti della revoca patente, trattandosi di seconda violazione utile nel triennio.")
             return "085-04", concurrent, notes, procedural_flags, ancillary_findings
         return "085-02", concurrent, notes, procedural_flags, ancillary_findings
@@ -1836,7 +1837,7 @@ def missing_questions(answers):
     if vehicle_authorized == "no":
         if service_to_third == "si" and answers.get("recurrence") is None:
             return [{
-                "key": "recurrence",
+                "key": "recurrence_triennio",
                 "text": "Per il ramo art. 85 c.4 si tratta di prima violazione o seconda nel triennio?\nRispondi: first / second_3y"
             }]
         if answers.get("kb") is None:
@@ -2217,6 +2218,18 @@ def describe_control_violation(answers):
 def build_recurrence_prompt(answers, key="recurrence"):
 
     descr = describe_control_violation(answers)
+    if key == "recurrence_triennio":
+        return (
+            "VIOLAZIONE RISCONTRATA:\n"
+            f"{descr}\n\n"
+            "INQUADRAMENTO NORMATIVO:\n"
+            "Ramo sanzionatorio art. 85 c.4 CdS (veicolo non adibito/autorizzato a NCC).\n\n"
+            "Ora indica se si tratta di prima violazione o seconda nel triennio:\n"
+            "first = prima\n"
+            "second_3y = seconda nel triennio\n"
+            "Rispondi con una di queste opzioni oppure usa i pulsanti qui sotto."
+        )
+
     return (
         "VIOLAZIONE RISCONTRATA:\n"
         f"{descr}\n\n"
@@ -2369,6 +2382,7 @@ def _apply_control_answer_to_state(state, key, value):
     elif key == "recurrence_triennio":
         if value in {"first", "second_3y"}:
             answers["recurrence_triennio"] = value
+            answers["recurrence"] = value
 
     elif key == "incauto_affidamento":
         if value in {"si", "no"}:
@@ -2559,8 +2573,10 @@ def process_clarification(chat_id, text):
     if value is None:
         return f"Risposta non valida.\n\n{q['text']}"
 
-    target_key = "recurrence" if q["key"] == "recurrence_triennio" else q["key"]
+    target_key = q["key"]
     state["answers"][target_key] = value
+    if q["key"] == "recurrence_triennio":
+        state["answers"]["recurrence"] = value
 
     main_code, concurrent, notes, procedural_flags, ancillary_findings = decide_violation(state["answers"])
     questions = [item for item in missing_questions(state["answers"]) if item["key"] != q["key"]]
@@ -3087,6 +3103,7 @@ def control_answer_callback(call):
 def article_callback(call):
     key = str(call.data).split(":", 1)[1].strip()
     text = format_articolo(key)
+    markup = build_violation_markup_for_article(key)
 
     try:
         bot.answer_callback_query(call.id, "Articolo richiamato")
@@ -3096,6 +3113,29 @@ def article_callback(call):
     bot.send_message(
         call.message.chat.id,
         text,
+        reply_markup=markup,
+        disable_web_page_preview=True
+    )
+
+
+@bot.callback_query_handler(func=lambda call: str(call.data).startswith("viol:"))
+def violation_callback(call):
+    code = normalize_violation_code(str(call.data).split(":", 1)[1].strip())
+    if not code:
+        try:
+            bot.answer_callback_query(call.id, "Voce non disponibile")
+        except Exception:
+            pass
+        return
+
+    try:
+        bot.answer_callback_query(call.id, "Voce sanzionatoria richiamata")
+    except Exception:
+        pass
+
+    bot.send_message(
+        call.message.chat.id,
+        format_compact_violation(code),
         disable_web_page_preview=True
     )
 
