@@ -1,2 +1,5 @@
 pyTelegramBotAPI==4.28.0
 Flask==3.0.3
+requests
+pandas
+openpyxl
