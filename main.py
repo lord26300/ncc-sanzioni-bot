@@ -2865,25 +2865,49 @@ def documenti_command(message):
 def art85_command(message):
     if not ensure_authorized(message):
         return
-    bot.reply_to(message, format_articolo("art85"))
+
+    text = format_articolo("art85")
+    state = get_state(message.chat.id)
+    if state and state.get("mode") in ["clarification", "external_consent", "control_followup"]:
+        text += "\n\nLa procedura guidata è ancora attiva. Dopo la lettura dell'articolo, riprendi rispondendo alla domanda precedente oppure usa /reset."
+
+    bot.reply_to(message, text)
 
 @bot.message_handler(commands=['art116'])
 def art116_command(message):
     if not ensure_authorized(message):
         return
-    bot.reply_to(message, format_articolo("art116"))
+
+    text = format_articolo("art116")
+    state = get_state(message.chat.id)
+    if state and state.get("mode") in ["clarification", "external_consent", "control_followup"]:
+        text += "\n\nLa procedura guidata è ancora attiva. Dopo la lettura dell'articolo, riprendi rispondendo alla domanda precedente oppure usa /reset."
+
+    bot.reply_to(message, text)
 
 @bot.message_handler(commands=['art3l21'])
 def art3l21_command(message):
     if not ensure_authorized(message):
         return
-    bot.reply_to(message, format_articolo("art3l21"))
+
+    text = format_articolo("art3l21")
+    state = get_state(message.chat.id)
+    if state and state.get("mode") in ["clarification", "external_consent", "control_followup"]:
+        text += "\n\nLa procedura guidata è ancora attiva. Dopo la lettura dell'articolo, riprendi rispondendo alla domanda precedente oppure usa /reset."
+
+    bot.reply_to(message, text)
 
 @bot.message_handler(commands=['art11l21'])
 def art11l21_command(message):
     if not ensure_authorized(message):
         return
-    bot.reply_to(message, format_articolo("art11l21"))
+
+    text = format_articolo("art11l21")
+    state = get_state(message.chat.id)
+    if state and state.get("mode") in ["clarification", "external_consent", "control_followup"]:
+        text += "\n\nLa procedura guidata è ancora attiva. Dopo la lettura dell'articolo, riprendi rispondendo alla domanda precedente oppure usa /reset."
+
+    bot.reply_to(message, text)
 
 @bot.message_handler(commands=['verbale'])
 def verbale_command(message):
@@ -3102,6 +3126,13 @@ def answer_callback(call):
 
 @bot.message_handler(func=lambda m: True)
 def all_messages(message):
+    text = (message.text or "").strip()
+
+    # I comandi /... devono essere gestiti solo dai rispettivi handler dedicati,
+    # senza interrompere il flusso del caso guidato o del controllo documentale.
+    if text.startswith("/"):
+        return
+
     if not ensure_authorized(message):
         return
 
@@ -3115,12 +3146,12 @@ def all_messages(message):
     mode = state.get("mode")
 
     if mode == "free_case":
-        response = process_case_description(chat_id, message.text.strip())
+        response = process_case_description(chat_id, text)
         reply_with_article_buttons(message, response)
         return
 
     if mode == "clarification":
-        response = process_clarification(chat_id, message.text.strip())
+        response = process_clarification(chat_id, text)
         reply_with_article_buttons(message, response)
         return
 
@@ -3134,7 +3165,7 @@ def all_messages(message):
             clear_case(chat_id)
             bot.reply_to(message, "Procedura annullata. Usa /controllo per ricominciare.")
             return
-        value = parse_answer_for_key(q["key"], message.text.strip())
+        value = parse_answer_for_key(q["key"], text)
         if value is None:
             markup = build_combined_markup([], q["key"])
             bot.reply_to(message, f"Risposta non valida.\n\n{q['text']}", reply_markup=markup)
@@ -3147,7 +3178,7 @@ def all_messages(message):
         return
 
     if mode == "external_consent":
-        response = process_external_consent(chat_id, message.text.strip())
+        response = process_external_consent(chat_id, text)
         bot.reply_to(message, response)
         return
 
