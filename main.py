@@ -747,67 +747,14 @@ ARTICOLI_DB = {
 # ACCESSO / AUTORIZZAZIONI
 # =========================
 
-ACCESS_DATA_FILE = os.getenv("ACCESS_DATA_FILE", "access_data.json")
-
-def _default_access_data():
-    return {
-        "authorized_users": {ADMIN_ID},
-        "pending_users": {},
-        "rejected_users": set()
-    }
-
-access_data = _default_access_data()
-
-def load_access_data():
-    global access_data
-
-    base = _default_access_data()
-
-    if not os.path.exists(ACCESS_DATA_FILE):
-        access_data = base
-        save_access_data()
-        return
-
-    try:
-        with open(ACCESS_DATA_FILE, "r", encoding="utf-8") as f:
-            raw = json.load(f)
-
-        authorized_users = {int(x) for x in raw.get("authorized_users", [])}
-        authorized_users.add(ADMIN_ID)
-
-        pending_users = {}
-        for uid, data in raw.get("pending_users", {}).items():
-            uid_str = str(uid)
-            pending_users[uid_str] = {
-                "id": int(data.get("id", uid)),
-                "first_name": data.get("first_name", "") or "",
-                "username": data.get("username", "") or "",
-            }
-
-        rejected_users = {int(x) for x in raw.get("rejected_users", [])}
-        rejected_users.discard(ADMIN_ID)
-
-        access_data = {
-            "authorized_users": authorized_users,
-            "pending_users": pending_users,
-            "rejected_users": rejected_users,
-        }
-    except Exception as e:
-        print(f"Errore caricamento accessi: {e}")
-        access_data = base
-        save_access_data()
+access_data = {
+    "authorized_users": {ADMIN_ID},
+    "pending_users": {},
+    "rejected_users": set()
+}
 
 def save_access_data():
-    payload = {
-        "authorized_users": sorted(int(x) for x in access_data["authorized_users"]),
-        "pending_users": access_data["pending_users"],
-        "rejected_users": sorted(int(x) for x in access_data["rejected_users"]),
-    }
-    try:
-        with open(ACCESS_DATA_FILE, "w", encoding="utf-8") as f:
-            json.dump(payload, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        print(f"Errore salvataggio accessi: {e}")
+    return
 
 def is_admin(user_id):
     return user_id == ADMIN_ID
@@ -850,8 +797,6 @@ def revoke_user(user_id):
     access_data["authorized_users"].discard(user_id)
     save_access_data()
     return True
-
-load_access_data()
 
 def send_welcome_media(chat_id):
     if not WELCOME_MEDIA_ENABLED:
