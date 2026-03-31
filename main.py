@@ -13,6 +13,9 @@ bot = telebot.TeleBot(TOKEN)
 
 app = Flask(__name__)
 
+ACCESS_FILE = "access_data.json"
+STATE_FILE = "user_states.json"
+
 ADMIN_ID = 242294061
 
 RENDER_API_KEY = os.getenv("RENDER_API_KEY")
@@ -1027,6 +1030,8 @@ def load_user_states():
         print(f"ERRORE load_user_states: {e}")
         user_states = {}
 
+load_user_states()
+
 # mode:
 # - free_case: attesa descrizione libera
 # - clarification: attesa risposta a domanda integrativa
@@ -1183,7 +1188,7 @@ def get_question_buttons(question_key):
     return mapping.get(question_key, [])
 
 
-def build_combined_markup(article_keys=None, question_key=None):
+def build_combined_markup(article_keys=None, question_key=None, force_ctrl_answer=False):
     article_keys = article_keys or []
     q_buttons = get_question_buttons(question_key) if question_key else []
     if not article_keys and not q_buttons:
@@ -1210,7 +1215,11 @@ def build_combined_markup(article_keys=None, question_key=None):
     if q_buttons:
         row = []
         for label, value in q_buttons:
-            prefix = 'ctrl_answer' if (question_key or '').startswith('control_') else 'answer'
+            if force_ctrl_answer:
+                prefix = 'ctrl_answer'
+            else:
+                prefix = 'ctrl_answer' if (question_key or '').startswith('control_') else 'answer'
+
             row.append(types.InlineKeyboardButton(label, callback_data=f'{prefix}:{value}'))
             if len(row) == 2:
                 markup.row(*row)
@@ -2821,6 +2830,7 @@ def _apply_control_answer_to_state(state, key, value):
     elif key == "incauto_affidamento":
         if value in {"si", "no"}:
             answers["incauto_affidamento"] = value
+save_user_states()
 
 
 def _finalize_control(chat_id):
@@ -2897,6 +2907,7 @@ def next_control_question_or_result(chat_id):
         qa = state.setdefault("questions_asked", [])
         if q["key"] not in qa:
             qa.append(q["key"])
+        save_user_states()    
         prompt = build_recurrence_prompt(state.get("answers", {}), q["key"]) if q["key"] in {"recurrence", "recurrence_triennio"} else build_article_verification_prompt(state.get("answers", {}), q["key"], q["text"])
         return prompt, q["key"]
 
@@ -2958,7 +2969,7 @@ def process_case_description(chat_id, text):
         state["pending_question"] = q
         state["questions_asked"].append(q["key"])
         save_user_states()
-        save_user_states()
+        
         return (
             f"{format_case_hint(case_key)}\n\n"
             "Prima valutazione completata. Per chiudere correttamente il caso mi serve questo chiarimento:\n\n"
@@ -2970,6 +2981,7 @@ def process_case_description(chat_id, text):
         state["mode"] = "clarification"
         state["pending_question"] = q
         state["questions_asked"].append(q["key"])
+        save_user_states()
         return (
             "Esito preliminare probabile individuato con il database interno.\n"
             "Per completare il quadro sanzionatorio e le eventuali segnalazioni mi serve ancora questo dato:\n\n"
@@ -2992,6 +3004,7 @@ def process_case_description(chat_id, text):
         state["mode"] = "clarification"
         state["pending_question"] = q
         state["questions_asked"].append(q["key"])
+        save_user_states()
         return (
             "Il bot non ha ancora dati sufficienti per una qualificazione affidabile.\n"
             "Ti faccio una domanda mirata per ricostruire tutte le possibili infrazioni:\n\n"
@@ -3569,7 +3582,7 @@ def control_doc_done_callback(call):
         result, qkey = next_control_question_or_result(chat_id)
         print(f"[DEBUG] ctrl_doc_done next qkey={qkey}")
         print(f"[DEBUG] ctrl_doc_done result_len={len(result) if result else 0}")
-        markup = build_combined_markup([], qkey) if qkey else build_article_markup(infer_article_keys_from_text(result))
+        markup = build_combined_markup([], qkey, force_ctrl_answer=True) if qkey else build_article_markup(infer_article_keys_from_text(result))
         send_long_message(chat_id, result, reply_markup=markup, disable_web_page_preview=True)
     except Exception as e:
         print(f"ERRORE control_doc_done_callback: {e}")
@@ -3607,7 +3620,7 @@ def control_answer_callback(call):
         result, qkey = next_control_question_or_result(chat_id)
         print(f"[DEBUG] next_control qkey={qkey}")
         print(f"[DEBUG] result_len={len(result) if result else 0}")
-        markup = build_combined_markup([], qkey) if qkey else build_article_markup(infer_article_keys_from_text(result))
+        markup = build_combined_markup([], qkey, force_ctrl_answer=True) if qkey else build_article_markup(infer_article_keys_from_text(result))
         send_long_message(chat_id, result, reply_markup=markup, disable_web_page_preview=True)
     except Exception as e:
         print(f"ERRORE control_answer_callback: {e}")
@@ -3751,7 +3764,7 @@ def all_messages(message):
         state["pending_question"] = None
         save_user_states()
         result, qkey = next_control_question_or_result(chat_id)
-        markup = build_combined_markup([], qkey) if qkey else build_article_markup(infer_article_keys_from_text(result))
+        markup = build_combined_markup([], qkey, force_ctrl_answer=True) if qkey else build_article_markup(infer_article_keys_from_text(result))
         send_long_message(chat_id, result, reply_markup=markup, disable_web_page_preview=True)
         return
 
