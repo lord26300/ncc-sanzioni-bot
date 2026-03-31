@@ -3790,17 +3790,26 @@ def setup_bot_commands():
         print(f"Errore setup comandi bot: {e}")
 
 def run_bot():
-    try:
-        print("AVVIO BOT TELEGRAM...")
-        if not TOKEN:
-            raise RuntimeError("TOKEN mancante nelle variabili environment di Render")
-        bot.remove_webhook()
-        setup_bot_commands()
-        print("Polling Telegram in avvio...")
-        bot.infinity_polling(timeout=30, long_polling_timeout=30)
-    except Exception as e:
-        print(f"ERRORE AVVIO BOT: {e}")
-        raise
+    print("AVVIO BOT TELEGRAM...")
+    if not TOKEN:
+        raise RuntimeError("TOKEN mancante nelle variabili environment di Render")
+
+    while True:
+        try:
+            bot.remove_webhook()
+            setup_bot_commands()
+            print("Polling Telegram in avvio...")
+            bot.infinity_polling(
+                timeout=30,
+                long_polling_timeout=30,
+                skip_pending=True
+            )
+        except Exception as e:
+            import time
+            import traceback
+            print(f"ERRORE AVVIO/POLLING BOT: {e}")
+            print(traceback.format_exc())
+            time.sleep(5)
 
 if __name__ == "__main__":
     threading.Thread(target=run_bot, daemon=True).start()
