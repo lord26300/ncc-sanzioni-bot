@@ -3,6 +3,7 @@ import json
 import threading
 import requests
 import re
+import traceback
 from flask import Flask
 import telebot
 from telebot import types
@@ -739,7 +740,30 @@ ARTICOLI_DB = {
             "- controllo su prenotazione / foglio di servizio / modalità operative del servizio.\n\n"
             "Se il mezzo è NCC e la violazione ricade su queste prescrizioni, il bot orienta verso il ramo 085-05 / 085-06 / 085-07 / 085-08."
         ),
+        "link": "https://www.normattiva.i
+    },
+    "art180": {
+        "titolo": "CdS art. 180",
+        "testo": (
+            "Art. 180 CdS – Possesso ed esibizione dei documenti di circolazione e di guida.\n\n"
+            "Uso operativo nel bot:\n"
+            "- si applica quando il documento esiste ma non viene esibito all'atto del controllo;\n"
+            "- va distinto dalle violazioni sostanziali, cioè quando il titolo manca, è revocato, sospeso o non idoneo;\n"
+            "- nel bot richiama soprattutto le ipotesi documentali per patente, autorizzazione NCC, foglio di servizio, carta di circolazione e assicurazione."
+        ),
         "link": "https://www.normattiva.it/"
+    },
+    "art126": {
+        "titolo": "CdS art. 126",
+        "testo": (
+            "Art. 126 CdS – Durata e conferma della validità della patente di guida.\n\n"
+            "Uso operativo nel bot:\n"
+            "- rileva quando patente, CAP, KB o CQC risultano scaduti;\n"
+            "- va distinto dalla mancanza del titolo e dalla mera mancata esibizione;\n"
+            "- nel bot è usato come richiamo operativo per i titoli scaduti."
+        ),
+        "link": "https://www.normattiva.it/"
+t/"
     }
 }
 
@@ -847,6 +871,7 @@ def authorized_start_text(user_id):
         "/norme - riferimenti principali\n"
         "/targa - verifica targa in archivio NCC\n"
         "/riattiva - istruzioni per riattivare il servizio\n"
+        "/art85 /art116 /art3l21 /art11l21 /art180 /art126 - richiami normativi\n"
         "/reset - annulla caso in corso"
     )
 
@@ -969,6 +994,10 @@ def normalize_article_key(article_key):
         'art11l21': 'art11l21',
         'art11': 'art11l21',
         '11l21': 'art11l21',
+        'art180': 'art180',
+        '180': 'art180',
+        'art126': 'art126',
+        '126': 'art126',
     }
     return aliases.get(key)
 
@@ -1012,6 +1041,13 @@ def get_article_keys_for_result(main_code=None, concurrent_codes=None):
         '116-04': 'art116',
         '116-05': 'art116',
         '116-06': 'art116',
+        '180-01': 'art180',
+        '180-DOC': 'art180',
+        '180-01DOC': 'art180',
+        '180-03': 'art180',
+        '180-06': 'art180',
+        '180-09': 'art180',
+        'CDS_126_11': 'art126',
     }
 
     add(code_to_article.get(main_code))
@@ -1038,6 +1074,8 @@ def build_article_markup(article_keys=None):
         'art116': 'Art. 116 CdS',
         'art3l21': 'Art. 3 L. 21/1992',
         'art11l21': 'Art. 11 L. 21/1992',
+        'art180': 'Art. 180 CdS',
+        'art126': 'Art. 126 CdS',
     }
 
     markup = types.InlineKeyboardMarkup(row_width=2)
@@ -1094,6 +1132,8 @@ def build_combined_markup(article_keys=None, question_key=None):
             'art116': 'Art. 116 CdS',
             'art3l21': 'Art. 3 L. 21/1992',
             'art11l21': 'Art. 11 L. 21/1992',
+            'art180': 'Art. 180 CdS',
+            'art126': 'Art. 126 CdS',
         }
         article_buttons = []
         for key in article_keys:
@@ -1125,6 +1165,8 @@ def infer_article_keys_from_text(text):
         '/art116': 'art116',
         '/art3l21': 'art3l21',
         '/art11l21': 'art11l21',
+        '/art180': 'art180',
+        '/art126': 'art126',
     }
     found = []
     lowered = str(text).lower()
@@ -1155,12 +1197,71 @@ def article_shortcuts_from_result(main_code=None, concurrent_codes=None):
         'art116': '/art116',
         'art3l21': '/art3l21',
         'art11l21': '/art11l21',
+        'art180': '/art180',
+        'art126': '/art126',
     }
     commands = [label_map[k] for k in article_keys if k in label_map]
     if not commands:
         return ''
 
     return 'ARTICOLI RICHIAMABILI\n' + '\n'.join(f'- {cmd}' for cmd in commands)
+
+
+
+def normalize_violation_code(code):
+    if not code:
+        return None
+    key = str(code).strip().upper()
+    aliases = {
+        "08502": "085-02",
+        "08504": "085-04",
+        "08505": "085-05",
+        "08506": "085-06",
+        "08507": "085-07",
+        "08508": "085-08",
+        "08509": "085-09",
+        "11606": "116-06",
+        "18001": "180-01",
+        "180DOC": "180-DOC",
+        "18001DOC": "180-01DOC",
+        "18003": "180-03",
+        "18006": "180-06",
+        "18009": "180-09",
+    }
+    if key in VIOLATIONS:
+        return key
+    compact = re.sub(r"[^A-Z0-9]", "", key)
+    return aliases.get(compact)
+
+
+def build_violation_markup_for_article(article_key):
+    key = normalize_article_key(article_key)
+    if not key:
+        return None
+
+    article_to_codes = {
+        "art85": ["085-02", "085-04", "085-05", "085-06", "085-07", "085-08", "085-09"],
+        "art116": ["116-06"],
+        "art3l21": ["085-05", "085-06", "085-07", "085-08"],
+        "art11l21": ["085-05", "085-06", "085-07", "085-08"],
+        "art180": ["180-01", "180-DOC", "180-01DOC", "180-03", "180-06", "180-09"],
+        "art126": [],
+    }
+
+    codes = [c for c in article_to_codes.get(key, []) if c in VIOLATIONS]
+    if not codes:
+        return None
+
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    buttons = []
+    for code in codes:
+        title = VIOLATIONS[code]["title"]
+        short_title = title if len(title) <= 38 else title[:35] + "..."
+        buttons.append(types.InlineKeyboardButton(short_title, callback_data=f"viol:{code}"))
+
+    for i in range(0, len(buttons), 2):
+        markup.row(*buttons[i:i+2])
+    return markup
 
 
 def send_long_message(chat_id, text, reply_markup=None, disable_web_page_preview=True, chunk_size=3500):
@@ -2640,6 +2741,7 @@ def _apply_control_answer_to_state(state, key, value):
 
 def _finalize_control(chat_id):
     state = user_states[chat_id]
+    print(f"[DEBUG] finalize answers={state.get('answers', {})}")
     main_code, concurrent, notes, procedural_flags, ancillary_findings = decide_violation(state.get("answers", {}))
 
     for code in state.get("control_concurrent", []):
@@ -3097,7 +3199,9 @@ def help_command(message):
         "/art85 = leggi il richiamo operativo dell'art. 85 CdS\n"
         "/art116 = leggi il richiamo operativo dell'art. 116 CdS\n"
         "/art3l21 = leggi il richiamo operativo dell'art. 3 L. 21/1992\n"
-        "/art11l21 = leggi il richiamo operativo dell'art. 11 L. 21/1992\n\n"
+        "/art11l21 = leggi il richiamo operativo dell'art. 11 L. 21/1992\n"
+        "/art180 = leggi il richiamo operativo dell'art. 180 CdS\n"
+        "/art126 = leggi il richiamo operativo dell'art. 126 CdS\n\n"
         "/riattiva = istruzioni per riattivare il servizio se il bot tarda a rispondere.\n\n"
         "/reset = annulla il caso in corso."
     )
@@ -3119,11 +3223,17 @@ def norme_command(message):
     text = format_norme_from_db() + "\n\nSeleziona un articolo per leggerlo:"
     
     markup = types.InlineKeyboardMarkup(row_width=2)
-    markup.add(
+    markup.row(
         types.InlineKeyboardButton("Art. 85 CdS", callback_data="article:art85"),
         types.InlineKeyboardButton("Art. 116 CdS", callback_data="article:art116"),
+    )
+    markup.row(
         types.InlineKeyboardButton("Art. 3 L.21/1992", callback_data="article:art3l21"),
         types.InlineKeyboardButton("Art. 11 L.21/1992", callback_data="article:art11l21"),
+    )
+    markup.row(
+        types.InlineKeyboardButton("Art. 180 CdS", callback_data="article:art180"),
+        types.InlineKeyboardButton("Art. 126 CdS", callback_data="article:art126"),
     )
 
     bot.reply_to(message, text, reply_markup=markup)
@@ -3203,6 +3313,32 @@ def art11l21_command(message):
         text += "\n\nLa procedura guidata è ancora attiva. Dopo la lettura dell'articolo, riprendi rispondendo alla domanda precedente oppure usa /reset."
 
     bot.reply_to(message, text)
+
+@bot.message_handler(commands=['art180'])
+def art180_command(message):
+    if not ensure_authorized(message):
+        return
+
+    text = format_articolo("art180")
+    state = get_state(message.chat.id)
+    if state and state.get("mode") in ["clarification", "external_consent", "control_followup"]:
+        text += "\n\nLa procedura guidata è ancora attiva. Dopo la lettura dell'articolo, riprendi rispondendo alla domanda precedente oppure usa /reset."
+
+    bot.reply_to(message, text, reply_markup=build_violation_markup_for_article("art180"))
+
+
+@bot.message_handler(commands=['art126'])
+def art126_command(message):
+    if not ensure_authorized(message):
+        return
+
+    text = format_articolo("art126")
+    state = get_state(message.chat.id)
+    if state and state.get("mode") in ["clarification", "external_consent", "control_followup"]:
+        text += "\n\nLa procedura guidata è ancora attiva. Dopo la lettura dell'articolo, riprendi rispondendo alla domanda precedente oppure usa /reset."
+
+    bot.reply_to(message, text)
+
 
 @bot.message_handler(commands=['verbale'])
 def verbale_command(message):
@@ -3332,9 +3468,17 @@ def control_doc_done_callback(call):
         bot.answer_callback_query(call.id, "Documenti acquisiti")
     except Exception:
         pass
-    result, qkey = next_control_question_or_result(chat_id)
-    markup = build_combined_markup([], qkey) if qkey else build_article_markup(infer_article_keys_from_text(result))
-    send_long_message(chat_id, result, reply_markup=markup, disable_web_page_preview=True)
+    try:
+        print(f"[DEBUG] ctrl_doc_done answers={state.get('answers', {})}")
+        result, qkey = next_control_question_or_result(chat_id)
+        print(f"[DEBUG] ctrl_doc_done next qkey={qkey}")
+        print(f"[DEBUG] ctrl_doc_done result_len={len(result) if result else 0}")
+        markup = build_combined_markup([], qkey) if qkey else build_article_markup(infer_article_keys_from_text(result))
+        send_long_message(chat_id, result, reply_markup=markup, disable_web_page_preview=True)
+    except Exception as e:
+        print(f"ERRORE control_doc_done_callback: {e}")
+        print(traceback.format_exc())
+        bot.send_message(chat_id, f"Errore interno nel controllo documentale: {e}")
 
 
 @bot.callback_query_handler(func=lambda call: str(call.data).startswith("ctrl_answer:"))
@@ -3354,17 +3498,23 @@ def control_answer_callback(call):
         bot.send_message(chat_id, "Procedura annullata. Usa /controllo per ricominciare.")
         return
     try:
+        print(f"[DEBUG] ctrl_answer key={q['key']} value={value}")
+        print(f"[DEBUG] answers_before={state.get('answers', {})}")
         _apply_control_answer_to_state(state, q["key"], value)
         state["pending_question"] = None
+        print(f"[DEBUG] answers_after={state.get('answers', {})}")
         try:
             bot.answer_callback_query(call.id, "Risposta acquisita")
         except Exception:
             pass
         result, qkey = next_control_question_or_result(chat_id)
+        print(f"[DEBUG] next_control qkey={qkey}")
+        print(f"[DEBUG] result_len={len(result) if result else 0}")
         markup = build_combined_markup([], qkey) if qkey else build_article_markup(infer_article_keys_from_text(result))
         send_long_message(chat_id, result, reply_markup=markup, disable_web_page_preview=True)
     except Exception as e:
         print(f"ERRORE control_answer_callback: {e}")
+        print(traceback.format_exc())
         try:
             bot.answer_callback_query(call.id, "Errore nel flusso")
         except Exception:
@@ -3383,7 +3533,7 @@ def article_callback(call):
     except Exception:
         pass
 
-    bot.send_message(
+    send_long_message(
         call.message.chat.id,
         text,
         reply_markup=markup,
@@ -3406,7 +3556,7 @@ def violation_callback(call):
     except Exception:
         pass
 
-    bot.send_message(
+    send_long_message(
         call.message.chat.id,
         format_compact_violation(code),
         disable_web_page_preview=True
@@ -3531,6 +3681,10 @@ def setup_bot_commands():
         types.BotCommand("targa", "verifica targa archivio NCC"),
         types.BotCommand("reset", "annulla procedura"),
         types.BotCommand("riattiva", "riattiva servizio"),
+        types.BotCommand("art85", "art. 85 CdS"),
+        types.BotCommand("art116", "art. 116 CdS"),
+        types.BotCommand("art180", "art. 180 CdS"),
+        types.BotCommand("art126", "art. 126 CdS"),
     ]
     try:
         bot.set_my_commands(commands)
