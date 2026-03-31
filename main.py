@@ -763,7 +763,6 @@ ARTICOLI_DB = {
             "- nel bot è usato come richiamo operativo per i titoli scaduti."
         ),
         "link": "https://www.normattiva.it/"
-t/"
     }
 }
 
