@@ -740,7 +740,7 @@ ARTICOLI_DB = {
             "- controllo su prenotazione / foglio di servizio / modalità operative del servizio.\n\n"
             "Se il mezzo è NCC e la violazione ricade su queste prescrizioni, il bot orienta verso il ramo 085-05 / 085-06 / 085-07 / 085-08."
         ),
-        "link": "https://www.normattiva.i
+        "link": "https://www.normattiva.it/"
     },
     "art180": {
         "titolo": "CdS art. 180",
