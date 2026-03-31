@@ -3808,6 +3808,7 @@ def control_doc_cancel_callback(call):
 def control_doc_done_callback(call):
     chat_id = call.message.chat.id
     state = get_state(chat_id)
+
     if not state or state.get("mode") != "control_docs":
         try:
             bot.answer_callback_query(call.id, "Nessun controllo documentale attivo")
@@ -3818,13 +3819,17 @@ def control_doc_done_callback(call):
     apply_control_defaults_from_selection(state)
     build_control_queue(state)
     save_user_states()
+
     try:
         bot.answer_callback_query(call.id, "Documenti acquisiti")
     except Exception:
         pass
+
     try:
         print(f"[DEBUG] ctrl_doc_done answers={state.get('answers', {})}")
         result, qkey = next_control_question_or_result(chat_id)
+        print(f"[DEBUG] ctrl_doc_done next qkey={qkey}")
+        print(f"[DEBUG] ctrl_doc_done result_len={len(result) if result else 0}")
 
         if qkey:
             markup = build_combined_markup([], qkey, force_ctrl_answer=True)
@@ -3837,10 +3842,17 @@ def control_doc_done_callback(call):
                 main_code = state_after.get("last_result_main_code")
                 concurrent_codes = state_after.get("last_result_concurrent", [])
                 flags = state_after.get("last_result_flags", {})
-            markup = build_pdf_markup(main_code, concurrent_codes, flags) or build_article_markup(infer_article_keys_from_text(result))
+            markup = build_pdf_markup(main_code, concurrent_codes, flags) or build_article_markup(
+                infer_article_keys_from_text(result)
+            )
 
-        send_long_message(chat_id, result, reply_markup=markup, disable_web_page_preview=True)
-        
+        send_long_message(
+            chat_id,
+            result,
+            reply_markup=markup,
+            disable_web_page_preview=True
+        )
+
     except Exception as e:
         print(f"ERRORE control_doc_done_callback: {e}")
         print(traceback.format_exc())
