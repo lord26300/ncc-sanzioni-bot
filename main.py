@@ -1157,6 +1157,44 @@ def build_article_markup(article_keys=None):
         markup.add(*buttons)
     return markup
 
+def build_pdf_markup(main_code=None, concurrent_codes=None, procedural_flags=None):
+    concurrent_codes = _dedupe_keep_order(concurrent_codes or [])
+    procedural_flags = procedural_flags or {}
+
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    added = False
+
+    def add_button(code, label):
+        nonlocal added
+        if code and PDF_MODELS.get(code):
+            markup.add(types.InlineKeyboardButton(label, url=PDF_MODELS[code]))
+            added = True
+
+    add_button(main_code, "PDF Verbale principale")
+
+    for idx, code in enumerate(concurrent_codes, start=2):
+        add_button(code, f"PDF Verbale {idx}")
+
+    accessory_actions = _build_accessory_actions(main_code, concurrent_codes)
+    communications = _build_communications(procedural_flags)
+
+    if "Sequestro/confisca veicolo" in accessory_actions:
+        add_button("SEQUESTRO_85", "PDF Sequestro")
+    if "Fermo veicolo 60 giorni" in accessory_actions:
+        add_button("FERMO_116", "PDF Fermo")
+
+    if "Prefetto" in communications:
+        add_button("COM_PREFETTO", "PDF Comunicazione Prefetto")
+    if "UMC" in communications:
+        add_button("COM_UMC", "PDF Comunicazione UMC")
+    if "Comune / ente rilasciante" in communications:
+        add_button("COM_COMUNE", "PDF Comunicazione Comune")
+    if "Segnalazione RENT" in communications:
+        add_button("COM_RENT", "PDF Segnalazione RENT")
+    if "Segnalazione ruolo/albo conducenti" in communications:
+        add_button("COM_RUOLO", "PDF Segnalazione Ruolo")
+
+    return markup if added else None        
 
 def get_question_buttons(question_key):
     mapping = {
@@ -1357,6 +1395,197 @@ def send_long_message(chat_id, text, reply_markup=None, disable_web_page_preview
             reply_markup=markup,
             disable_web_page_preview=disable_web_page_preview
         )
+
+PDF_MODELS = {
+    "085-02": None,
+    "085-04": None,
+    "085-05": None,
+    "085-06": None,
+    "085-07": None,
+    "085-08": None,
+    "085-09": None,
+    "116-06": None,
+    "180-01": None,
+    "180-01DOC": None,
+    "180-03": None,
+    "180-06": None,
+    "180-09": None,
+    "SEQUESTRO_85": None,
+    "FERMO_116": None,
+    "COM_PREFETTO": None,
+    "COM_UMC": None,
+    "COM_COMUNE": None,
+    "COM_RENT": None,
+    "COM_RUOLO": None,
+}
+
+def _short_violation_line(code):
+    v = VIOLATIONS.get(code)
+    if not v:
+        return code
+    return f"{code} | {v['article']} | {v['title']}"
+
+def _dedupe_keep_order(items):
+    out = []
+    for item in items or []:
+        if item and item not in out:
+            out.append(item)
+    return out
+
+def _build_accessory_actions(main_code, concurrent_codes=None):
+    concurrent_codes = concurrent_codes or []
+    actions = []
+
+    def add(text):
+        if text and text not in actions:
+            actions.append(text)
+
+    if main_code in {"085-02", "085-04"}:
+        add("Sequestro/confisca veicolo")
+    if main_code in {"085-05", "085-06", "085-07", "085-08"}:
+        add("Ritiro/sospensione documento di circolazione")
+    if "116-06" in concurrent_codes:
+        add("Fermo veicolo 60 giorni")
+
+    return actions
+
+def _build_communications(procedural_flags=None):
+    procedural_flags = procedural_flags or {}
+    signals = _dedupe_keep_order(procedural_flags.get("segnalazioni", []))
+    mapped = []
+
+    for item in signals:
+        low = item.lower()
+        if "prefett" in low:
+            mapped.append("Prefetto")
+        elif "umc" in low:
+            mapped.append("UMC")
+        elif "comune" in low or "ente rilasciante" in low:
+            mapped.append("Comune / ente rilasciante")
+        elif "rent" in low:
+            mapped.append("Segnalazione RENT")
+        elif "ruolo" in low or "albo" in low:
+            mapped.append("Segnalazione ruolo/albo conducenti")
+        else:
+            mapped.append(item)
+
+    return _dedupe_keep_order(mapped)
+
+def _compact_details_for_code(code):
+    v = VIOLATIONS[code]
+    lines = []
+    lines.append(f"{code} — {v['article']}")
+    lines.append(v["title"])
+    lines.append(f"Sanzione: {v['edictal']}")
+    lines.append(f"PMR: {v['pmr']}")
+    if v.get("accessories"):
+        lines.append("Accessorie:")
+        for a in v["accessories"]:
+            lines.append(f"- {a}")
+    if v.get("short_ready_text"):
+        lines.append("Testo sintetico:")
+        lines.append(v["short_ready_text"])
+    if v.get("fields_to_fill"):
+        lines.append("Dati da completare:")
+        for f in v["fields_to_fill"]:
+            lines.append(f"- {f}")
+    return "\n".join(lines)
+
+def build_quick_summary(main_code, concurrent_codes=None, procedural_flags=None, ancillary_findings=None):
+    concurrent_codes = _dedupe_keep_order(concurrent_codes or [])
+    ancillary_findings = _dedupe_keep_order(ancillary_findings or [])
+    accessory_actions = _build_accessory_actions(main_code, concurrent_codes)
+    communications = _build_communications(procedural_flags)
+
+    lines = []
+    lines.append("ESITO RAPIDO")
+    lines.append("")
+    lines.append("VERBALI DA FARE")
+    lines.append(f"1) {_short_violation_line(main_code)}")
+    for idx, code in enumerate(concurrent_codes, start=2):
+        lines.append(f"{idx}) {_short_violation_line(code)}")
+
+    if accessory_actions:
+        lines.append("")
+        lines.append("ATTI ACCESSORI")
+        for idx, item in enumerate(accessory_actions, start=1):
+            lines.append(f"{idx}) {item}")
+
+    if communications:
+        lines.append("")
+        lines.append("COMUNICAZIONI")
+        for idx, item in enumerate(communications, start=1):
+            lines.append(f"{idx}) {item}")
+
+    if ancillary_findings:
+        lines.append("")
+        lines.append("ALTRE ANOMALIE DA ANNOTARE")
+        for idx, item in enumerate(ancillary_findings, start=1):
+            lines.append(f"{idx}) {item}")
+
+    return "\n".join(lines)
+
+def format_multiple(main_code, concurrent_codes=None, extra_notes=None, level=None, procedural_flags=None, ancillary_findings=None):
+    concurrent_codes = _dedupe_keep_order(concurrent_codes or [])
+    extra_notes = _dedupe_keep_order(extra_notes or [])
+    procedural_flags = procedural_flags or {}
+    ancillary_findings = _dedupe_keep_order(ancillary_findings or [])
+
+    accessory_actions = _build_accessory_actions(main_code, concurrent_codes)
+    communications = _build_communications(procedural_flags)
+
+    lines = []
+    lines.append(build_quick_summary(
+        main_code,
+        concurrent_codes=concurrent_codes,
+        procedural_flags=procedural_flags,
+        ancillary_findings=ancillary_findings,
+    ))
+
+    lines.append("")
+    lines.append("DETTAGLIO VERBALI")
+
+    all_codes = [main_code] + concurrent_codes
+    for idx, code in enumerate(all_codes, start=1):
+        lines.append("")
+        lines.append(f"VERBALE {idx}")
+        lines.append(_compact_details_for_code(code))
+
+    if accessory_actions:
+        lines.append("")
+        lines.append("DETTAGLIO ATTI ACCESSORI")
+        for idx, item in enumerate(accessory_actions, start=1):
+            lines.append(f"{idx}) {item}")
+
+    if communications:
+        lines.append("")
+        lines.append("DETTAGLIO COMUNICAZIONI")
+        for idx, item in enumerate(communications, start=1):
+            lines.append(f"{idx}) {item}")
+
+    verbale_additions = _dedupe_keep_order(procedural_flags.get("verbale_additions", []))
+    if verbale_additions:
+        lines.append("")
+        lines.append("ANNOTAZIONI DA INSERIRE NEL VERBALE")
+        for item in verbale_additions:
+            lines.append(f"- {item}")
+
+    if extra_notes:
+        lines.append("")
+        lines.append("NOTE OPERATIVE")
+        for note in extra_notes:
+            lines.append(f"- {note}")
+
+    lines.append("")
+    lines.append("ARTICOLI RICHIAMABILI")
+    shortcuts = article_shortcuts_from_result(main_code, concurrent_codes)
+    lines.append(shortcuts if shortcuts else "- Nessuno")
+
+    lines.append("")
+    lines.append("AVVERTENZA")
+    lines.append("Verificare sempre normativa vigente, prontuario del comando, disciplina locale e dati concreti del caso.")
+
+    return "\n".join(lines)
 
 def format_compact_violation(code):
     v = VIOLATIONS[code]
@@ -2847,10 +3076,21 @@ def _finalize_control(chat_id):
             _append_unique_local(procedural_flags.setdefault(bucket, []), item)
 
     if main_code:
-        level = confidence_level(state.get("answers", {}), main_code)
-        result = format_multiple(main_code, concurrent, notes, level=level, procedural_flags=procedural_flags, ancillary_findings=ancillary_findings)
-        clear_case(chat_id)
-        return result
+    level = confidence_level(state.get("answers", {}), main_code)
+    result = format_multiple(
+        main_code,
+        concurrent,
+        notes,
+        level=level,
+        procedural_flags=procedural_flags,
+        ancillary_findings=ancillary_findings
+    )
+    state["last_result_main_code"] = main_code
+    state["last_result_concurrent"] = concurrent
+    state["last_result_flags"] = procedural_flags
+    save_user_states()
+    clear_case(chat_id)
+    return result
 
     if concurrent:
         result = format_partial_assessment(state.get("answers", {}), concurrent, notes, procedural_flags, ancillary_findings)
@@ -3620,8 +3860,21 @@ def control_answer_callback(call):
         result, qkey = next_control_question_or_result(chat_id)
         print(f"[DEBUG] next_control qkey={qkey}")
         print(f"[DEBUG] result_len={len(result) if result else 0}")
-        markup = build_combined_markup([], qkey, force_ctrl_answer=True) if qkey else build_article_markup(infer_article_keys_from_text(result))
-        send_long_message(chat_id, result, reply_markup=markup, disable_web_page_preview=True)
+       
+    if qkey:
+        markup = build_combined_markup([], qkey, force_ctrl_answer=True)
+    else:
+        state_after = get_state(chat_id)
+        main_code = None
+        concurrent_codes = []
+        flags = {}
+    if state_after:
+        main_code = state_after.get("last_result_main_code")
+        concurrent_codes = state_after.get("last_result_concurrent", [])
+        flags = state_after.get("last_result_flags", {})
+    markup = build_pdf_markup(main_code, concurrent_codes, flags) or build_article_markup(infer_article_keys_from_text(result))
+
+send_long_message(chat_id, result, reply_markup=markup, disable_web_page_preview=True)
     except Exception as e:
         print(f"ERRORE control_answer_callback: {e}")
         print(traceback.format_exc())
