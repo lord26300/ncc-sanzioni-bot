@@ -1196,6 +1196,34 @@ def build_pdf_markup(main_code=None, concurrent_codes=None, procedural_flags=Non
 
     return markup if added else None        
 
+def build_final_result_markup(payload):
+    if not payload:
+        return None
+
+    markup = types.InlineKeyboardMarkup(row_width=2)
+
+    markup.add(
+        types.InlineKeyboardButton("ESITO RAPIDO", callback_data="final:quick"),
+        types.InlineKeyboardButton("ATTI ACCESSORI", callback_data="final:accessori"),
+    )
+
+    verbali = payload.get("verbali", [])
+    if len(verbali) >= 1:
+        markup.add(types.InlineKeyboardButton("VERBALE 1", callback_data="final:v1"))
+    if len(verbali) >= 2:
+        markup.add(types.InlineKeyboardButton("VERBALE 2", callback_data="final:v2"))
+    if len(verbali) >= 3:
+        markup.add(types.InlineKeyboardButton("VERBALE 3", callback_data="final:v3"))
+    if len(verbali) >= 4:
+        markup.add(types.InlineKeyboardButton("VERBALE 4", callback_data="final:v4"))
+
+    markup.add(
+        types.InlineKeyboardButton("COMUNICAZIONI", callback_data="final:comunicazioni"),
+        types.InlineKeyboardButton("ARTICOLI", callback_data="final:articoli"),
+    )
+
+    return markup
+
 def get_question_buttons(question_key):
     mapping = {
         'vehicle_authorized': [('SI', 'si'), ('NO', 'no')],
@@ -1608,6 +1636,93 @@ def format_compact_violation(code):
         lines.append("- Verbale sintetico pronto:")
         lines.append(f"  {v['short_ready_text']}")
     return "\n".join(lines)
+
+def build_final_payload(main_code, concurrent_codes=None, extra_notes=None, procedural_flags=None, ancillary_findings=None):
+    concurrent_codes = _dedupe_keep_order(concurrent_codes or [])
+    extra_notes = _dedupe_keep_order(extra_notes or [])
+    procedural_flags = procedural_flags or {}
+    ancillary_findings = _dedupe_keep_order(ancillary_findings or [])
+
+    all_codes = [main_code] + concurrent_codes
+    accessory_actions = _build_accessory_actions(main_code, concurrent_codes)
+    communications = _build_communications(procedural_flags)
+
+    quick_lines = []
+    quick_lines.append("ESITO RAPIDO")
+    quick_lines.append("")
+    quick_lines.append(f"Verbali da fare: {len(all_codes)}")
+    quick_lines.append(f"Atti accessori: {len(accessory_actions)}")
+    quick_lines.append(f"Comunicazioni: {len(communications)}")
+    quick_lines.append("")
+    quick_lines.append("VERBALI DA REDIGERE")
+    for idx, code in enumerate(all_codes, start=1):
+        quick_lines.append(f"{idx}) {_short_violation_line(code)}")
+
+    if accessory_actions:
+        quick_lines.append("")
+        quick_lines.append("ATTI ACCESSORI")
+        for idx, item in enumerate(accessory_actions, start=1):
+            quick_lines.append(f"{idx}) {item}")
+
+    if communications:
+        quick_lines.append("")
+        quick_lines.append("COMUNICAZIONI")
+        for idx, item in enumerate(communications, start=1):
+            quick_lines.append(f"{idx}) {item}")
+
+    if ancillary_findings:
+        quick_lines.append("")
+        quick_lines.append("ALTRE ANOMALIE DA ANNOTARE")
+        for idx, item in enumerate(ancillary_findings, start=1):
+            quick_lines.append(f"{idx}) {item}")
+
+    verbali = []
+    for idx, code in enumerate(all_codes, start=1):
+        text = []
+        text.append(f"VERBALE {idx}")
+        text.append("")
+        text.append(_compact_details_for_code(code))
+        verbali.append("\n".join(text))
+
+    accessori_text = "ATTI ACCESSORI\n\n"
+    if accessory_actions:
+        for idx, item in enumerate(accessory_actions, start=1):
+            accessori_text += f"{idx}) {item}\n"
+    else:
+        accessori_text += "Nessun atto accessorio.\n"
+
+    comunicazioni_text = "COMUNICAZIONI\n\n"
+    if communications:
+        for idx, item in enumerate(communications, start=1):
+            comunicazioni_text += f"{idx}) {item}\n"
+    else:
+        comunicazioni_text += "Nessuna comunicazione conseguente.\n"
+
+    verbale_additions = _dedupe_keep_order(procedural_flags.get("verbale_additions", []))
+    if verbale_additions:
+        comunicazioni_text += "\nANNOTAZIONI DA INSERIRE NEL VERBALE\n"
+        for item in verbale_additions:
+            comunicazioni_text += f"- {item}\n"
+
+    if extra_notes:
+        comunicazioni_text += "\nNOTE OPERATIVE\n"
+        for note in extra_notes:
+            comunicazioni_text += f"- {note}\n"
+
+    articoli_text = "ARTICOLI RICHIAMABILI\n\n"
+    shortcuts = article_shortcuts_from_result(main_code, concurrent_codes)
+    articoli_text += shortcuts if shortcuts else "- Nessuno"
+
+    return {
+        "quick": "\n".join(quick_lines),
+        "verbali": verbali,
+        "accessori": accessori_text.strip(),
+        "comunicazioni": comunicazioni_text.strip(),
+        "articoli": articoli_text.strip(),
+        "main_code": main_code,
+        "concurrent_codes": concurrent_codes,
+        "procedural_flags": procedural_flags,
+    }
 
 def format_multiple(main_code, concurrent_codes=None, extra_notes=None, level=None, procedural_flags=None, ancillary_findings=None):
     if concurrent_codes is None:
@@ -3061,7 +3176,6 @@ def _apply_control_answer_to_state(state, key, value):
             answers["incauto_affidamento"] = value
 save_user_states()
 
-
 def _finalize_control(chat_id):
     state = user_states[chat_id]
     print(f"[DEBUG] finalize answers={state.get('answers', {})}")
@@ -3076,21 +3190,30 @@ def _finalize_control(chat_id):
             _append_unique_local(procedural_flags.setdefault(bucket, []), item)
 
     if main_code:
-        level = confidence_level(state.get("answers", {}), main_code)
-        result = format_multiple(
+        payload = build_final_payload(
             main_code,
-            concurrent,
-            notes,
-            level=level,
+            concurrent_codes=concurrent,
+            extra_notes=notes,
             procedural_flags=procedural_flags,
             ancillary_findings=ancillary_findings
         )
+
+        state["last_result_payload"] = payload
         state["last_result_main_code"] = main_code
         state["last_result_concurrent"] = concurrent
         state["last_result_flags"] = procedural_flags
         save_user_states()
+
+        quick_text = payload["quick"]
         clear_case(chat_id)
-        return result
+        state = user_states.setdefault(chat_id, {})
+        state["last_result_payload"] = payload
+        state["last_result_main_code"] = main_code
+        state["last_result_concurrent"] = concurrent
+        state["last_result_flags"] = procedural_flags
+        save_user_states()
+
+        return quick_text
 
     if concurrent:
         result = format_partial_assessment(
@@ -3835,16 +3958,16 @@ def control_doc_done_callback(call):
             markup = build_combined_markup([], qkey, force_ctrl_answer=True)
         else:
             state_after = get_state(chat_id)
-            main_code = None
-            concurrent_codes = []
-            flags = {}
-            if state_after:
-                main_code = state_after.get("last_result_main_code")
-                concurrent_codes = state_after.get("last_result_concurrent", [])
-                flags = state_after.get("last_result_flags", {})
-            markup = build_pdf_markup(main_code, concurrent_codes, flags) or build_article_markup(
-                infer_article_keys_from_text(result)
-            )
+            payload = state_after.get("last_result_payload") if state_after else None
+            main_code = state_after.get("last_result_main_code") if state_after else None
+            concurrent_codes = state_after.get("last_result_concurrent", []) if state_after else []
+            flags = state_after.get("last_result_flags", {}) if state_after else {}
+
+            markup = build_final_result_markup(payload)
+            if not markup:
+                markup = build_pdf_markup(main_code, concurrent_codes, flags) or build_article_markup(
+                    infer_article_keys_from_text(result)
+                )
 
         send_long_message(
             chat_id,
@@ -3852,7 +3975,7 @@ def control_doc_done_callback(call):
             reply_markup=markup,
             disable_web_page_preview=True
         )
-
+        
     except Exception as e:
         print(f"ERRORE control_doc_done_callback: {e}")
         print(traceback.format_exc())
@@ -3899,16 +4022,16 @@ def control_answer_callback(call):
             markup = build_combined_markup([], qkey, force_ctrl_answer=True)
         else:
             state_after = get_state(chat_id)
-            main_code = None
-            concurrent_codes = []
-            flags = {}
-            if state_after:
-                main_code = state_after.get("last_result_main_code")
-                concurrent_codes = state_after.get("last_result_concurrent", [])
-                flags = state_after.get("last_result_flags", {})
-            markup = build_pdf_markup(main_code, concurrent_codes, flags) or build_article_markup(
-                infer_article_keys_from_text(result)
-            )
+            payload = state_after.get("last_result_payload") if state_after else None
+            main_code = state_after.get("last_result_main_code") if state_after else None
+            concurrent_codes = state_after.get("last_result_concurrent", []) if state_after else []
+            flags = state_after.get("last_result_flags", {}) if state_after else {}
+
+            markup = build_final_result_markup(payload)
+            if not markup:
+                markup = build_pdf_markup(main_code, concurrent_codes, flags) or build_article_markup(
+                    infer_article_keys_from_text(result)
+                )
 
         send_long_message(
             chat_id,
@@ -3925,6 +4048,64 @@ def control_answer_callback(call):
         except Exception:
             pass
         bot.send_message(chat_id, f"Errore interno nel flusso risposte: {e}")
+
+@bot.callback_query_handler(func=lambda call: str(call.data).startswith("final:"))
+def final_result_callback(call):
+    chat_id = call.message.chat.id
+    state = get_state(chat_id)
+
+    if not state:
+        try:
+            bot.answer_callback_query(call.id, "Nessun esito finale disponibile")
+        except Exception:
+            pass
+        return
+
+    payload = state.get("last_result_payload")
+    if not payload:
+        try:
+            bot.answer_callback_query(call.id, "Nessun esito finale disponibile")
+        except Exception:
+            pass
+        return
+
+    action = str(call.data).split(":", 1)[1].strip()
+
+    text = None
+    if action == "quick":
+        text = payload.get("quick")
+    elif action == "accessori":
+        text = payload.get("accessori")
+    elif action == "comunicazioni":
+        text = payload.get("comunicazioni")
+    elif action == "articoli":
+        text = payload.get("articoli")
+    elif action == "v1":
+        verbali = payload.get("verbali", [])
+        text = verbali[0] if len(verbali) >= 1 else "Verbale 1 non disponibile."
+    elif action == "v2":
+        verbali = payload.get("verbali", [])
+        text = verbali[1] if len(verbali) >= 2 else "Verbale 2 non disponibile."
+    elif action == "v3":
+        verbali = payload.get("verbali", [])
+        text = verbali[2] if len(verbali) >= 3 else "Verbale 3 non disponibile."
+    elif action == "v4":
+        verbali = payload.get("verbali", [])
+        text = verbali[3] if len(verbali) >= 4 else "Verbale 4 non disponibile."
+    else:
+        text = "Sezione non disponibile."
+
+    try:
+        bot.answer_callback_query(call.id, "Sezione aperta")
+    except Exception:
+        pass
+
+    send_long_message(
+        chat_id,
+        text,
+        reply_markup=build_final_result_markup(payload),
+        disable_web_page_preview=True
+    )
 
 @bot.callback_query_handler(func=lambda call: str(call.data).startswith("article:"))
 def article_callback(call):
@@ -4063,14 +4244,16 @@ def all_messages(message):
             markup = build_combined_markup([], qkey, force_ctrl_answer=True)
         else:
             state_after = get_state(chat_id)
-            main_code = None
-            concurrent_codes = []
-            flags = {}
-            if state_after:
-                main_code = state_after.get("last_result_main_code")
-                concurrent_codes = state_after.get("last_result_concurrent", [])
-                flags = state_after.get("last_result_flags", {})
-            markup = build_pdf_markup(main_code, concurrent_codes, flags) or build_article_markup(infer_article_keys_from_text(result))
+            payload = state_after.get("last_result_payload") if state_after else None
+            main_code = state_after.get("last_result_main_code") if state_after else None
+            concurrent_codes = state_after.get("last_result_concurrent", []) if state_after else []
+            flags = state_after.get("last_result_flags", {}) if state_after else {}
+
+            markup = build_final_result_markup(payload)
+            if not markup:
+                markup = build_pdf_markup(main_code, concurrent_codes, flags) or build_article_markup(
+                    infer_article_keys_from_text(result)
+                )
 
         send_long_message(chat_id, result, reply_markup=markup, disable_web_page_preview=True)
         return
