@@ -4057,7 +4057,7 @@ def all_messages(message):
         _apply_control_answer_to_state(state, q["key"], value)
         state["pending_question"] = None
         save_user_states()
-                result, qkey = next_control_question_or_result(chat_id)
+        result, qkey = next_control_question_or_result(chat_id)
 
         if qkey:
             markup = build_combined_markup([], qkey, force_ctrl_answer=True)
