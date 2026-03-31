@@ -3858,7 +3858,6 @@ def control_doc_done_callback(call):
         print(traceback.format_exc())
         bot.send_message(chat_id, f"Errore interno nel controllo documentale: {e}")
 
-
 @bot.callback_query_handler(func=lambda call: str(call.data).startswith("ctrl_answer:"))
 def control_answer_callback(call):
     chat_id = call.message.chat.id
@@ -3926,7 +3925,6 @@ def control_answer_callback(call):
         except Exception:
             pass
         bot.send_message(chat_id, f"Errore interno nel flusso risposte: {e}")
-
 
 @bot.callback_query_handler(func=lambda call: str(call.data).startswith("article:"))
 def article_callback(call):
