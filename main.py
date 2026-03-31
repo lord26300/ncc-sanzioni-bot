@@ -3076,31 +3076,36 @@ def _finalize_control(chat_id):
             _append_unique_local(procedural_flags.setdefault(bucket, []), item)
 
     if main_code:
-    level = confidence_level(state.get("answers", {}), main_code)
-    result = format_multiple(
-        main_code,
-        concurrent,
-        notes,
-        level=level,
-        procedural_flags=procedural_flags,
-        ancillary_findings=ancillary_findings
-    )
-    state["last_result_main_code"] = main_code
-    state["last_result_concurrent"] = concurrent
-    state["last_result_flags"] = procedural_flags
-    save_user_states()
-    clear_case(chat_id)
-    return result
+        level = confidence_level(state.get("answers", {}), main_code)
+        result = format_multiple(
+            main_code,
+            concurrent,
+            notes,
+            level=level,
+            procedural_flags=procedural_flags,
+            ancillary_findings=ancillary_findings
+        )
+        state["last_result_main_code"] = main_code
+        state["last_result_concurrent"] = concurrent
+        state["last_result_flags"] = procedural_flags
+        save_user_states()
+        clear_case(chat_id)
+        return result
 
     if concurrent:
-        result = format_partial_assessment(state.get("answers", {}), concurrent, notes, procedural_flags, ancillary_findings)
+        result = format_partial_assessment(
+            state.get("answers", {}),
+            concurrent,
+            notes,
+            procedural_flags,
+            ancillary_findings
+        )
         clear_case(chat_id)
         return result
 
     result = "Dalla checklist documentale non emerge, allo stato, una violazione chiudibile automaticamente. Se il mezzo e il conducente sono in regola, il controllo può chiudersi senza contestazioni. In presenza di ulteriori elementi di fatto usa /caso oppure ripeti /controllo."
     clear_case(chat_id)
     return result
-
 
 def control_additional_questions(answers):
     questions = []
@@ -3820,10 +3825,22 @@ def control_doc_done_callback(call):
     try:
         print(f"[DEBUG] ctrl_doc_done answers={state.get('answers', {})}")
         result, qkey = next_control_question_or_result(chat_id)
-        print(f"[DEBUG] ctrl_doc_done next qkey={qkey}")
-        print(f"[DEBUG] ctrl_doc_done result_len={len(result) if result else 0}")
-        markup = build_combined_markup([], qkey, force_ctrl_answer=True) if qkey else build_article_markup(infer_article_keys_from_text(result))
+
+        if qkey:
+            markup = build_combined_markup([], qkey, force_ctrl_answer=True)
+        else:
+            state_after = get_state(chat_id)
+            main_code = None
+            concurrent_codes = []
+            flags = {}
+            if state_after:
+                main_code = state_after.get("last_result_main_code")
+                concurrent_codes = state_after.get("last_result_concurrent", [])
+                flags = state_after.get("last_result_flags", {})
+            markup = build_pdf_markup(main_code, concurrent_codes, flags) or build_article_markup(infer_article_keys_from_text(result))
+
         send_long_message(chat_id, result, reply_markup=markup, disable_web_page_preview=True)
+        
     except Exception as e:
         print(f"ERRORE control_doc_done_callback: {e}")
         print(traceback.format_exc())
@@ -3846,7 +3863,7 @@ def control_answer_callback(call):
         clear_case(chat_id)
         bot.send_message(chat_id, "Procedura annullata. Usa /controllo per ricominciare.")
         return
-    try:
+        try:
         print(f"[DEBUG] ctrl_answer key={q['key']} value={value}")
         print(f"[DEBUG] answers_before={state.get('answers', {})}")
         _apply_control_answer_to_state(state, q["key"], value)
@@ -3857,24 +3874,26 @@ def control_answer_callback(call):
             bot.answer_callback_query(call.id, "Risposta acquisita")
         except Exception:
             pass
+
         result, qkey = next_control_question_or_result(chat_id)
         print(f"[DEBUG] next_control qkey={qkey}")
         print(f"[DEBUG] result_len={len(result) if result else 0}")
-       
-    if qkey:
-        markup = build_combined_markup([], qkey, force_ctrl_answer=True)
-    else:
-        state_after = get_state(chat_id)
-        main_code = None
-        concurrent_codes = []
-        flags = {}
-    if state_after:
-        main_code = state_after.get("last_result_main_code")
-        concurrent_codes = state_after.get("last_result_concurrent", [])
-        flags = state_after.get("last_result_flags", {})
-    markup = build_pdf_markup(main_code, concurrent_codes, flags) or build_article_markup(infer_article_keys_from_text(result))
 
-send_long_message(chat_id, result, reply_markup=markup, disable_web_page_preview=True)
+        if qkey:
+            markup = build_combined_markup([], qkey, force_ctrl_answer=True)
+        else:
+            state_after = get_state(chat_id)
+            main_code = None
+            concurrent_codes = []
+            flags = {}
+            if state_after:
+                main_code = state_after.get("last_result_main_code")
+                concurrent_codes = state_after.get("last_result_concurrent", [])
+                flags = state_after.get("last_result_flags", {})
+            markup = build_pdf_markup(main_code, concurrent_codes, flags) or build_article_markup(infer_article_keys_from_text(result))
+
+        send_long_message(chat_id, result, reply_markup=markup, disable_web_page_preview=True)
+
     except Exception as e:
         print(f"ERRORE control_answer_callback: {e}")
         print(traceback.format_exc())
@@ -4016,8 +4035,21 @@ def all_messages(message):
         _apply_control_answer_to_state(state, q["key"], value)
         state["pending_question"] = None
         save_user_states()
-        result, qkey = next_control_question_or_result(chat_id)
-        markup = build_combined_markup([], qkey, force_ctrl_answer=True) if qkey else build_article_markup(infer_article_keys_from_text(result))
+                result, qkey = next_control_question_or_result(chat_id)
+
+        if qkey:
+            markup = build_combined_markup([], qkey, force_ctrl_answer=True)
+        else:
+            state_after = get_state(chat_id)
+            main_code = None
+            concurrent_codes = []
+            flags = {}
+            if state_after:
+                main_code = state_after.get("last_result_main_code")
+                concurrent_codes = state_after.get("last_result_concurrent", [])
+                flags = state_after.get("last_result_flags", {})
+            markup = build_pdf_markup(main_code, concurrent_codes, flags) or build_article_markup(infer_article_keys_from_text(result))
+
         send_long_message(chat_id, result, reply_markup=markup, disable_web_page_preview=True)
         return
 
