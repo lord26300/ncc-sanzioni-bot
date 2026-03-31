@@ -72,6 +72,9 @@ CONTROL_DOC_LABELS = {item["id"]: item["label"] for item in CONTROL_DOCS}
 TARGHE_FILE_PATH = os.getenv("TARGHE_FILE_PATH", "prospetto_mezzi.xlsx")
 TARGHE_SHEET_NAME = os.getenv("TARGHE_SHEET_NAME", "NCC")
 
+ACCESS_DATA_FILE = os.getenv("ACCESS_DATA_FILE", "access_data.json")
+USER_STATES_FILE = os.getenv("USER_STATES_FILE", "user_states.json")
+
 # =========================
 # DATI SANZIONI
 # =========================
@@ -741,6 +744,7 @@ ARTICOLI_DB = {
             "Se il mezzo è NCC e la violazione ricade su queste prescrizioni, il bot orienta verso il ramo 085-05 / 085-06 / 085-07 / 085-08."
         ),
         "link": "https://www.normattiva.it/"
+ 
     },
     "art180": {
         "titolo": "CdS art. 180",
@@ -748,7 +752,7 @@ ARTICOLI_DB = {
             "Art. 180 CdS – Possesso ed esibizione dei documenti di circolazione e di guida.\n\n"
             "Uso operativo nel bot:\n"
             "- si applica quando il documento esiste ma non viene esibito all'atto del controllo;\n"
-            "- va distinto dalle violazioni sostanziali, cioè quando il titolo manca, è revocato, sospeso o non idoneo;\n"
+            "- va distinto dalle violazioni sostanziali, cioe quando il titolo manca, e revocato, sospeso o non idoneo;\n"
             "- nel bot richiama soprattutto le ipotesi documentali per patente, autorizzazione NCC, foglio di servizio, carta di circolazione e assicurazione."
         ),
         "link": "https://www.normattiva.it/"
@@ -756,14 +760,14 @@ ARTICOLI_DB = {
     "art126": {
         "titolo": "CdS art. 126",
         "testo": (
-            "Art. 126 CdS – Durata e conferma della validità della patente di guida.\n\n"
+            "Art. 126 CdS – Durata e conferma della validita della patente di guida.\n\n"
             "Uso operativo nel bot:\n"
             "- rileva quando patente, CAP, KB o CQC risultano scaduti;\n"
             "- va distinto dalla mancanza del titolo e dalla mera mancata esibizione;\n"
-            "- nel bot è usato come richiamo operativo per i titoli scaduti."
+            "- nel bot e usato come richiamo operativo per i titoli scaduti."
         ),
         "link": "https://www.normattiva.it/"
-    }
+   }
 }
 
 # =========================
@@ -776,8 +780,38 @@ access_data = {
     "rejected_users": set()
 }
 
+
 def save_access_data():
-    return
+    try:
+        payload = {
+            "authorized_users": sorted(int(x) for x in access_data.get("authorized_users", set())),
+            "pending_users": access_data.get("pending_users", {}),
+            "rejected_users": sorted(int(x) for x in access_data.get("rejected_users", set())),
+        }
+        with open(ACCESS_DATA_FILE, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"ERRORE save_access_data: {e}")
+
+
+def load_access_data():
+    global access_data
+    try:
+        if not os.path.exists(ACCESS_DATA_FILE):
+            return
+        with open(ACCESS_DATA_FILE, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+        access_data["authorized_users"] = {int(x) for x in payload.get("authorized_users", [])}
+        access_data["authorized_users"].add(ADMIN_ID)
+        access_data["pending_users"] = payload.get("pending_users", {}) or {}
+        access_data["rejected_users"] = {int(x) for x in payload.get("rejected_users", [])}
+    except Exception as e:
+        print(f"ERRORE load_access_data: {e}")
+        access_data = {
+            "authorized_users": {ADMIN_ID},
+            "pending_users": {},
+            "rejected_users": set()
+        }
 
 def is_admin(user_id):
     return user_id == ADMIN_ID
@@ -870,7 +904,6 @@ def authorized_start_text(user_id):
         "/norme - riferimenti principali\n"
         "/targa - verifica targa in archivio NCC\n"
         "/riattiva - istruzioni per riattivare il servizio\n"
-        "/art85 /art116 /art3l21 /art11l21 /art180 /art126 - richiami normativi\n"
         "/reset - annulla caso in corso"
     )
 
@@ -962,6 +995,38 @@ def public_wake_up_message():
 
 user_states = {}
 
+
+def _serialize_for_json(obj):
+    if isinstance(obj, dict):
+        return {str(k): _serialize_for_json(v) for k, v in obj.items()}
+    if isinstance(obj, set):
+        return [_serialize_for_json(x) for x in obj]
+    if isinstance(obj, list):
+        return [_serialize_for_json(x) for x in obj]
+    return obj
+
+
+def save_user_states():
+    try:
+        payload = {str(k): _serialize_for_json(v) for k, v in user_states.items()}
+        with open(USER_STATES_FILE, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"ERRORE save_user_states: {e}")
+
+
+def load_user_states():
+    global user_states
+    try:
+        if not os.path.exists(USER_STATES_FILE):
+            return
+        with open(USER_STATES_FILE, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+        user_states = {int(k): v for k, v in (payload or {}).items()}
+    except Exception as e:
+        print(f"ERRORE load_user_states: {e}")
+        user_states = {}
+
 # mode:
 # - free_case: attesa descrizione libera
 # - clarification: attesa risposta a domanda integrativa
@@ -973,6 +1038,7 @@ user_states = {}
 def clear_case(chat_id):
     if chat_id in user_states:
         del user_states[chat_id]
+        save_user_states()
 
 def get_state(chat_id):
     return user_states.get(chat_id)
@@ -1207,10 +1273,14 @@ def article_shortcuts_from_result(main_code=None, concurrent_codes=None):
 
 
 
+
 def normalize_violation_code(code):
     if not code:
         return None
     key = str(code).strip().upper()
+    if key in VIOLATIONS:
+        return key
+    compact = re.sub(r"[^A-Z0-9]", "", key)
     aliases = {
         "08502": "085-02",
         "08504": "085-04",
@@ -1227,17 +1297,11 @@ def normalize_violation_code(code):
         "18006": "180-06",
         "18009": "180-09",
     }
-    if key in VIOLATIONS:
-        return key
-    compact = re.sub(r"[^A-Z0-9]", "", key)
     return aliases.get(compact)
 
 
 def build_violation_markup_for_article(article_key):
     key = normalize_article_key(article_key)
-    if not key:
-        return None
-
     article_to_codes = {
         "art85": ["085-02", "085-04", "085-05", "085-06", "085-07", "085-08", "085-09"],
         "art116": ["116-06"],
@@ -1246,18 +1310,14 @@ def build_violation_markup_for_article(article_key):
         "art180": ["180-01", "180-DOC", "180-01DOC", "180-03", "180-06", "180-09"],
         "art126": [],
     }
-
     codes = [c for c in article_to_codes.get(key, []) if c in VIOLATIONS]
     if not codes:
         return None
-
     markup = types.InlineKeyboardMarkup(row_width=2)
     buttons = []
     for code in codes:
-        title = VIOLATIONS[code]["title"]
-        short_title = title if len(title) <= 38 else title[:35] + "..."
-        buttons.append(types.InlineKeyboardButton(short_title, callback_data=f"viol:{code}"))
-
+        label = code
+        buttons.append(types.InlineKeyboardButton(label, callback_data=f"viol:{code}"))
     for i in range(0, len(buttons), 2):
         markup.row(*buttons[i:i+2])
     return markup
@@ -1707,6 +1767,7 @@ def begin_plate_lookup_flow(chat_id):
     user_states[chat_id] = {
         "mode": "plate_lookup"
     }
+    save_user_states()
 
 
 def process_plate_lookup(chat_id, text):
@@ -1843,7 +1904,30 @@ ARTICOLI_DB = {
             "Se il mezzo è NCC e la violazione ricade su queste prescrizioni, il bot orienta verso il ramo 085-05 / 085-06 / 085-07 / 085-08."
         ),
         "link": "https://www.normattiva.it/"
-    }
+ 
+    },
+    "art180": {
+        "titolo": "CdS art. 180",
+        "testo": (
+            "Art. 180 CdS – Possesso ed esibizione dei documenti di circolazione e di guida.\n\n"
+            "Uso operativo nel bot:\n"
+            "- si applica quando il documento esiste ma non viene esibito all'atto del controllo;\n"
+            "- va distinto dalle violazioni sostanziali, cioe quando il titolo manca, e revocato, sospeso o non idoneo;\n"
+            "- nel bot richiama soprattutto le ipotesi documentali per patente, autorizzazione NCC, foglio di servizio, carta di circolazione e assicurazione."
+        ),
+        "link": "https://www.normattiva.it/"
+    },
+    "art126": {
+        "titolo": "CdS art. 126",
+        "testo": (
+            "Art. 126 CdS – Durata e conferma della validita della patente di guida.\n\n"
+            "Uso operativo nel bot:\n"
+            "- rileva quando patente, CAP, KB o CQC risultano scaduti;\n"
+            "- va distinto dalla mancanza del titolo e dalla mera mancata esibizione;\n"
+            "- nel bot e usato come richiamo operativo per i titoli scaduti."
+        ),
+        "link": "https://www.normattiva.it/"
+   }
 }
 
 # =========================
@@ -2426,6 +2510,7 @@ def begin_control_flow(chat_id):
         "preset_name": None,
         "questions_asked": [],
     }
+    save_user_states()
 
 
 def _control_text_from_state(state):
@@ -2799,6 +2884,7 @@ def next_control_question_or_result(chat_id):
         q = queue.pop(0)
         state["mode"] = "control_followup"
         state["pending_question"] = q
+        save_user_states()
         prompt = build_recurrence_prompt(state.get("answers", {}), q["key"]) if q["key"] in {"recurrence", "recurrence_triennio"} else build_article_verification_prompt(state.get("answers", {}), q["key"], q["text"])
         return prompt, q["key"]
 
@@ -2807,6 +2893,7 @@ def next_control_question_or_result(chat_id):
         q = followup_questions[0]
         state["mode"] = "control_followup"
         state["pending_question"] = q
+        save_user_states()
         qa = state.setdefault("questions_asked", [])
         if q["key"] not in qa:
             qa.append(q["key"])
@@ -2832,12 +2919,14 @@ def begin_case_flow(chat_id):
         "questions_asked": [],
         "preset_name": None
     }
+    save_user_states()
 
 
 def begin_preset_case(chat_id, preset_name):
     begin_case_flow(chat_id)
     state = user_states[chat_id]
     state["preset_name"] = preset_name
+    save_user_states()
     preset = PRESET_SCENARIOS[preset_name]
     first_response = process_case_description(chat_id, preset["text"])
     intro = (
@@ -2851,6 +2940,7 @@ def process_case_description(chat_id, text):
     state["free_text"] = text
 
     merge_detected_answers(state, text)
+    save_user_states()
 
     case_key = match_case_from_text(text)
     main_code, concurrent, notes, procedural_flags, ancillary_findings = decide_violation(state["answers"])
@@ -2867,6 +2957,8 @@ def process_case_description(chat_id, text):
         state["mode"] = "clarification"
         state["pending_question"] = q
         state["questions_asked"].append(q["key"])
+        save_user_states()
+        save_user_states()
         return (
             f"{format_case_hint(case_key)}\n\n"
             "Prima valutazione completata. Per chiudere correttamente il caso mi serve questo chiarimento:\n\n"
@@ -2887,6 +2979,7 @@ def process_case_description(chat_id, text):
     if len(questions) == 0 and should_offer_external_search(state["answers"], notes):
         state["mode"] = "external_consent"
         state["awaiting_external_consent"] = True
+        save_user_states()
         return ask_external_search_consent()
 
     if len(questions) == 0 and not main_code:
@@ -2907,6 +3000,7 @@ def process_case_description(chat_id, text):
 
     state["mode"] = "external_consent"
     state["awaiting_external_consent"] = True
+    save_user_states()
     return ask_external_search_consent()
 
 
@@ -2925,6 +3019,7 @@ def process_clarification(chat_id, text):
 
     target_key = q["key"]
     state["answers"][target_key] = value
+    save_user_states()
     if q["key"] == "recurrence_triennio":
         state["answers"]["recurrence"] = value
 
@@ -2940,6 +3035,7 @@ def process_clarification(chat_id, text):
     if questions:
         next_q = questions[0]
         state["pending_question"] = next_q
+        save_user_states()
         if next_q["key"] not in state["questions_asked"]:
             state["questions_asked"].append(next_q["key"])
         return f"Mi serve ancora questo chiarimento per avere il quadro completo:\n\n{next_q['text']}"
@@ -2948,6 +3044,7 @@ def process_clarification(chat_id, text):
         state["mode"] = "external_consent"
         state["awaiting_external_consent"] = True
         state["pending_question"] = None
+        save_user_states()
         return ask_external_search_consent()
 
     if main_code:
@@ -3198,9 +3295,7 @@ def help_command(message):
         "/art85 = leggi il richiamo operativo dell'art. 85 CdS\n"
         "/art116 = leggi il richiamo operativo dell'art. 116 CdS\n"
         "/art3l21 = leggi il richiamo operativo dell'art. 3 L. 21/1992\n"
-        "/art11l21 = leggi il richiamo operativo dell'art. 11 L. 21/1992\n"
-        "/art180 = leggi il richiamo operativo dell'art. 180 CdS\n"
-        "/art126 = leggi il richiamo operativo dell'art. 126 CdS\n\n"
+        "/art11l21 = leggi il richiamo operativo dell'art. 11 L. 21/1992\n/art180 = leggi il richiamo operativo dell'art. 180 CdS\n/art126 = leggi il richiamo operativo dell'art. 126 CdS\n\n"
         "/riattiva = istruzioni per riattivare il servizio se il bot tarda a rispondere.\n\n"
         "/reset = annulla il caso in corso."
     )
@@ -3433,6 +3528,7 @@ def control_doc_toggle_callback(call):
         selected.remove(doc_id)
     else:
         selected.append(doc_id)
+    save_user_states()
     try:
         bot.answer_callback_query(call.id, "Selezione aggiornata")
     except Exception:
@@ -3463,6 +3559,7 @@ def control_doc_done_callback(call):
 
     apply_control_defaults_from_selection(state)
     build_control_queue(state)
+    save_user_states()
     try:
         bot.answer_callback_query(call.id, "Documenti acquisiti")
     except Exception:
@@ -3501,6 +3598,7 @@ def control_answer_callback(call):
         print(f"[DEBUG] answers_before={state.get('answers', {})}")
         _apply_control_answer_to_state(state, q["key"], value)
         state["pending_question"] = None
+        save_user_states()
         print(f"[DEBUG] answers_after={state.get('answers', {})}")
         try:
             bot.answer_callback_query(call.id, "Risposta acquisita")
@@ -3651,6 +3749,7 @@ def all_messages(message):
             return
         _apply_control_answer_to_state(state, q["key"], value)
         state["pending_question"] = None
+        save_user_states()
         result, qkey = next_control_question_or_result(chat_id)
         markup = build_combined_markup([], qkey) if qkey else build_article_markup(infer_article_keys_from_text(result))
         send_long_message(chat_id, result, reply_markup=markup, disable_web_page_preview=True)
