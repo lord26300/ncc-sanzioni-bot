@@ -3863,58 +3863,69 @@ def control_doc_done_callback(call):
 def control_answer_callback(call):
     chat_id = call.message.chat.id
     state = get_state(chat_id)
+
     if not state or state.get("mode") != "control_followup":
         try:
             bot.answer_callback_query(call.id, "Nessuna domanda attiva")
         except Exception:
             pass
         return
+
     value = str(call.data).split(":", 1)[1].strip()
     q = state.get("pending_question")
+
     if not q:
         clear_case(chat_id)
         bot.send_message(chat_id, "Procedura annullata. Usa /controllo per ricominciare.")
         return
+
+    try:
+        print(f"[DEBUG] ctrl_answer key={q['key']} value={value}")
+        print(f"[DEBUG] answers_before={state.get('answers', {})}")
+        _apply_control_answer_to_state(state, q["key"], value)
+        state["pending_question"] = None
+        save_user_states()
+        print(f"[DEBUG] answers_after={state.get('answers', {})}")
+
         try:
-            print(f"[DEBUG] ctrl_answer key={q['key']} value={value}")
-            print(f"[DEBUG] answers_before={state.get('answers', {})}")
-            _apply_control_answer_to_state(state, q["key"], value)
-            state["pending_question"] = None
-            save_user_states()
-            print(f"[DEBUG] answers_after={state.get('answers', {})}")
-         
-            try:
-                bot.answer_callback_query(call.id, "Risposta acquisita")
-            except Exception:
-                pass
+            bot.answer_callback_query(call.id, "Risposta acquisita")
+        except Exception:
+            pass
 
-            result, qkey = next_control_question_or_result(chat_id)
-            print(f"[DEBUG] next_control qkey={qkey}")
-            print(f"[DEBUG] result_len={len(result) if result else 0}")
+        result, qkey = next_control_question_or_result(chat_id)
+        print(f"[DEBUG] next_control qkey={qkey}")
+        print(f"[DEBUG] result_len={len(result) if result else 0}")
 
-            if qkey:
-                 markup = build_combined_markup([], qkey, force_ctrl_answer=True)
-            else:
-                 state_after = get_state(chat_id)
-                 main_code = None
-                 concurrent_codes = []
-                 flags = {}
-                 if state_after:
-                     main_code = state_after.get("last_result_main_code")
-                     concurrent_codes = state_after.get("last_result_concurrent", [])
-                     flags = state_after.get("last_result_flags", {})
-                 markup = build_pdf_markup(main_code, concurrent_codes, flags) or build_article_markup(infer_article_keys_from_text(result))
+        if qkey:
+            markup = build_combined_markup([], qkey, force_ctrl_answer=True)
+        else:
+            state_after = get_state(chat_id)
+            main_code = None
+            concurrent_codes = []
+            flags = {}
+            if state_after:
+                main_code = state_after.get("last_result_main_code")
+                concurrent_codes = state_after.get("last_result_concurrent", [])
+                flags = state_after.get("last_result_flags", {})
+            markup = build_pdf_markup(main_code, concurrent_codes, flags) or build_article_markup(
+                infer_article_keys_from_text(result)
+            )
 
-             send_long_message(chat_id, result, reply_markup=markup, disable_web_page_preview=True)
+        send_long_message(
+            chat_id,
+            result,
+            reply_markup=markup,
+            disable_web_page_preview=True
+        )
 
-         except Exception as e:
-             print(f"ERRORE control_answer_callback: {e}")
-             print(traceback.format_exc())
-             try:
-                 bot.answer_callback_query(call.id, "Errore nel flusso")
-             except Exception:
-                 pass
-             bot.send_message(chat_id, f"Errore interno nel flusso risposte: {e}")
+    except Exception as e:
+        print(f"ERRORE control_answer_callback: {e}")
+        print(traceback.format_exc())
+        try:
+            bot.answer_callback_query(call.id, "Errore nel flusso")
+        except Exception:
+            pass
+        bot.send_message(chat_id, f"Errore interno nel flusso risposte: {e}")
 
 
 @bot.callback_query_handler(func=lambda call: str(call.data).startswith("article:"))
