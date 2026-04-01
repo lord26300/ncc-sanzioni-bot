@@ -930,6 +930,18 @@ def notify_admin_new_request(user):
     )
     bot.send_message(ADMIN_ID, text)
 
+def notify_admin_missing_plate(user, plate):
+    username_line = f"@{user.username}" if user.username else "-"
+    text = (
+        "RICHIESTA CENSIMENTO TARGA\n\n"
+        f"Targa: {plate}\n"
+        f"Richiesta da: {user.first_name or '-'}\n"
+        f"Username: {username_line}\n"
+        f"User ID: {user.id}\n\n"
+        "Verificare e, se confermata, censire la targa nell'archivio."
+    )
+    bot.send_message(ADMIN_ID, text)
+
 def ensure_authorized(message):
     uid = message.from_user.id
     if is_admin(uid) or is_authorized(uid):
@@ -1155,6 +1167,16 @@ def build_article_markup(article_keys=None):
         buttons.append(types.InlineKeyboardButton(label, callback_data=f'article:{key}'))
     if buttons:
         markup.add(*buttons)
+    return markup
+
+def build_plate_not_found_markup(plate):
+    markup = types.InlineKeyboardMarkup()
+    markup.add(
+        types.InlineKeyboardButton(
+            "SEGNALA PER CENSIMENTO",
+            callback_data=f"plate_report:{plate}"
+        )
+    )
     return markup
 
 def build_main_menu():
@@ -2146,7 +2168,7 @@ def begin_plate_lookup_flow(chat_id):
 def process_plate_lookup(chat_id, text):
     result = lookup_plate_in_registry(text)
     clear_case(chat_id)
-    return result.get("message", "Errore nella ricerca targa.")
+    return result
 
 
 def format_norme_from_db():
@@ -3746,7 +3768,18 @@ def targa_command(message):
     parts = text.split(maxsplit=1)
 
     if len(parts) > 1 and parts[1].strip():
-        result = lookup_plate_in_registry(parts[1].strip())
+        plate = parts[1].strip()
+        result = lookup_plate_in_registry(plate)
+
+        if result.get("ok") and not result.get("found"):
+            bot.reply_to(
+                message,
+                result.get("message", "Targa non censita.") + "\n\n"
+                "Se vuoi, premi il pulsante qui sotto per inviare la richiesta di censimento.",
+                reply_markup=build_plate_not_found_markup(result.get("plate", plate))
+            )
+            return
+
         bot.reply_to(message, result.get("message", "Errore nella ricerca targa."))
         return
 
@@ -3938,7 +3971,16 @@ def menu_norme_button(message):
 
 @bot.message_handler(func=lambda m: (m.text or "").strip() == "Verifica targa")
 def menu_targa_button(message):
-    targa_command(message)
+    if not ensure_authorized(message):
+        return
+
+    begin_plate_lookup_flow(message.chat.id)
+    bot.reply_to(
+        message,
+        "Inserisci la targa del mezzo da verificare.\n\n"
+        "Esempio: AB123CD\n"
+        "Il bot controllerà l'archivio Excel aggiornato nel repository e ti dirà se il mezzo è adibito o meno al servizio NCC."
+    )
 
 @bot.message_handler(func=lambda m: (m.text or "").strip() == "Reset")
 def menu_reset_button(message):
@@ -3972,6 +4014,32 @@ def control_doc_toggle_callback(call):
         pass
     bot.edit_message_text(_control_text_from_state(state), chat_id, call.message.message_id, reply_markup=build_control_docs_markup(state))
 
+@bot.callback_query_handler(func=lambda call: (call.data or "").startswith("plate_report:"))
+def plate_report_callback(call):
+    try:
+        plate = (call.data or "").split(":", 1)[1].strip()
+
+        notify_admin_missing_plate(call.from_user, plate)
+
+        bot.answer_callback_query(
+            call.id,
+            "Richiesta inviata all'amministratore."
+        )
+
+        bot.send_message(
+            call.message.chat.id,
+            f"Richiesta inviata per la targa {plate}.\n\n"
+            "La targa verrà verificata e, se confermata, censita nell'archivio."
+        )
+    except Exception as e:
+        bot.answer_callback_query(call.id, "Errore nell'invio della richiesta.")
+        try:
+            bot.send_message(
+                call.message.chat.id,
+                f"Errore nella segnalazione: {e}"
+            )
+        except Exception:
+            pass
 
 @bot.callback_query_handler(func=lambda call: str(call.data) == "ctrl_doc_cancel")
 def control_doc_cancel_callback(call):
@@ -4272,8 +4340,17 @@ def all_messages(message):
         return
 
     if mode == "plate_lookup":
-        response = process_plate_lookup(chat_id, text)
-        bot.reply_to(message, response)
+        result = process_plate_lookup(chat_id, text)
+
+        if result.get("ok") and not result.get("found"):
+            bot.reply_to(
+                message,
+                result.get("message", "Targa non censita.") + "\n\n"
+                "Se vuoi, premi il pulsante qui sotto per inviare la richiesta di censimento.",
+                reply_markup=build_plate_not_found_markup(result.get("plate", text))
+            )
+        else:
+            bot.reply_to(message, result.get("message", "Errore nella ricerca targa."))
         return
 
     if mode == "control_docs":
