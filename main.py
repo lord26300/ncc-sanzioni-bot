@@ -1157,6 +1157,26 @@ def build_article_markup(article_keys=None):
         markup.add(*buttons)
     return markup
 
+def build_main_menu():
+    kb = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    kb.add(
+        types.KeyboardButton("Inserisci un caso NCC"),
+        types.KeyboardButton("Checklist documentale")
+    )
+    kb.add(
+        types.KeyboardButton("Controlli operativi"),
+        types.KeyboardButton("Documenti da controllare")
+    )
+    kb.add(
+        types.KeyboardButton("Norme principali"),
+        types.KeyboardButton("Verifica targa")
+    )
+    kb.add(
+        types.KeyboardButton("Reset"),
+        types.KeyboardButton("Help")
+    )
+    return kb
+
 def build_pdf_markup(main_code=None, concurrent_codes=None, procedural_flags=None):
     concurrent_codes = _dedupe_keep_order(concurrent_codes or [])
     procedural_flags = procedural_flags or {}
@@ -3658,7 +3678,11 @@ def start_command(message):
         bot.reply_to(message, request_access_text())
         return
 
-    bot.reply_to(message, authorized_start_text(uid))
+    bot.send_message(
+        message.chat.id,
+        authorized_start_text(uid),
+        reply_markup=build_main_menu()
+    )
 
 @bot.message_handler(commands=['help'])
 def help_command(message):
@@ -3666,19 +3690,15 @@ def help_command(message):
         return
 
     text = (
-        "Comandi disponibili:\n\n"
-        "/caso = descrivi liberamente la situazione; il bot analizza il testo, usa il database interno e, se manca qualcosa, ti fa domande mirate. "
-        "Se mancano elementi, ti fa domande mirate; se il database interno non basta, può chiederti se autorizzare una ricerca esterna su internet.\n\n"
-        "/checklist = elenco controlli operativi sul posto.\n\n"
-        "/documenti = documenti ed elementi che il conducente / servizio NCC deve esibire o consentire di verificare.\n\n"
-        "/norme = riferimenti normativi principali NCC.\n\n"
-        "/targa = verifica una targa nell'archivio Excel NCC caricato nel repository.\n\n"
-        "/art85 = leggi il richiamo operativo dell'art. 85 CdS\n"
-        "/art116 = leggi il richiamo operativo dell'art. 116 CdS\n"
-        "/art3l21 = leggi il richiamo operativo dell'art. 3 L. 21/1992\n"
-        "/art11l21 = leggi il richiamo operativo dell'art. 11 L. 21/1992\n/art180 = leggi il richiamo operativo dell'art. 180 CdS\n/art126 = leggi il richiamo operativo dell'art. 126 CdS\n\n"
-        "/riattiva = istruzioni per riattivare il servizio se il bot tarda a rispondere.\n\n"
-        "/reset = annulla il caso in corso."
+        "Funzioni disponibili:\n\n"
+        "• Inserisci un caso NCC = analisi libera del fatto\n"
+        "• Checklist documentale = controllo guidato con pulsanti\n"
+        "• Controlli operativi = verifiche pratiche sul posto\n"
+        "• Documenti da controllare = elenco documenti da richiedere o verificare\n"
+        "• Norme principali = riferimenti normativi NCC con pulsanti per gli articoli\n"
+        "• Verifica targa = ricerca targa nell'archivio NCC\n"
+        "• Reset = annulla la procedura in corso\n\n"
+        "Puoi usare i pulsanti sotto la chat oppure il menu comandi di Telegram."
     )
 
     if is_admin(message.from_user.id):
@@ -3688,7 +3708,11 @@ def help_command(message):
             "/deploybot = avvia un deploy su Render"
         )
 
-    bot.reply_to(message, text)
+    bot.send_message(
+        message.chat.id,
+        text,
+        reply_markup=build_main_menu()
+    )
 
 @bot.message_handler(commands=['norme'])
 def norme_command(message):
@@ -3891,6 +3915,38 @@ def navetta_command(message):
     if not ensure_authorized(message):
         return
     bot.reply_to(message, begin_preset_case(message.chat.id, "navetta"))
+
+@bot.message_handler(func=lambda m: (m.text or "").strip() == "Inserisci un caso NCC")
+def menu_caso_button(message):
+    caso_command(message)
+
+@bot.message_handler(func=lambda m: (m.text or "").strip() == "Checklist documentale")
+def menu_controllo_button(message):
+    controllo_command(message)
+
+@bot.message_handler(func=lambda m: (m.text or "").strip() == "Controlli operativi")
+def menu_checklist_button(message):
+    checklist_command(message)
+
+@bot.message_handler(func=lambda m: (m.text or "").strip() == "Documenti da controllare")
+def menu_documenti_button(message):
+    documenti_command(message)
+
+@bot.message_handler(func=lambda m: (m.text or "").strip() == "Norme principali")
+def menu_norme_button(message):
+    norme_command(message)
+
+@bot.message_handler(func=lambda m: (m.text or "").strip() == "Verifica targa")
+def menu_targa_button(message):
+    targa_command(message)
+
+@bot.message_handler(func=lambda m: (m.text or "").strip() == "Reset")
+def menu_reset_button(message):
+    reset_command(message)
+
+@bot.message_handler(func=lambda m: (m.text or "").strip() == "Help")
+def menu_help_button(message):
+    help_command(message)
 
 @bot.callback_query_handler(func=lambda call: str(call.data).startswith("ctrl_doc_toggle:"))
 def control_doc_toggle_callback(call):
@@ -4272,26 +4328,22 @@ def all_messages(message):
 
 def setup_bot_commands():
     commands = [
-        types.BotCommand("start", "avvio bot"),
-        types.BotCommand("help", "aiuto comandi"),
-        types.BotCommand("caso", "analisi libera del fatto"),
-        types.BotCommand("controllo", "checklist documentale guidata"),
-        types.BotCommand("checklist", "controlli operativi"),
-        types.BotCommand("documenti", "documenti da controllare"),
-        types.BotCommand("norme", "riferimenti normativi"),
-        types.BotCommand("targa", "verifica targa archivio NCC"),
-        types.BotCommand("reset", "annulla procedura"),
-        types.BotCommand("riattiva", "riattiva servizio"),
-        types.BotCommand("art85", "art. 85 CdS"),
-        types.BotCommand("art116", "art. 116 CdS"),
-        types.BotCommand("art180", "art. 180 CdS"),
-        types.BotCommand("art126", "art. 126 CdS"),
+        types.BotCommand("start", "Avvia il bot"),
+        types.BotCommand("caso", "Inserisci un caso NCC"),
+        types.BotCommand("controllo", "Checklist documentale guidata"),
+        types.BotCommand("checklist", "Controlli operativi NCC"),
+        types.BotCommand("documenti", "Documenti da controllare"),
+        types.BotCommand("norme", "Normativa principale NCC"),
+        types.BotCommand("targa", "Ricerca targa archivio NCC"),
+        types.BotCommand("reset", "Annulla procedura"),
+        types.BotCommand("riattiva", "Riattiva il servizio"),
+        types.BotCommand("help", "Come usare il bot"),
     ]
     try:
         bot.set_my_commands(commands)
     except Exception as e:
         print(f"Errore setup comandi bot: {e}")
-
+        
 def run_bot():
     print("AVVIO BOT TELEGRAM...")
     if not TOKEN:
