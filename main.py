@@ -1205,22 +1205,21 @@ def build_main_menu():
     kb = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     kb.add(
         types.KeyboardButton("Inserisci un caso NCC"),
-        types.KeyboardButton("Checklist documentale")
+        types.KeyboardButton("Controlli operativi")
     )
     kb.add(
-        types.KeyboardButton("Controlli operativi"),
+        types.KeyboardButton("Checklist documentale"),
         types.KeyboardButton("Documenti da controllare")
     )
     kb.add(
-        types.KeyboardButton("Norme principali"),
-        types.KeyboardButton("Verifica targa")
+        types.KeyboardButton("Verifica targa"),
+        types.KeyboardButton("Norme principali")
     )
     kb.add(
         types.KeyboardButton("Casi comuni porto"),
         types.KeyboardButton("Reset")
     )
     kb.add(
-        types.KeyboardButton("Reset"),
         types.KeyboardButton("Help")
     )
     return kb
