@@ -1169,6 +1169,28 @@ def build_article_markup(article_keys=None):
         markup.add(*buttons)
     return markup
 
+def build_port_common_cases_markup():
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        types.InlineKeyboardButton(
+            "KB presente + mezzo uso proprio",
+            callback_data="porto_case:uso_proprio_kb"
+        ),
+        types.InlineKeyboardButton(
+            "Abusivo totale",
+            callback_data="porto_case:abusivo_totale"
+        ),
+        types.InlineKeyboardButton(
+            "NCC con licenza/KB ma senza prenotazione",
+            callback_data="porto_case:procacciamento"
+        ),
+        types.InlineKeyboardButton(
+            "Altro caso porto",
+            callback_data="porto_case:altro"
+        )
+    )
+    return markup
+
 def build_plate_not_found_markup(plate):
     markup = types.InlineKeyboardMarkup()
     markup.add(
@@ -1192,6 +1214,10 @@ def build_main_menu():
     kb.add(
         types.KeyboardButton("Norme principali"),
         types.KeyboardButton("Verifica targa")
+    )
+    kb.add(
+        types.KeyboardButton("Casi comuni porto"),
+        types.KeyboardButton("Reset")
     )
     kb.add(
         types.KeyboardButton("Reset"),
@@ -1266,6 +1292,64 @@ def build_final_result_markup(payload):
 
     return markup
 
+def build_quick_payload_from_codes(main_code, concurrent_codes=None, extra_articles=None):
+    concurrent_codes = concurrent_codes or []
+    extra_articles = extra_articles or []
+
+    main = VIOLATIONS.get(main_code, {})
+    concurrent = [VIOLATIONS[c] for c in concurrent_codes if c in VIOLATIONS]
+
+    quick_parts = []
+    if main:
+        quick_parts.append(format_compact_violation(main_code))
+
+    for code in concurrent_codes:
+        if code in VIOLATIONS:
+            quick_parts.append("\n\n" + format_compact_violation(code))
+
+    article_keys = get_article_keys_for_result(main_code, concurrent_codes)
+    for k in extra_articles:
+        nk = normalize_article_key(k)
+        if nk and nk not in article_keys:
+            article_keys.append(nk)
+
+    articoli_text = "\n\n".join(format_articolo(k) for k in article_keys) if article_keys else "Articoli non disponibili."
+
+    accessori = []
+    if main.get("accessories"):
+        accessori.extend(main["accessories"])
+    for item in concurrent:
+        accessori.extend(item.get("accessories", []))
+
+    accessori = list(dict.fromkeys(accessori))
+    accessori_text = "\n".join(f"- {x}" for x in accessori) if accessori else "Nessuna sanzione accessoria indicata."
+
+    verbali = []
+    if main.get("verbal_text"):
+        verbali.append(main["verbal_text"])
+    for item in concurrent:
+        if item.get("verbal_text"):
+            verbali.append(item["verbal_text"])
+
+    comunicazioni = []
+    if main_code in {"085-02"}:
+        comunicazioni.append("- Trasmissione al Prefetto entro 10 giorni.")
+    if main_code in {"085-04"}:
+        comunicazioni.append("- Comunicazione al Prefetto entro 5 giorni per i presupposti della revoca.")
+    if main_code in {"085-05", "085-06", "085-07", "085-08"}:
+        comunicazioni.append("- Trasmissione documento ritirato all'UMC competente.")
+    if "116-06" in concurrent_codes:
+        comunicazioni.append("- Valutare fermo del veicolo per 60 giorni.")
+
+    payload = {
+        "quick": "\n\n".join(quick_parts) if quick_parts else "Esito non disponibile.",
+        "verbali": verbali,
+        "accessori": accessori_text,
+        "comunicazioni": "\n".join(comunicazioni) if comunicazioni else "Nessuna comunicazione principale preimpostata.",
+        "articoli": articoli_text,
+    }
+    return payload
+    
 def get_question_buttons(question_key):
     mapping = {
         'vehicle_authorized': [('SI', 'si'), ('NO', 'no')],
@@ -3572,6 +3656,17 @@ def approve_command(message):
     except Exception:
         pass
 
+@bot.message_handler(func=lambda m: (m.text or "").strip() == "Casi comuni porto")
+def menu_port_common_cases_button(message):
+    if not ensure_authorized(message):
+        return
+
+    bot.send_message(
+        message.chat.id,
+        "Seleziona una delle casistiche più frequenti in area porto.",
+        reply_markup=build_port_common_cases_markup()
+    )
+
 @bot.message_handler(commands=['rifiuta'])
 def reject_command(message):
     if not is_admin(message.from_user.id):
@@ -3949,6 +4044,17 @@ def navetta_command(message):
         return
     bot.reply_to(message, begin_preset_case(message.chat.id, "navetta"))
 
+@bot.message_handler(commands=['casiporto'])
+def casi_porto_command(message):
+    if not ensure_authorized(message):
+        return
+
+    bot.send_message(
+        message.chat.id,
+        "Seleziona una delle casistiche più frequenti in area porto.",
+        reply_markup=build_port_common_cases_markup()
+    )
+
 @bot.message_handler(func=lambda m: (m.text or "").strip() == "Inserisci un caso NCC")
 def menu_caso_button(message):
     caso_command(message)
@@ -4013,6 +4119,79 @@ def control_doc_toggle_callback(call):
     except Exception:
         pass
     bot.edit_message_text(_control_text_from_state(state), chat_id, call.message.message_id, reply_markup=build_control_docs_markup(state))
+
+@bot.callback_query_handler(func=lambda call: str(call.data).startswith("porto_case:"))
+def porto_case_callback(call):
+    chat_id = call.message.chat.id
+    key = str(call.data).split(":", 1)[1].strip()
+
+    try:
+        bot.answer_callback_query(call.id, "Caso porto selezionato")
+    except Exception:
+        pass
+
+    if key == "altro":
+        text = begin_preset_case(chat_id, "porto")
+        bot.send_message(chat_id, text)
+        return
+
+    if key == "uso_proprio_kb":
+        main_code = "085-02"
+        concurrent_codes = []
+        intro = (
+            "CASO COMUNE PORTO\n\n"
+            "Scenario selezionato: conducente con KB ma mezzo ad uso proprio.\n"
+            "Esito più probabile: utilizzo per servizio NCC con veicolo non adibito a tale uso."
+        )
+        payload = build_quick_payload_from_codes(main_code, concurrent_codes)
+
+    elif key == "abusivo_totale":
+        main_code = "085-02"
+        concurrent_codes = ["116-06"]
+        intro = (
+            "CASO COMUNE PORTO\n\n"
+            "Scenario selezionato: abusivo totale.\n"
+            "Esiti più probabili: veicolo non adibito a NCC; valutare anche mancanza del titolo professionale."
+        )
+        payload = build_quick_payload_from_codes(main_code, concurrent_codes)
+
+    elif key == "procacciamento":
+        main_code = "085-05"
+        concurrent_codes = []
+        intro = (
+            "CASO COMUNE PORTO\n\n"
+            "Scenario selezionato: NCC con licenza e KB ma senza prenotazione / procacciamento clienti.\n"
+            "Esito più probabile: violazione art. 85 c. 4-bis con riferimento ad artt. 3 e 11 L. 21/1992."
+        )
+        payload = build_quick_payload_from_codes(
+            main_code,
+            concurrent_codes,
+            extra_articles=["art3l21", "art11l21"]
+        )
+
+    else:
+        bot.send_message(chat_id, "Caso porto non riconosciuto.")
+        return
+
+    state = user_states.setdefault(chat_id, {})
+    state["last_result_payload"] = payload
+    state["last_result_main_code"] = main_code
+    state["last_result_concurrent"] = concurrent_codes
+    state["last_result_flags"] = {"source": "porto_common_case", "selected_case": key}
+    save_user_states()
+
+    markup = build_final_result_markup(payload)
+    if not markup:
+        markup = build_pdf_markup(main_code, concurrent_codes, state.get("last_result_flags", {})) or build_article_markup(
+            get_article_keys_for_result(main_code, concurrent_codes)
+        )
+
+    send_long_message(
+        chat_id,
+        intro + "\n\nUsa i pulsanti sotto per aprire l'esito rapido, i verbali, le comunicazioni e gli articoli.",
+        reply_markup=markup,
+        disable_web_page_preview=True
+    )
 
 @bot.callback_query_handler(func=lambda call: (call.data or "").startswith("plate_report:"))
 def plate_report_callback(call):
@@ -4407,6 +4586,7 @@ def setup_bot_commands():
     commands = [
         types.BotCommand("start", "Avvia il bot"),
         types.BotCommand("caso", "Inserisci un caso NCC"),
+        types.BotCommand("casiporto", "casi comuni area porto"),
         types.BotCommand("controllo", "Checklist documentale guidata"),
         types.BotCommand("checklist", "Controlli operativi NCC"),
         types.BotCommand("documenti", "Documenti da controllare"),
