@@ -4584,13 +4584,6 @@ def all_messages(message):
 def setup_bot_commands():
     commands = [
         types.BotCommand("start", "Avvia il bot"),
-        types.BotCommand("caso", "Inserisci un caso NCC"),
-        types.BotCommand("casiporto", "casi comuni area porto"),
-        types.BotCommand("controllo", "Checklist documentale guidata"),
-        types.BotCommand("checklist", "Controlli operativi NCC"),
-        types.BotCommand("documenti", "Documenti da controllare"),
-        types.BotCommand("norme", "Normativa principale NCC"),
-        types.BotCommand("targa", "Ricerca targa archivio NCC"),
         types.BotCommand("reset", "Annulla procedura"),
         types.BotCommand("riattiva", "Riattiva il servizio"),
         types.BotCommand("help", "Come usare il bot"),
