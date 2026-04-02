@@ -1042,6 +1042,7 @@ def load_user_states():
         print(f"ERRORE load_user_states: {e}")
         user_states = {}
 
+load_access_data()
 load_user_states()
 
 # mode:
@@ -1199,22 +1200,6 @@ def build_plate_not_found_markup(plate):
             callback_data=f"plate_report:{plate}"
         )
     )
-    return markup
-
-
-def build_porto_question_markup(question_key):
-    q_buttons = get_question_buttons(question_key) if question_key else []
-    if not q_buttons:
-        return None
-    markup = types.InlineKeyboardMarkup(row_width=2)
-    row = []
-    for label, value in q_buttons:
-        row.append(types.InlineKeyboardButton(label, callback_data=f"porto_answer:{value}"))
-        if len(row) == 2:
-            markup.row(*row)
-            row = []
-    if row:
-        markup.row(*row)
     return markup
 
 def build_main_menu():
@@ -2290,6 +2275,155 @@ def format_checklist_from_db():
     for i, item in enumerate(NCC_DB["checklist_operativa"], start=1):
         lines.append(f"{i}. {item}")
     return "\n".join(lines)
+
+
+
+def begin_port_common_case(chat_id, case_key):
+    user_states[chat_id] = {
+        "mode": "porto_common_followup",
+        "porto_case_key": case_key,
+        "answers": {},
+        "pending_question": None,
+        "questions_asked": []
+    }
+
+    state = user_states[chat_id]
+
+    if case_key == "uso_proprio_kb":
+        state["answers"].update({
+            "vehicle_authorized": "no",
+            "service_to_third": "si",
+            "kb": "si"
+        })
+        q = {
+            "key": "recurrence_triennio",
+            "text": "È la prima violazione oppure la seconda nel triennio?"
+        }
+
+    elif case_key == "abusivo_totale":
+        state["answers"].update({
+            "vehicle_authorized": "no",
+            "service_to_third": "si"
+        })
+        q = {
+            "key": "recurrence_triennio",
+            "text": "È la prima violazione oppure la seconda nel triennio?"
+        }
+
+    elif case_key == "procacciamento":
+        state["answers"].update({
+            "vehicle_authorized": "si",
+            "service_to_third": "si",
+            "booking": "no",
+            "public_waiting": "si",
+            "violation_type": "art3_11"
+        })
+        q = {
+            "key": "recurrence",
+            "text": "Indica la progressione della violazione nel quinquennio."
+        }
+
+    else:
+        return None
+
+    state["pending_question"] = q
+    save_user_states()
+    return build_recurrence_prompt(state["answers"], q["key"]), q["key"]
+
+
+def _finalize_port_common_case(chat_id):
+    state = user_states.get(chat_id, {})
+    answers = state.get("answers", {})
+
+    main_code, concurrent, notes, procedural_flags, ancillary_findings = decide_violation(answers)
+    result = build_final_response(main_code, concurrent, notes, procedural_flags, ancillary_findings)
+    payload = build_final_payload(main_code, concurrent, notes, procedural_flags, ancillary_findings)
+
+    state["last_result_payload"] = payload
+    state["last_result_main_code"] = main_code
+    state["last_result_concurrent"] = concurrent
+    state["last_result_flags"] = procedural_flags
+    save_user_states()
+
+    clear_case(chat_id)
+    return result, payload
+
+
+def process_port_common_followup(chat_id, text):
+    state = user_states.get(chat_id)
+    if not state:
+        return "Sessione non trovata.", None, None
+
+    pending = state.get("pending_question") or {}
+    key = pending.get("key")
+    value = parse_answer_for_key(key, text) if key in {"recurrence_triennio", "recurrence", "kb", "patente_idonea", "incauto_affidamento"} else normalize_answer(text)
+
+    if key == "recurrence_triennio":
+        if value not in {"first", "second_3y"}:
+            return "Risposta non valida. Indica: prima / seconda nel triennio.", None, key
+
+        state["answers"]["recurrence_triennio"] = value
+
+        if state.get("porto_case_key") == "abusivo_totale":
+            state["pending_question"] = {
+                "key": "kb",
+                "text": "Il conducente ha KB/KA/CQC richiesto?"
+            }
+            save_user_states()
+            return build_article_verification_prompt(state["answers"], "kb", state["pending_question"]["text"]), None, "kb"
+
+        save_user_states()
+        result, payload = _finalize_port_common_case(chat_id)
+        return result, payload, None
+
+    if key == "recurrence":
+        if value not in {"first", "2_5y", "3_5y", "4plus_5y"}:
+            return "Risposta non valida. Indica: prima / seconda / terza / quarta o successiva.", None, key
+        state["answers"]["recurrence"] = value
+        save_user_states()
+        result, payload = _finalize_port_common_case(chat_id)
+        return result, payload, None
+
+    if key == "kb":
+        if value not in {"si", "no"}:
+            return "Risposta non valida. Indica: si / no.", None, key
+
+        state["answers"]["kb"] = value
+        state["pending_question"] = {
+            "key": "patente_idonea",
+            "text": "Il conducente ha patente idonea?"
+        }
+        save_user_states()
+        return build_article_verification_prompt(state["answers"], "patente_idonea", state["pending_question"]["text"]), None, "patente_idonea"
+
+    if key == "patente_idonea":
+        if value not in {"si", "no"}:
+            return "Risposta non valida. Indica: si / no.", None, key
+
+        state["answers"]["patente_idonea"] = value
+
+        if state["answers"].get("kb") == "no" or value == "no":
+            state["pending_question"] = {
+                "key": "incauto_affidamento",
+                "text": "Il veicolo è stato affidato dal titolare o da altro responsabile a soggetto privo dei titoli richiesti?"
+            }
+            save_user_states()
+            return build_article_verification_prompt(state["answers"], "incauto_affidamento", state["pending_question"]["text"]), None, "incauto_affidamento"
+
+        save_user_states()
+        result, payload = _finalize_port_common_case(chat_id)
+        return result, payload, None
+
+    if key == "incauto_affidamento":
+        if value not in {"si", "no"}:
+            return "Risposta non valida. Indica: si / no.", None, key
+
+        state["answers"]["incauto_affidamento"] = value
+        save_user_states()
+        result, payload = _finalize_port_common_case(chat_id)
+        return result, payload, None
+
+    return "Nessuna domanda attiva.", None, None
 
 def format_verbale_template():
     return (
@@ -3455,209 +3589,6 @@ def begin_preset_case(chat_id, preset_name):
     )
     return intro + "\n" + first_response
 
-def _porto_common_case_intro(case_key):
-    if case_key == "uso_proprio_kb":
-        return (
-            "CASO COMUNE PORTO\n\n"
-            "Scenario selezionato: conducente con KB ma mezzo ad uso proprio.\n"
-            "Il bot ti fa solo le domande strettamente necessarie per distinguere tra prima/seconda violazione e arrivare all'esito corretto."
-        )
-    if case_key == "abusivo_totale":
-        return (
-            "CASO COMUNE PORTO\n\n"
-            "Scenario selezionato: abusivo totale.\n"
-            "Il bot verifica progressione della violazione e presenza del titolo professionale per costruire l'esito reale."
-        )
-    return (
-        "CASO COMUNE PORTO\n\n"
-        "Scenario selezionato: NCC con licenza e KB ma senza prenotazione / procacciamento clienti.\n"
-        "Il bot verifica la progressione della violazione nel quinquennio per arrivare all'esito corretto."
-    )
-
-
-def _porto_common_seed_answers(case_key):
-    if case_key == "uso_proprio_kb":
-        return {
-            "vehicle_authorized": "no",
-            "service_to_third": "si",
-            "circulation_use": "uso_proprio",
-            "kb": "si",
-            "patente_idonea": "si",
-            "service_context": "a",
-        }
-    if case_key == "abusivo_totale":
-        return {
-            "vehicle_authorized": "no",
-            "service_to_third": "si",
-            "circulation_use": "uso_proprio",
-            "service_context": "a",
-        }
-    return {
-        "vehicle_authorized": "si",
-        "service_to_third": "si",
-        "violation_type": "art3_11",
-        "booking": "no",
-        "kb": "si",
-        "patente_idonea": "si",
-        "service_context": "a",
-    }
-
-
-def _porto_common_next_question(state):
-    case_key = state.get("porto_case_key")
-    answers = state.setdefault("answers", {})
-
-    if case_key == "uso_proprio_kb":
-        if answers.get("recurrence_triennio") is None:
-            return {
-                "key": "recurrence_triennio",
-                "text": build_recurrence_prompt(answers, "recurrence_triennio")
-            }
-        return None
-
-    if case_key == "abusivo_totale":
-        if answers.get("recurrence_triennio") is None:
-            return {
-                "key": "recurrence_triennio",
-                "text": build_recurrence_prompt(answers, "recurrence_triennio")
-            }
-        if answers.get("kb") is None:
-            return {
-                "key": "kb",
-                "text": build_article_verification_prompt(
-                    answers,
-                    "kb",
-                    "Il conducente aveva il titolo professionale richiesto (KB / KA / CQC se dovuto)?\nRispondi: si / no"
-                )
-            }
-        if answers.get("patente_idonea") is None:
-            return {
-                "key": "patente_idonea",
-                "text": build_article_verification_prompt(
-                    answers,
-                    "patente_idonea",
-                    "La patente del conducente era valida e idonea al veicolo/servizio?\nRispondi: si / no"
-                )
-            }
-        if (answers.get("kb") == "no" or answers.get("patente_idonea") == "no") and answers.get("incauto_affidamento") is None:
-            return {
-                "key": "incauto_affidamento",
-                "text": build_article_verification_prompt(
-                    answers,
-                    "incauto_affidamento",
-                    "Il veicolo è stato affidato dal titolare o da altro responsabile al conducente privo dei titoli richiesti?\nRispondi: si / no"
-                )
-            }
-        return None
-
-    if answers.get("recurrence") is None:
-        return {
-            "key": "recurrence",
-            "text": build_recurrence_prompt(answers, "recurrence")
-        }
-    return None
-
-
-
-def _porto_common_finalize(chat_id):
-    state = user_states[chat_id]
-    answers = state.get("answers", {})
-    case_key = state.get("porto_case_key")
-    intro = _porto_common_case_intro(case_key)
-
-    main_code, concurrent, notes, procedural_flags, ancillary_findings = decide_violation(answers)
-
-    if case_key == "uso_proprio_kb":
-        notes = _dedupe_keep_order((notes or []) + [
-            "Scenario porto selezionato: autista con KB su mezzo ad uso proprio/non autorizzato per NCC."
-        ])
-    elif case_key == "abusivo_totale":
-        notes = _dedupe_keep_order((notes or []) + [
-            "Scenario porto selezionato: abusivo totale, con possibile utilizzo di mezzo proprio o comunque non autorizzato/licenziato per NCC."
-        ])
-    elif case_key == "procacciamento":
-        notes = _dedupe_keep_order((notes or []) + [
-            "Scenario porto selezionato: NCC con licenza/KB ma senza prenotazione documentabile o con procacciamento clienti."
-        ])
-
-    if main_code:
-        payload = build_final_payload(
-            main_code,
-            concurrent_codes=concurrent,
-            extra_notes=notes,
-            procedural_flags=procedural_flags,
-            ancillary_findings=ancillary_findings
-        )
-
-        clear_case(chat_id)
-        state = user_states.setdefault(chat_id, {})
-        state["last_result_payload"] = payload
-        state["last_result_main_code"] = main_code
-        state["last_result_concurrent"] = concurrent
-        state["last_result_flags"] = procedural_flags
-        save_user_states()
-
-        return intro + "\n\nUsa i pulsanti sotto per aprire l'esito rapido, i verbali, le comunicazioni e gli articoli.", payload
-
-    result = format_partial_assessment(answers, concurrent, notes, procedural_flags, ancillary_findings)
-    clear_case(chat_id)
-    return intro + "\n\n" + result, None
-
-
-def begin_porto_common_case_flow(chat_id, case_key):
-    state = {
-        "mode": "porto_common_followup",
-        "porto_case_key": case_key,
-        "answers": _porto_common_seed_answers(case_key),
-        "pending_question": None,
-        "questions_asked": [],
-    }
-    user_states[chat_id] = state
-
-    q = _porto_common_next_question(state)
-    if q:
-        state["pending_question"] = q
-        state["questions_asked"].append(q["key"])
-        save_user_states()
-        return _porto_common_case_intro(case_key) + "\n\n" + q["text"], build_porto_question_markup(q["key"]), None
-
-    save_user_states()
-    text, payload = _porto_common_finalize(chat_id)
-    markup = build_final_result_markup(payload) if payload else None
-    return text, markup, payload
-
-
-def process_porto_common_followup(chat_id, text):
-    state = user_states[chat_id]
-    q = state.get("pending_question")
-    if not q:
-        text, payload = _porto_common_finalize(chat_id)
-        markup = build_final_result_markup(payload) if payload else None
-        return text, markup
-
-    value = parse_answer_for_key(q["key"], text)
-    if value is None:
-        return f"Risposta non valida.\n\n{q['text']}", build_porto_question_markup(q["key"])
-
-    state["answers"][q["key"]] = value
-    if q["key"] == "recurrence_triennio":
-        state["answers"]["recurrence"] = value
-    state["pending_question"] = None
-
-    next_q = _porto_common_next_question(state)
-    if next_q:
-        state["pending_question"] = next_q
-        if next_q["key"] not in state.setdefault("questions_asked", []):
-            state["questions_asked"].append(next_q["key"] )
-        save_user_states()
-        return next_q["text"], build_porto_question_markup(next_q["key"])
-
-    save_user_states()
-    text, payload = _porto_common_finalize(chat_id)
-    markup = build_final_result_markup(payload) if payload else None
-    return text, markup
-
-
 def process_case_description(chat_id, text):
     state = user_states[chat_id]
     state["free_text"] = text
@@ -4338,6 +4269,7 @@ def control_doc_toggle_callback(call):
         pass
     bot.edit_message_text(_control_text_from_state(state), chat_id, call.message.message_id, reply_markup=build_control_docs_markup(state))
 
+
 @bot.callback_query_handler(func=lambda call: str(call.data).startswith("porto_case:"))
 def porto_case_callback(call):
     chat_id = call.message.chat.id
@@ -4353,92 +4285,17 @@ def porto_case_callback(call):
         bot.send_message(chat_id, text)
         return
 
-    if key == "uso_proprio_kb":
-        main_code = "085-02"
-        concurrent_codes = []
-        intro = (
-            "CASO COMUNE PORTO\n\n"
-            "Scenario selezionato: conducente con KB ma mezzo ad uso proprio.\n"
-            "Esito più probabile: utilizzo per servizio NCC con veicolo non adibito a tale uso."
-        )
-        payload = build_quick_payload_from_codes(main_code, concurrent_codes)
-
-    elif key == "abusivo_totale":
-        main_code = "085-02"
-        concurrent_codes = ["116-06"]
-        intro = (
-            "CASO COMUNE PORTO\n\n"
-            "Scenario selezionato: abusivo totale.\n"
-            "Esiti più probabili: veicolo non adibito a NCC; valutare anche mancanza del titolo professionale."
-        )
-        payload = build_quick_payload_from_codes(main_code, concurrent_codes)
-
-    elif key == "procacciamento":
-        main_code = "085-05"
-        concurrent_codes = []
-        intro = (
-            "CASO COMUNE PORTO\n\n"
-            "Scenario selezionato: NCC con licenza e KB ma senza prenotazione / procacciamento clienti.\n"
-            "Esito più probabile: violazione art. 85 c. 4-bis con riferimento ad artt. 3 e 11 L. 21/1992."
-        )
-        payload = build_quick_payload_from_codes(
-            main_code,
-            concurrent_codes,
-            extra_articles=["art3l21", "art11l21"]
-        )
-
-    else:
+    started = begin_port_common_case(chat_id, key)
+    if not started:
         bot.send_message(chat_id, "Caso porto non riconosciuto.")
         return
 
-    state = user_states.setdefault(chat_id, {})
-    state["last_result_payload"] = payload
-    state["last_result_main_code"] = main_code
-    state["last_result_concurrent"] = concurrent_codes
-    state["last_result_flags"] = {"source": "porto_common_case", "selected_case": key}
-    save_user_states()
-
-    markup = build_final_result_markup(payload)
-    if not markup:
-        markup = build_pdf_markup(main_code, concurrent_codes, state.get("last_result_flags", {})) or build_article_markup(
-            get_article_keys_for_result(main_code, concurrent_codes)
-        )
-
-    send_long_message(
-        chat_id,
-        intro + "\n\nUsa i pulsanti sotto per aprire l'esito rapido, i verbali, le comunicazioni e gli articoli.",
-        reply_markup=markup,
-        disable_web_page_preview=True
-    )
-
-@bot.callback_query_handler(func=lambda call: str(call.data).startswith("porto_answer:"))
-def porto_answer_callback(call):
-    chat_id = call.message.chat.id
-    state = get_state(chat_id)
-    if not state or state.get("mode") != "porto_common_followup":
-        try:
-            bot.answer_callback_query(call.id, "Nessuna domanda porto attiva")
-        except Exception:
-            pass
-        return
-
-    value = str(call.data).split(":", 1)[1].strip()
-    try:
-        text, markup = process_porto_common_followup(chat_id, value)
-        try:
-            bot.answer_callback_query(call.id, "Risposta acquisita")
-        except Exception:
-            pass
-        send_long_message(chat_id, text, reply_markup=markup, disable_web_page_preview=True)
-    except Exception as e:
-        try:
-            bot.answer_callback_query(call.id, "Errore nel flusso")
-        except Exception:
-            pass
-        bot.send_message(chat_id, f"Errore interno nel flusso porto: {e}")
-
+    prompt, question_key = started
+    markup = build_combined_markup(question_key=question_key, force_ctrl_answer=False)
+    bot.send_message(chat_id, prompt, reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda call: (call.data or "").startswith("plate_report:"))
+
 def plate_report_callback(call):
     try:
         plate = (call.data or "").split(":", 1)[1].strip()
@@ -4748,7 +4605,7 @@ def all_messages(message):
     state = get_state(chat_id)
 
     if not state:
-        bot.reply_to(message, "Usa /controllo per la checklist documentale guidata, /caso per il testo libero, /targa per verificare una targa, /casiporto per i casi comuni porto, oppure uno scenario guidato tra /porto /aeroporto /stazione /hotel /navetta.")
+        bot.reply_to(message, "Usa /controllo per la checklist documentale guidata, /caso per il testo libero, /targa per verificare una targa, oppure uno scenario guidato tra /porto /aeroporto /stazione /hotel /navetta.")
         return
 
     mode = state.get("mode")
