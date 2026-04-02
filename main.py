@@ -4557,7 +4557,8 @@ def violation_callback(call):
 def answer_callback(call):
     chat_id = call.message.chat.id
     state = get_state(chat_id)
-    if not state or state.get("mode") != "clarification":
+
+    if not state:
         try:
             bot.answer_callback_query(call.id, "Nessuna domanda attiva")
         except Exception:
@@ -4565,19 +4566,65 @@ def answer_callback(call):
         return
 
     value = str(call.data).split(":", 1)[1].strip()
+
     try:
-        response = process_clarification(chat_id, value)
-        state = get_state(chat_id)
-        question_key = None
-        article_keys = infer_article_keys_from_text(response)
-        if state and state.get("mode") == "clarification" and state.get("pending_question"):
-            question_key = state["pending_question"].get("key")
-        markup = build_combined_markup(article_keys, question_key=question_key)
+        if state.get("mode") == "clarification":
+            response = process_clarification(chat_id, value)
+            state = get_state(chat_id)
+            question_key = None
+            article_keys = infer_article_keys_from_text(response)
+            if state and state.get("mode") == "clarification" and state.get("pending_question"):
+                question_key = state["pending_question"].get("key")
+            markup = build_combined_markup(article_keys, question_key=question_key)
+            try:
+                bot.answer_callback_query(call.id, "Risposta acquisita")
+            except Exception:
+                pass
+            send_long_message(chat_id, response, reply_markup=markup, disable_web_page_preview=True)
+            return
+
+        if state.get("mode") == "porto_common_followup":
+            result, payload, question_key = process_port_common_followup(chat_id, value)
+
+            try:
+                bot.answer_callback_query(call.id, "Risposta acquisita")
+            except Exception:
+                pass
+
+            if payload:
+                state_after = get_state(chat_id) or {}
+                payload_to_show = state_after.get("last_result_payload") or payload
+                main_code = state_after.get("last_result_main_code")
+                concurrent_codes = state_after.get("last_result_concurrent", [])
+                flags = state_after.get("last_result_flags", {})
+
+                markup = build_final_result_markup(payload_to_show)
+                if not markup:
+                    markup = build_pdf_markup(main_code, concurrent_codes, flags) or build_article_markup(
+                        get_article_keys_for_result(main_code, concurrent_codes)
+                    )
+
+                send_long_message(
+                    chat_id,
+                    result,
+                    reply_markup=markup,
+                    disable_web_page_preview=True
+                )
+                return
+
+            markup = build_combined_markup(question_key=question_key) if question_key else None
+            send_long_message(
+                chat_id,
+                result,
+                reply_markup=markup,
+                disable_web_page_preview=True
+            )
+            return
+
         try:
-            bot.answer_callback_query(call.id, "Risposta acquisita")
+            bot.answer_callback_query(call.id, "Nessuna domanda attiva")
         except Exception:
             pass
-        send_long_message(chat_id, response, reply_markup=markup, disable_web_page_preview=True)
     except Exception as e:
         try:
             bot.answer_callback_query(call.id, "Errore nel flusso")
@@ -4632,6 +4679,29 @@ def all_messages(message):
             )
         else:
             bot.reply_to(message, result.get("message", "Errore nella ricerca targa."))
+        return
+
+    if mode == "porto_common_followup":
+        result, payload, question_key = process_port_common_followup(chat_id, text)
+
+        if payload:
+            state_after = get_state(chat_id) or {}
+            payload_to_show = state_after.get("last_result_payload") or payload
+            main_code = state_after.get("last_result_main_code")
+            concurrent_codes = state_after.get("last_result_concurrent", [])
+            flags = state_after.get("last_result_flags", {})
+
+            markup = build_final_result_markup(payload_to_show)
+            if not markup:
+                markup = build_pdf_markup(main_code, concurrent_codes, flags) or build_article_markup(
+                    get_article_keys_for_result(main_code, concurrent_codes)
+                )
+
+            send_long_message(chat_id, result, reply_markup=markup, disable_web_page_preview=True)
+            return
+
+        markup = build_combined_markup(question_key=question_key) if question_key else None
+        bot.reply_to(message, result, reply_markup=markup)
         return
 
     if mode == "control_docs":
