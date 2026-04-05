@@ -4,6 +4,9 @@ import threading
 import requests
 import re
 import traceback
+import shutil
+import tempfile
+from datetime import datetime
 from flask import Flask
 import telebot
 from telebot import types
@@ -777,53 +780,193 @@ ARTICOLI_DB = {
 # ACCESSO / AUTORIZZAZIONI
 # =========================
 
+ACCESS_DATA_BACKUP_FILE = os.getenv("ACCESS_DATA_BACKUP_FILE", f"{ACCESS_DATA_FILE}.bak")
+BOOTSTRAP_AUTHORIZED_IDS = os.getenv("AUTHORIZED_USER_IDS", "")
+
 access_data = {
     "authorized_users": {ADMIN_ID},
     "pending_users": {},
-    "rejected_users": set()
+    "rejected_users": set(),
+    "profiles": {}
 }
+
+
+def _now_iso():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _parse_bootstrap_authorized_ids():
+    result = set()
+    raw = (BOOTSTRAP_AUTHORIZED_IDS or "").strip()
+    if not raw:
+        return result
+
+    for part in re.split(r"[,;\s]+", raw):
+        part = part.strip()
+        if part.isdigit():
+            result.add(int(part))
+    return result
+
+
+def _default_profile(user_id, first_name="", username=""):
+    return {
+        "id": int(user_id),
+        "first_name": first_name or "",
+        "username": username or "",
+        "approved_at": _now_iso(),
+        "last_seen": None,
+        "use_count": 0,
+        "last_command": ""
+    }
+
+
+def _normalize_profiles(raw_profiles):
+    normalized = {}
+    raw_profiles = raw_profiles or {}
+
+    if isinstance(raw_profiles, list):
+        for item in raw_profiles:
+            if isinstance(item, dict) and str(item.get("id", "")).isdigit():
+                uid = str(int(item["id"]))
+                normalized[uid] = _default_profile(
+                    uid,
+                    item.get("first_name", ""),
+                    item.get("username", "")
+                )
+                normalized[uid].update(item)
+        return normalized
+
+    if isinstance(raw_profiles, dict):
+        for uid, item in raw_profiles.items():
+            uid_str = str(uid)
+            if not uid_str.isdigit():
+                continue
+            base = _default_profile(uid_str)
+            if isinstance(item, dict):
+                base.update(item)
+            normalized[uid_str] = base
+    return normalized
+
+
+def _ensure_authorized_profiles():
+    for uid in list(access_data.get("authorized_users", set())):
+        uid_str = str(int(uid))
+        if uid_str not in access_data["profiles"]:
+            access_data["profiles"][uid_str] = _default_profile(uid)
+
+
+def _upsert_profile(user=None, user_id=None, approved=False, command_name=None):
+    if user is not None:
+        uid = int(user.id)
+        first_name = user.first_name or ""
+        username = user.username or ""
+    else:
+        uid = int(user_id)
+        first_name = ""
+        username = ""
+
+    uid_str = str(uid)
+    profile = access_data["profiles"].get(uid_str, _default_profile(uid, first_name, username))
+
+    if first_name:
+        profile["first_name"] = first_name
+    if username:
+        profile["username"] = username
+
+    if approved and not profile.get("approved_at"):
+        profile["approved_at"] = _now_iso()
+
+    if command_name is not None:
+        profile["last_seen"] = _now_iso()
+        profile["last_command"] = command_name
+        profile["use_count"] = int(profile.get("use_count", 0) or 0) + 1
+
+    access_data["profiles"][uid_str] = profile
+    return profile
 
 
 def save_access_data():
     try:
+        _ensure_authorized_profiles()
         payload = {
             "authorized_users": sorted(int(x) for x in access_data.get("authorized_users", set())),
             "pending_users": access_data.get("pending_users", {}),
             "rejected_users": sorted(int(x) for x in access_data.get("rejected_users", set())),
+            "profiles": access_data.get("profiles", {}),
         }
-        with open(ACCESS_DATA_FILE, "w", encoding="utf-8") as f:
+
+        tmp_fd, tmp_path = tempfile.mkstemp(prefix="access_data_", suffix=".json")
+        os.close(tmp_fd)
+        with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False, indent=2)
+
+        if os.path.exists(ACCESS_DATA_FILE):
+            shutil.copyfile(ACCESS_DATA_FILE, ACCESS_DATA_BACKUP_FILE)
+
+        os.replace(tmp_path, ACCESS_DATA_FILE)
+        shutil.copyfile(ACCESS_DATA_FILE, ACCESS_DATA_BACKUP_FILE)
     except Exception as e:
         print(f"ERRORE save_access_data: {e}")
 
 
 def load_access_data():
     global access_data
+
+    bootstrap_ids = _parse_bootstrap_authorized_ids()
+    default_data = {
+        "authorized_users": {ADMIN_ID, *bootstrap_ids},
+        "pending_users": {},
+        "rejected_users": set(),
+        "profiles": {}
+    }
+
+    for uid in default_data["authorized_users"]:
+        default_data["profiles"][str(uid)] = _default_profile(uid)
+
+    source_path = None
+    if os.path.exists(ACCESS_DATA_FILE):
+        source_path = ACCESS_DATA_FILE
+    elif os.path.exists(ACCESS_DATA_BACKUP_FILE):
+        source_path = ACCESS_DATA_BACKUP_FILE
+
+    if not source_path:
+        access_data = default_data
+        save_access_data()
+        return
+
     try:
-        if not os.path.exists(ACCESS_DATA_FILE):
-            return
-        with open(ACCESS_DATA_FILE, "r", encoding="utf-8") as f:
+        with open(source_path, "r", encoding="utf-8") as f:
             payload = json.load(f)
-        access_data["authorized_users"] = {int(x) for x in payload.get("authorized_users", [])}
-        access_data["authorized_users"].add(ADMIN_ID)
-        access_data["pending_users"] = payload.get("pending_users", {}) or {}
-        access_data["rejected_users"] = {int(x) for x in payload.get("rejected_users", [])}
+
+        loaded_authorized = {int(x) for x in payload.get("authorized_users", []) if str(x).isdigit()}
+        loaded_authorized.update(default_data["authorized_users"])
+
+        access_data = {
+            "authorized_users": loaded_authorized,
+            "pending_users": payload.get("pending_users", {}) or {},
+            "rejected_users": {int(x) for x in payload.get("rejected_users", []) if str(x).isdigit()},
+            "profiles": _normalize_profiles(payload.get("profiles", {}))
+        }
+
+        _ensure_authorized_profiles()
+        save_access_data()
     except Exception as e:
         print(f"ERRORE load_access_data: {e}")
-        access_data = {
-            "authorized_users": {ADMIN_ID},
-            "pending_users": {},
-            "rejected_users": set()
-        }
+        access_data = default_data
+        save_access_data()
+
 
 def is_admin(user_id):
     return user_id == ADMIN_ID
 
+
 def is_authorized(user_id):
     return user_id in access_data["authorized_users"]
 
+
 def is_pending(user_id):
     return str(user_id) in access_data["pending_users"]
+
 
 def add_pending(user):
     uid = str(user.id)
@@ -832,31 +975,84 @@ def add_pending(user):
             "id": user.id,
             "first_name": user.first_name or "",
             "username": user.username or "",
+            "requested_at": _now_iso(),
         }
         save_access_data()
 
+
 def approve_user(user_id):
-    uid_str = str(user_id)
+    uid = int(user_id)
+    uid_str = str(uid)
+    pending = access_data["pending_users"].get(uid_str, {})
+    first_name = pending.get("first_name", "")
+    username = pending.get("username", "")
+
     if uid_str in access_data["pending_users"]:
         del access_data["pending_users"][uid_str]
-    access_data["authorized_users"].add(user_id)
-    access_data["rejected_users"].discard(user_id)
+
+    access_data["authorized_users"].add(uid)
+    access_data["rejected_users"].discard(uid)
+
+    profile = access_data["profiles"].get(uid_str, _default_profile(uid, first_name, username))
+    if first_name and not profile.get("first_name"):
+        profile["first_name"] = first_name
+    if username and not profile.get("username"):
+        profile["username"] = username
+    if not profile.get("approved_at"):
+        profile["approved_at"] = _now_iso()
+    access_data["profiles"][uid_str] = profile
+
     save_access_data()
+
 
 def reject_user(user_id):
-    uid_str = str(user_id)
+    uid = int(user_id)
+    uid_str = str(uid)
     if uid_str in access_data["pending_users"]:
         del access_data["pending_users"][uid_str]
-    access_data["rejected_users"].add(user_id)
-    access_data["authorized_users"].discard(user_id)
+    access_data["rejected_users"].add(uid)
+    access_data["authorized_users"].discard(uid)
     save_access_data()
 
+
 def revoke_user(user_id):
-    if user_id == ADMIN_ID:
+    uid = int(user_id)
+    if uid == ADMIN_ID:
         return False
-    access_data["authorized_users"].discard(user_id)
+    access_data["authorized_users"].discard(uid)
     save_access_data()
     return True
+
+
+def track_authorized_usage(user, command_name="messaggio"):
+    uid = int(user.id)
+    if not (is_admin(uid) or is_authorized(uid)):
+        return
+    _upsert_profile(user=user, approved=True, command_name=command_name)
+    save_access_data()
+
+
+def format_authorized_users_lines(include_stats=False):
+    lines = ["Utenti autorizzati:"]
+    profiles = access_data.get("profiles", {})
+
+    for uid in sorted(access_data["authorized_users"]):
+        uid_str = str(uid)
+        p = profiles.get(uid_str, {})
+        name = p.get("first_name") or "-"
+        username = f"@{p.get('username')}" if p.get("username") else "-"
+        suffix = " (admin)" if uid == ADMIN_ID else ""
+
+        row = f"- ID {uid}{suffix} | {name} | {username}"
+        if include_stats:
+            approved_at = p.get("approved_at") or "-"
+            last_seen = p.get("last_seen") or "-"
+            use_count = p.get("use_count", 0)
+            last_command = p.get("last_command") or "-"
+            row += f" | approvato: {approved_at} | ultimo accesso: {last_seen} | usi: {use_count} | ultimo comando: {last_command}"
+        lines.append(row)
+
+    return lines
 
 def send_welcome_media(chat_id):
     if not WELCOME_MEDIA_ENABLED:
@@ -945,6 +1141,8 @@ def notify_admin_missing_plate(user, plate):
 def ensure_authorized(message):
     uid = message.from_user.id
     if is_admin(uid) or is_authorized(uid):
+        command_name = (message.text or "messaggio").strip()[:100] or "messaggio"
+        track_authorized_usage(message.from_user, command_name)
         return True
 
     send_welcome_media(message.chat.id)
@@ -3875,11 +4073,13 @@ def pending_command(message):
 def authorized_command(message):
     if not is_admin(message.from_user.id):
         return
-    lines = ["Utenti autorizzati:"]
-    for uid in sorted(access_data["authorized_users"]):
-        suffix = " (admin)" if uid == ADMIN_ID else ""
-        lines.append(f"- {uid}{suffix}")
-    bot.reply_to(message, "\n".join(lines))
+    bot.reply_to(message, "\n".join(format_authorized_users_lines(include_stats=False)))
+
+@bot.message_handler(commands=['utenti'])
+def utenti_command(message):
+    if not is_admin(message.from_user.id):
+        return
+    bot.reply_to(message, "\n".join(format_authorized_users_lines(include_stats=True)))
 
 @bot.message_handler(commands=['revoca'])
 def revoke_command(message):
@@ -3969,6 +4169,8 @@ def start_command(message):
             notify_admin_new_request(message.from_user)
         bot.reply_to(message, request_access_text())
         return
+
+    track_authorized_usage(message.from_user, "/start")
 
     bot.send_message(
         message.chat.id,
