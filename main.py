@@ -1461,7 +1461,19 @@ def build_pdf_markup(main_code=None, concurrent_codes=None, procedural_flags=Non
     if "Segnalazione ruolo/albo conducenti" in communications:
         add_button("COM_RUOLO", "PDF Segnalazione Ruolo")
 
-    return markup if added else None        
+    return markup if added else None
+
+
+def build_specific_pdf_markup(items):
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    added = False
+
+    for code, label in items or []:
+        if code and PDF_MODELS.get(code):
+            markup.add(types.InlineKeyboardButton(label, url=PDF_MODELS[code]))
+            added = True
+
+    return markup if added else None
 
 def build_final_result_markup(payload):
     if not payload:
@@ -1489,44 +1501,6 @@ def build_final_result_markup(payload):
         types.InlineKeyboardButton("ARTICOLI", callback_data="final:articoli"),
     )
 
-    return markup
-
-
-def _get_final_verbale_code(action, state):
-    main_code = state.get("last_result_main_code") if state else None
-    concurrent_codes = _dedupe_keep_order((state or {}).get("last_result_concurrent", []) or [])
-
-    if action == "v1":
-        return main_code
-    if action == "v2":
-        return concurrent_codes[0] if len(concurrent_codes) >= 1 else None
-    if action == "v3":
-        return concurrent_codes[1] if len(concurrent_codes) >= 2 else None
-    if action == "v4":
-        return concurrent_codes[2] if len(concurrent_codes) >= 3 else None
-    return None
-
-
-def build_final_section_markup(payload, state, action):
-    base = build_final_result_markup(payload)
-    pdf_code = _get_final_verbale_code(action, state)
-
-    if not pdf_code or not PDF_MODELS.get(pdf_code):
-        return base
-
-    markup = types.InlineKeyboardMarkup(row_width=2)
-
-    if base and getattr(base, "keyboard", None):
-        for row in base.keyboard:
-            markup.row(*row)
-
-    label_map = {
-        "v1": "Apri PDF Verbale 1",
-        "v2": "Apri PDF Verbale 2",
-        "v3": "Apri PDF Verbale 3",
-        "v4": "Apri PDF Verbale 4",
-    }
-    markup.add(types.InlineKeyboardButton(label_map.get(action, "Apri PDF Verbale"), url=PDF_MODELS[pdf_code]))
     return markup
 
 def build_quick_payload_from_codes(main_code, concurrent_codes=None, extra_articles=None):
@@ -4743,29 +4717,63 @@ def final_result_callback(call):
             pass
         return
 
+    main_code = state.get("last_result_main_code")
+    concurrent_codes = _dedupe_keep_order(state.get("last_result_concurrent", []) or [])
+    flags = state.get("last_result_flags", {}) or {}
     action = str(call.data).split(":", 1)[1].strip()
 
+    def default_markup():
+        return build_final_result_markup(payload)
+
     text = None
+    markup = default_markup()
+
     if action == "quick":
         text = payload.get("quick")
+
     elif action == "accessori":
         text = payload.get("accessori")
+        accessory_actions = _build_accessory_actions(main_code, concurrent_codes)
+        items = []
+        if "Sequestro/confisca veicolo" in accessory_actions:
+            items.append(("SEQUESTRO_85", "Apri PDF Sequestro"))
+        if "Fermo veicolo 60 giorni" in accessory_actions:
+            items.append(("FERMO_116", "Apri PDF Fermo"))
+            items.append(("AVVISO_FERMO", "Apri PDF Avviso Fermo"))
+        markup = build_specific_pdf_markup(items) or default_markup()
+
     elif action == "comunicazioni":
         text = payload.get("comunicazioni")
+        communications = _build_communications(flags)
+        items = []
+        if "Prefetto" in communications:
+            items.append(("COM_PREFETTO", "Apri PDF Comunicazione Prefetto"))
+        if "UMC" in communications:
+            items.append(("COM_UMC", "Apri PDF Comunicazione UMC"))
+        if "Comune / ente rilasciante" in communications:
+            items.append(("COM_COMUNE", "Apri PDF Comunicazione Comune"))
+        if "Segnalazione RENT" in communications:
+            items.append(("COM_RENT", "Apri PDF Segnalazione RENT"))
+        if "Segnalazione ruolo/albo conducenti" in communications:
+            items.append(("COM_RUOLO", "Apri PDF Segnalazione Ruolo"))
+        markup = build_specific_pdf_markup(items) or default_markup()
+
     elif action == "articoli":
         text = payload.get("articoli")
-    elif action == "v1":
+
+    elif action in {"v1", "v2", "v3", "v4"}:
         verbali = payload.get("verbali", [])
-        text = verbali[0] if len(verbali) >= 1 else "Verbale 1 non disponibile."
-    elif action == "v2":
-        verbali = payload.get("verbali", [])
-        text = verbali[1] if len(verbali) >= 2 else "Verbale 2 non disponibile."
-    elif action == "v3":
-        verbali = payload.get("verbali", [])
-        text = verbali[2] if len(verbali) >= 3 else "Verbale 3 non disponibile."
-    elif action == "v4":
-        verbali = payload.get("verbali", [])
-        text = verbali[3] if len(verbali) >= 4 else "Verbale 4 non disponibile."
+        idx = {"v1": 0, "v2": 1, "v3": 2, "v4": 3}[action]
+        text = verbali[idx] if len(verbali) > idx else f"Verbale {idx + 1} non disponibile."
+
+        if idx == 0:
+            code = main_code
+        else:
+            cidx = idx - 1
+            code = concurrent_codes[cidx] if len(concurrent_codes) > cidx else None
+
+        markup = build_specific_pdf_markup([(code, f"Apri PDF Verbale {idx + 1}")]) or default_markup()
+
     else:
         text = "Sezione non disponibile."
 
@@ -4777,7 +4785,7 @@ def final_result_callback(call):
     send_long_message(
         chat_id,
         text,
-        reply_markup=build_final_section_markup(payload, state, action),
+        reply_markup=markup,
         disable_web_page_preview=True
     )
 
