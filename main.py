@@ -1448,6 +1448,7 @@ def build_pdf_markup(main_code=None, concurrent_codes=None, procedural_flags=Non
         add_button("SEQUESTRO_85", "PDF Sequestro")
     if "Fermo veicolo 60 giorni" in accessory_actions:
         add_button("FERMO_116", "PDF Fermo")
+        add_button("AVVISO_FERMO", "PDF Avviso Fermo")
 
     if "Prefetto" in communications:
         add_button("COM_PREFETTO", "PDF Comunicazione Prefetto")
@@ -1488,6 +1489,44 @@ def build_final_result_markup(payload):
         types.InlineKeyboardButton("ARTICOLI", callback_data="final:articoli"),
     )
 
+    return markup
+
+
+def _get_final_verbale_code(action, state):
+    main_code = state.get("last_result_main_code") if state else None
+    concurrent_codes = _dedupe_keep_order((state or {}).get("last_result_concurrent", []) or [])
+
+    if action == "v1":
+        return main_code
+    if action == "v2":
+        return concurrent_codes[0] if len(concurrent_codes) >= 1 else None
+    if action == "v3":
+        return concurrent_codes[1] if len(concurrent_codes) >= 2 else None
+    if action == "v4":
+        return concurrent_codes[2] if len(concurrent_codes) >= 3 else None
+    return None
+
+
+def build_final_section_markup(payload, state, action):
+    base = build_final_result_markup(payload)
+    pdf_code = _get_final_verbale_code(action, state)
+
+    if not pdf_code or not PDF_MODELS.get(pdf_code):
+        return base
+
+    markup = types.InlineKeyboardMarkup(row_width=2)
+
+    if base and getattr(base, "keyboard", None):
+        for row in base.keyboard:
+            markup.row(*row)
+
+    label_map = {
+        "v1": "Apri PDF Verbale 1",
+        "v2": "Apri PDF Verbale 2",
+        "v3": "Apri PDF Verbale 3",
+        "v4": "Apri PDF Verbale 4",
+    }
+    markup.add(types.InlineKeyboardButton(label_map.get(action, "Apri PDF Verbale"), url=PDF_MODELS[pdf_code]))
     return markup
 
 def build_quick_payload_from_codes(main_code, concurrent_codes=None, extra_articles=None):
@@ -4738,7 +4777,7 @@ def final_result_callback(call):
     send_long_message(
         chat_id,
         text,
-        reply_markup=build_final_result_markup(payload),
+        reply_markup=build_final_section_markup(payload, state, action),
         disable_web_page_preview=True
     )
 
