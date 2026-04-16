@@ -6,6 +6,7 @@ import re
 import traceback
 import shutil
 import tempfile
+import math
 from datetime import datetime
 from flask import Flask
 import telebot
@@ -80,6 +81,34 @@ TARGHE_SHEET_NAME = os.getenv("TARGHE_SHEET_NAME", "NCC")
 
 ACCESS_DATA_FILE = os.getenv("ACCESS_DATA_FILE", "access_data.json")
 USER_STATES_FILE = os.getenv("USER_STATES_FILE", "user_states.json")
+
+LICENSE_DISTANCE_ALERT_KM = float(os.getenv("LICENSE_DISTANCE_ALERT_KM", "250"))
+COMMON_PLACE_COORDS = {
+    "civitavecchia": (42.0924, 11.7956),
+    "roma": (41.9028, 12.4964),
+    "fiumicino": (41.7709, 12.2362),
+    "napoli": (40.8518, 14.2681),
+    "milano": (45.4642, 9.1900),
+    "torino": (45.0703, 7.6869),
+    "genova": (44.4056, 8.9463),
+    "bolzano": (46.4983, 11.3548),
+    "livorno": (43.5485, 10.3106),
+    "la spezia": (44.1025, 9.8241),
+    "venezia": (45.4408, 12.3155),
+    "trieste": (45.6495, 13.7768),
+    "bari": (41.1171, 16.8719),
+    "cagliari": (39.2238, 9.1217),
+    "palermo": (38.1157, 13.3615),
+    "messina": (38.1938, 15.5540),
+    "florence": (43.7696, 11.2558),
+    "firenze": (43.7696, 11.2558),
+    "bologna": (44.4949, 11.3426),
+    "perugia": (43.1107, 12.3908),
+    "ancona": (43.6158, 13.5189),
+    "catania": (37.5079, 15.0830),
+    "salerno": (40.6824, 14.7681),
+    "rimini": (44.0678, 12.5695),
+}
 
 # =========================
 # DATI SANZIONI
@@ -1528,6 +1557,9 @@ def build_main_menu():
         types.KeyboardButton("Norme principali")
     )
     kb.add(
+        types.KeyboardButton("Controllo uso licenza NCC")
+    )
+    kb.add(
         types.KeyboardButton("Casi comuni porto"),
         types.KeyboardButton("Reset")
     )
@@ -2601,6 +2633,319 @@ def process_plate_lookup(chat_id, text):
     result = lookup_plate_in_registry(text)
     clear_case(chat_id)
     return result
+
+
+def begin_license_use_flow(chat_id):
+    user_states[chat_id] = {
+        "mode": "license_use_check",
+        "step": "license_place",
+        "control_place": "Civitavecchia",
+        "evidence_flags": [],
+    }
+    save_user_states()
+
+
+def _normalize_place_name(value):
+    value = (value or "").strip().lower()
+    return re.sub(r"\s+", " ", value)
+
+
+def _lookup_place_coords(place_name):
+    key = _normalize_place_name(place_name)
+    if not key:
+        return None
+    if key in COMMON_PLACE_COORDS:
+        lat, lon = COMMON_PLACE_COORDS[key]
+        return {"label": place_name.strip(), "lat": lat, "lon": lon, "source": "local"}
+
+    try:
+        resp = requests.get(
+            "https://nominatim.openstreetmap.org/search",
+            params={
+                "q": f"{place_name}, Italia",
+                "format": "jsonv2",
+                "limit": 1
+            },
+            headers={"User-Agent": "NCCBot/1.0"},
+            timeout=8,
+        )
+        if resp.ok:
+            data = resp.json() or []
+            if data:
+                item = data[0]
+                return {
+                    "label": item.get("display_name", place_name),
+                    "lat": float(item["lat"]),
+                    "lon": float(item["lon"]),
+                    "source": "nominatim",
+                }
+    except Exception:
+        pass
+    return None
+
+
+def _haversine_km(lat1, lon1, lat2, lon2):
+    r = 6371.0
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+    return round(2 * r * math.atan2(math.sqrt(a), math.sqrt(1 - a)), 1)
+
+
+def _yes_no_text(value):
+    return "SI" if value else "NO"
+
+
+def _license_use_next_prompt(state):
+    step = state.get("step")
+    if step == "license_place":
+        return (
+            "Inserisci il comune della licenza/autorizzazione NCC.\n\n"
+            "Esempio: Bolzano"
+        )
+    if step == "driver_residence":
+        return (
+            "Inserisci il comune di residenza dell'autista controllato.\n\n"
+            "Esempio: Civitavecchia"
+        )
+    if step == "control_place":
+        return (
+            "Inserisci il luogo del controllo.\n\n"
+            "Premi invio scrivendo ad esempio: Civitavecchia oppure Porto di Civitavecchia"
+        )
+    prompts = {
+        "vehicle_authorized": "Il veicolo risulta regolarmente autorizzato NCC? (si/no)",
+        "booking_shown": "La prenotazione è esibita ed è anteriore al controllo? (si/no)",
+        "service_sheet_ok": "Il foglio di servizio è presente e coerente? (si/no)",
+        "public_waiting": "Il veicolo stazionava o attendeva clienti su area pubblica/porto/terminal? (si/no)",
+        "local_acquisition": "I clienti risultano acquisiti sul posto o tramite intermediari locali? (si/no)",
+        "previous_stops": "Risultano già controlli o fermi precedenti sul mezzo/conducente? (si/no)",
+        "porto_presence": "Dal cruscotto operativo risultano presenze ripetute al porto? (si/no)",
+        "recidiva_count": "Quanti precedenti definitivi utili nel quinquennio risultano per il ramo art. 85 c.4-bis? Rispondi con 0, 1, 2 oppure 3+",
+    }
+    return prompts.get(step)
+
+
+def _build_license_use_result(state):
+    license_place = state.get("license_place", "-")
+    driver_residence = state.get("driver_residence", "-")
+    control_place = state.get("control_place", "Civitavecchia")
+    distance_license_control = state.get("distance_license_control_km")
+    distance_license_residence = state.get("distance_license_residence_km")
+
+    vehicle_authorized = state.get("vehicle_authorized")
+    booking_shown = state.get("booking_shown")
+    service_sheet_ok = state.get("service_sheet_ok")
+    public_waiting = state.get("public_waiting")
+    local_acquisition = state.get("local_acquisition")
+    previous_stops = state.get("previous_stops")
+    porto_presence = state.get("porto_presence")
+    recidiva_count = state.get("recidiva_count", 0)
+
+    alerts = []
+    if distance_license_control is not None and distance_license_control >= LICENSE_DISTANCE_ALERT_KM:
+        alerts.append(
+            f"Distanza licenza/controllo elevata: circa {distance_license_control} km. "
+            "La distanza, da sola, non prova l'illecito ma è un forte indice di possibile uso elusivo della licenza se combinata con altri elementi."
+        )
+    if distance_license_residence is not None and distance_license_residence >= LICENSE_DISTANCE_ALERT_KM:
+        alerts.append(
+            f"Residenza autista lontana dal comune della licenza: circa {distance_license_residence} km. "
+            "Questo è un ulteriore indice da verbalizzare se il conducente opera stabilmente sul territorio del controllo."
+        )
+    if not booking_shown:
+        alerts.append("Prenotazione non esibita o non anteriore al controllo: elemento probatorio rilevante.")
+    if not service_sheet_ok:
+        alerts.append("Foglio di servizio assente o incoerente: elemento probatorio rilevante.")
+    if public_waiting:
+        alerts.append("Stazionamento/attesa su area pubblica: elemento forte a supporto dell'uso irregolare.")
+    if local_acquisition:
+        alerts.append("Acquisizione clientela sul posto o tramite intermediari locali: indice forte di uso stabile fuori territorio.")
+    if previous_stops:
+        alerts.append("Precedenti controlli o fermi già registrati: riportare date, numero e contesto negli atti.")
+    if porto_presence:
+        alerts.append("Presenze ripetute al porto risultanti da cruscotto operativo: indicare periodo e numero accessi negli atti.")
+
+    score = 0
+    if distance_license_control is not None and distance_license_control >= LICENSE_DISTANCE_ALERT_KM:
+        score += 1
+    if distance_license_residence is not None and distance_license_residence >= LICENSE_DISTANCE_ALERT_KM:
+        score += 1
+    for flag in [not booking_shown, not service_sheet_ok, public_waiting, local_acquisition, previous_stops, porto_presence]:
+        if flag:
+            score += 1
+
+    main_code = None
+    flags = {"notify_comune": True}
+    communications = ["Comune / ente rilasciante"]
+    if not vehicle_authorized:
+        main_code = "085-02"
+        flags["notify_prefetto"] = True
+        communications.insert(0, "Prefetto")
+        verdict = "Il veicolo non risulta regolarmente autorizzato NCC: il caso esce dal controllo uso licenza e ricade nel ramo abusivo totale."
+    elif score >= 3:
+        progression = {0: "085-05", 1: "085-06", 2: "085-07"}
+        main_code = progression.get(recidiva_count, "085-08")
+        flags["notify_umc"] = True
+        verdict = (
+            "Emergono elementi convergenti di possibile uso irregolare della licenza NCC fuori territorio "
+            "in violazione degli artt. 3 e 11 L. 21/1992."
+        )
+    elif score == 2:
+        verdict = (
+            "Quadro indiziario significativo ma ancora da consolidare. Approfondire con dichiarazioni passeggeri, "
+            "fotografie, cruscotto operativo e documentazione di prenotazione/foglio di servizio."
+        )
+    else:
+        verdict = "Non emergono, allo stato, elementi sufficienti per contestare l'uso irregolare della licenza NCC."
+
+    lines = [
+        "CONTROLLO USO REGOLARE LICENZA NCC\n",
+        f"- Comune licenza: {license_place}",
+        f"- Residenza autista: {driver_residence}",
+        f"- Luogo controllo: {control_place}",
+    ]
+    if distance_license_control is not None:
+        lines.append(f"- Distanza licenza/controllo: circa {distance_license_control} km")
+    if distance_license_residence is not None:
+        lines.append(f"- Distanza licenza/residenza autista: circa {distance_license_residence} km")
+
+    lines.extend([
+        f"- Veicolo regolarmente NCC: {_yes_no_text(vehicle_authorized)}",
+        f"- Prenotazione esibita e anteriore: {_yes_no_text(booking_shown)}",
+        f"- Foglio di servizio presente/coerente: {_yes_no_text(service_sheet_ok)}",
+        f"- Stazionamento/attesa su area pubblica: {_yes_no_text(public_waiting)}",
+        f"- Acquisizione clientela sul posto/intermediari locali: {_yes_no_text(local_acquisition)}",
+        f"- Precedenti controlli/fermi: {_yes_no_text(previous_stops)}",
+        f"- Presenze ripetute al porto: {_yes_no_text(porto_presence)}",
+        f"- Precedenti definitivi utili nel quinquennio: {recidiva_count}",
+        "",
+        f"Esito: {verdict}",
+    ])
+
+    if main_code:
+        lines.append(f"Codice suggerito: {main_code}")
+
+    if alerts:
+        lines.append("")
+        lines.append("ALERT OPERATIVI:")
+        for item in alerts:
+            lines.append(f"- {item}")
+
+    lines.append("")
+    lines.append("COSA VERBALIZZARE:")
+    lines.append("- comune autorizzante e rimessa dichiarata")
+    lines.append("- distanza tra comune licenza, residenza autista e luogo del controllo")
+    lines.append("- orario del controllo e modalità di stazionamento")
+    lines.append("- prenotazione: data/ora, canale, nominativo, coerenza con il servizio")
+    lines.append("- foglio di servizio: presenza, contenuto, eventuali incongruenze")
+    lines.append("- modalità di acquisizione dei clienti e dichiarazioni raccolte")
+    lines.append("- eventuali precedenti controlli/fermi e dati del cruscotto operativo")
+    lines.append("")
+    lines.append("Nota: il mero fatto che la licenza sia di altro comune non basta da solo; la distanza elevata è un forte alert operativo, ma va sostenuta con elementi concreti di uso stabile fuori territorio.")
+
+    payload = {
+        "main_code": main_code,
+        "concurrent_codes": [],
+        "procedural_flags": flags,
+    }
+    return "\n".join(lines), payload
+
+
+def process_license_use_flow(chat_id, text):
+    state = get_state(chat_id) or {}
+    step = state.get("step")
+    value = (text or "").strip()
+    lower = value.lower()
+
+    if step == "license_place":
+        state["license_place"] = value
+        state["license_coords"] = _lookup_place_coords(value)
+        state["step"] = "driver_residence"
+        save_user_states()
+        return _license_use_next_prompt(state), None
+
+    if step == "driver_residence":
+        state["driver_residence"] = value
+        state["residence_coords"] = _lookup_place_coords(value)
+        lic = state.get("license_coords")
+        res = state.get("residence_coords")
+        if lic and res:
+            state["distance_license_residence_km"] = _haversine_km(lic["lat"], lic["lon"], res["lat"], res["lon"])
+        state["step"] = "control_place"
+        save_user_states()
+        return _license_use_next_prompt(state), None
+
+    if step == "control_place":
+        state["control_place"] = value or "Civitavecchia"
+        state["control_coords"] = _lookup_place_coords(state["control_place"])
+        lic = state.get("license_coords")
+        ctrl = state.get("control_coords")
+        if lic and ctrl:
+            state["distance_license_control_km"] = _haversine_km(lic["lat"], lic["lon"], ctrl["lat"], ctrl["lon"])
+        state["step"] = "vehicle_authorized"
+        save_user_states()
+        prefix = []
+        if state.get("distance_license_control_km") is not None and state["distance_license_control_km"] >= LICENSE_DISTANCE_ALERT_KM:
+            prefix.append(
+                f"ALERT: distanza licenza/controllo circa {state['distance_license_control_km']} km. "
+                "Valutare con attenzione la compatibilità con un uso occasionale della licenza."
+            )
+        if state.get("distance_license_residence_km") is not None and state["distance_license_residence_km"] >= LICENSE_DISTANCE_ALERT_KM:
+            prefix.append(
+                f"ALERT: la residenza dell'autista dista circa {state['distance_license_residence_km']} km dal comune della licenza."
+            )
+        prompt = _license_use_next_prompt(state)
+        if prefix:
+            return "\n\n".join(prefix + [prompt]), None
+        return prompt, None
+
+    if step in {"vehicle_authorized", "booking_shown", "service_sheet_ok", "public_waiting", "local_acquisition", "previous_stops", "porto_presence"}:
+        if lower not in {"si", "sì", "no"}:
+            return "Rispondi solo SI o NO.\n\n" + (_license_use_next_prompt(state) or ""), None
+        state[step] = lower in {"si", "sì"}
+        order = [
+            "vehicle_authorized",
+            "booking_shown",
+            "service_sheet_ok",
+            "public_waiting",
+            "local_acquisition",
+            "previous_stops",
+            "porto_presence",
+            "recidiva_count",
+        ]
+        idx = order.index(step)
+        state["step"] = order[idx + 1]
+        save_user_states()
+        return _license_use_next_prompt(state), None
+
+    if step == "recidiva_count":
+        normalized = lower.replace(" ", "")
+        mapping = {"0": 0, "1": 1, "2": 2, "3+": 3, "3": 3, ">=3": 3}
+        if normalized not in mapping:
+            return "Rispondi con 0, 1, 2 oppure 3+.\n\n" + (_license_use_next_prompt(state) or ""), None
+        state["recidiva_count"] = mapping[normalized]
+        result_text, payload = _build_license_use_result(state)
+        state["last_result_payload"] = payload
+        state["last_result_main_code"] = payload.get("main_code")
+        state["last_result_concurrent"] = payload.get("concurrent_codes", [])
+        state["last_result_flags"] = payload.get("procedural_flags", {})
+        save_user_states()
+        clear_case(chat_id)
+        # restore result for callbacks/pdf buttons if needed
+        user_states[chat_id] = {
+            "mode": "license_use_result",
+            "last_result_payload": payload,
+            "last_result_main_code": payload.get("main_code"),
+            "last_result_concurrent": payload.get("concurrent_codes", []),
+            "last_result_flags": payload.get("procedural_flags", {}),
+        }
+        save_user_states()
+        return result_text, payload
+
+    return "Procedura non riconosciuta. Usa /reset e riparti.", None
 
 
 def format_norme_from_db():
@@ -4405,6 +4750,7 @@ def help_command(message):
         "• Documenti da controllare = elenco documenti da richiedere o verificare\n"
         "• Norme principali = riferimenti normativi NCC con pulsanti per gli articoli\n"
         "• Verifica targa = ricerca targa nell'archivio NCC\n"
+        "• Controllo uso licenza NCC = verifica guidata su licenza di altro comune e possibili indici di uso stabile fuori territorio\n"
         "• Reset = annulla la procedura in corso\n\n"
         "Puoi usare i pulsanti sotto la chat oppure il menu comandi di Telegram."
     )
@@ -4578,6 +4924,20 @@ def controllo_command(message):
     text, markup = send_control_intro(message.chat.id)
     bot.send_message(message.chat.id, text, reply_markup=markup)
 
+@bot.message_handler(commands=['licenza'])
+def licenza_command(message):
+    if not ensure_authorized(message):
+        return
+    begin_license_use_flow(message.chat.id)
+    bot.reply_to(
+        message,
+        "Controllo uso regolare licenza NCC.\n\n"
+        "Questa procedura aiuta a verificare se una licenza di altro comune appare usata in modo stabile fuori territorio.\n"
+        "La distanza elevata non basta da sola, ma fa scattare un alert operativo da rafforzare con altri elementi.\n\n"
+        + _license_use_next_prompt(get_state(message.chat.id) or {}),
+    )
+
+
 @bot.message_handler(commands=['reset'])
 def reset_command(message):
     if not ensure_authorized(message):
@@ -4665,6 +5025,11 @@ def menu_documenti_button(message):
 @bot.message_handler(func=lambda m: (m.text or "").strip() == "Norme principali")
 def menu_norme_button(message):
     norme_command(message)
+
+@bot.message_handler(func=lambda m: (m.text or "").strip() == "Controllo uso licenza NCC")
+def menu_licenza_button(message):
+    licenza_command(message)
+
 
 @bot.message_handler(func=lambda m: (m.text or "").strip() == "Verifica targa")
 def menu_targa_button(message):
@@ -5224,6 +5589,23 @@ def all_messages(message):
         send_long_message(chat_id, result, reply_markup=markup, disable_web_page_preview=True)
         return
 
+    if mode == "license_use_check":
+        response, payload = process_license_use_flow(chat_id, text)
+        if payload:
+            markup = build_final_result_markup(payload)
+            if not markup:
+                state_after = get_state(chat_id) or {}
+                main_code = state_after.get("last_result_main_code")
+                concurrent_codes = state_after.get("last_result_concurrent", [])
+                flags = state_after.get("last_result_flags", {})
+                markup = build_pdf_markup(main_code, concurrent_codes, flags) or build_article_markup(
+                    get_article_keys_for_result(main_code, concurrent_codes)
+                )
+            send_long_message(chat_id, response, reply_markup=markup, disable_web_page_preview=True)
+            return
+        bot.reply_to(message, response)
+        return
+
     if mode == "external_consent":
         response = process_external_consent(chat_id, text)
         bot.reply_to(message, response)
@@ -5242,6 +5624,7 @@ def setup_bot_commands():
         types.BotCommand("reset", "Annulla procedura"),
         types.BotCommand("riattiva", "Riattiva il servizio"),
         types.BotCommand("help", "Come usare il bot"),
+        types.BotCommand("licenza", "Controllo uso licenza NCC"),
     ]
     try:
         bot.set_my_commands(commands)
