@@ -1701,6 +1701,12 @@ def get_question_buttons(question_key):
         'control_kb_status': [('VALIDO', 'valido'), ('SCADUTO', 'scaduto'), ('NON IDONEO/MAI', 'non_idoneo'), ('NON ESIBITO', 'non_esibito'), ('NON DOVUTO', 'non_dovuto')],
         'control_autorizzazione_status': [('REGOLARE', 'regolare'), ('NON ESIBITA', 'non_esibita'), ('NON AUTORIZZATO', 'non_autorizzato')],
         'control_foglio_status': [('REGOLARE', 'regolare'), ('IRREGOLARE', 'irregolare'), ('ASSENTE', 'assente'), ('NON ESIBITO', 'non_esibito')],
+        'control_patente_missing_mode': [('ESISTE/VALIDA', 'esiste_valida'), ('INESIST./NON VAL.', 'inesistente_non_valida'), ('NON VERIF.', 'non_verificato')],
+        'control_kb_missing_mode': [('ESISTE/VALIDO', 'esiste_valido'), ('MANCANTE/NON VAL.', 'mancante_non_valido'), ('NON VERIF.', 'non_verificato')],
+        'control_autorizzazione_missing_mode': [('ESISTE/REG.', 'esiste_regolare'), ('ASSENTE/SOSP./REV.', 'assente_sospesa_revocata'), ('NON VERIF.', 'non_verificato')],
+        'control_carta_status': [('ESISTE NON ESIB.', 'esistente_non_esibito'), ('ASSENTE/N.VERIF.', 'assente_non_verificabile'), ('NON VERIF.', 'non_verificato')],
+        'control_assicurazione_status': [('ESISTE NON ESIB.', 'esistente_non_esibita'), ('COPERTURA ASS.', 'copertura_assente'), ('NON VERIF.', 'non_verificato')],
+        'control_revisione_status': [('REGOLARE', 'regolare'), ('SCADUTA', 'scaduta'), ('NON VERIF.', 'non_verificato')],
         'control_rent_status': [('REGOLARE', 'si'), ('NON REGOLARE', 'no'), ('NON VERIF.', 'non_verificato')],
         'control_ruolo_status': [('REGOLARE', 'si'), ('ASSENTE', 'no'), ('NON VERIF.', 'non_verificato')],
         'control_owner_type': [('PERSONA FISICA', 'persona_fisica'), ('COOP./SRL', 'cooperativa_srl'), ('AGENZIA VIAGGI', 'agenzia_viaggi'), ('ALTRO', 'altro')],
@@ -3473,6 +3479,12 @@ def parse_answer_for_key(key, text):
         "control_kb_status": {"valido", "scaduto", "non_idoneo", "non_esibito", "non_dovuto"},
         "control_autorizzazione_status": {"regolare", "non_esibita", "non_autorizzato"},
         "control_foglio_status": {"regolare", "irregolare", "assente", "non_esibito"},
+        "control_patente_missing_mode": {"esiste_valida", "inesistente_non_valida", "non_verificato"},
+        "control_kb_missing_mode": {"esiste_valido", "mancante_non_valido", "non_verificato"},
+        "control_autorizzazione_missing_mode": {"esiste_regolare", "assente_sospesa_revocata", "non_verificato"},
+        "control_carta_status": {"esistente_non_esibito", "assente_non_verificabile", "non_verificato"},
+        "control_assicurazione_status": {"esistente_non_esibita", "copertura_assente", "non_verificato"},
+        "control_revisione_status": {"regolare", "scaduta", "non_verificato"},
         "control_rent_status": {"si", "no", "non_verificato"},
         "control_ruolo_status": {"si", "no", "non_verificato"},
         "control_owner_type": {"persona_fisica", "cooperativa_srl", "agenzia_viaggi", "altro"},
@@ -3567,21 +3579,12 @@ def apply_control_defaults_from_selection(state):
     answers["doc_assicurazione_esibita"] = "si" if "assicurazione" in selected else "no"
     answers["doc_foglio_esibito"] = "si" if "foglio" in selected else "no"
 
-    # Se carta/assicurazione non sono state selezionate, predisponi subito la nota documentale.
-    concurrent = state.setdefault("control_concurrent", [])
-    notes = state.setdefault("control_notes", [])
-    if "carta" not in selected:
-        if "180-01DOC" not in concurrent:
-            concurrent.append("180-01DOC")
-        note = "Documento di circolazione / DU non esibito all'atto del controllo: se esistente, contestare art. 180 c.1 e c.7 con invito a presentazione."
-        if note not in notes:
-            notes.append(note)
-    if "assicurazione" not in selected:
-        if "180-03" not in concurrent:
-            concurrent.append("180-03")
-        note = "Certificato/documento assicurativo non esibito all'atto del controllo: contestare art. 180 c.1 e c.7 con invito a presentazione, salvo verifica immediata positiva."
-        if note not in notes:
-            notes.append(note)
+    # Le violazioni documentali non vengono più aggiunte in automatico appena
+    # un documento manca tra quelli esibiti: prima il bot chiede se il titolo
+    # esiste/è valido oppure se manca davvero, così evita sovrapposizioni.
+    state.setdefault("control_concurrent", [])
+    state.setdefault("control_notes", [])
+    state.setdefault("control_flags", {"segnalazioni": [], "verbale_additions": []})
 
 def _queue_control_question(state, key, text):
     state.setdefault("control_queue", []).append({"key": key, "text": text})
@@ -3594,17 +3597,25 @@ def build_control_queue(state):
     if "patente" in selected:
         _queue_control_question(state, "control_patente_status", "Patente esibita: è valida e idonea al veicolo/servizio?\nScegli: valida / scaduta / non_idonea / non_esibita")
     else:
-        _queue_control_question(state, "control_patente_status", "Patente non esibita: si tratta di mera mancata esibizione oppure di patente scaduta o non idonea?\nScegli: non_esibita / scaduta / non_idonea")
+        _queue_control_question(state, "control_patente_status", "Patente non mostrata: primo inquadramento.\nScegli: non_esibita / scaduta / non_idonea")
 
     if "kb" in selected:
         _queue_control_question(state, "control_kb_status", "KB / KA / CQC esibito: scegli lo stato corretto.\nScegli: valido / scaduto / non_idoneo / non_dovuto")
     else:
-        _queue_control_question(state, "control_kb_status", "KB / KA / CQC non esibito: scegli lo stato corretto.\nScegli: non_esibito / non_idoneo / scaduto / non_dovuto")
+        _queue_control_question(state, "control_kb_status", "KB / KA / CQC non mostrato: primo inquadramento.\nScegli: non_esibito / non_idoneo / scaduto / non_dovuto")
 
     if "autorizzazione" in selected:
         _queue_control_question(state, "control_autorizzazione_status", "Licenza / autorizzazione NCC esibita: era regolare?\nScegli: regolare / non_esibita / non_autorizzato")
     else:
-        _queue_control_question(state, "control_autorizzazione_status", "Licenza / autorizzazione NCC non esibita: scegli il caso corretto.\nScegli: non_esibita / non_autorizzato / regolare")
+        _queue_control_question(state, "control_autorizzazione_status", "Licenza / autorizzazione NCC non mostrata: primo inquadramento.\nScegli: non_esibita / non_autorizzato / regolare")
+
+    if "carta" not in selected:
+        _queue_control_question(state, "control_carta_status", "Documento di circolazione / DU non mostrato: dopo il controllo banche dati, qual è l'esito?\nScegli: esistente_non_esibito / assente_non_verificabile / non_verificato")
+
+    if "assicurazione" not in selected:
+        _queue_control_question(state, "control_assicurazione_status", "Assicurazione non mostrata: dopo il controllo, qual è l'esito?\nScegli: esistente_non_esibita / copertura_assente / non_verificato")
+
+    _queue_control_question(state, "control_revisione_status", "Esito revisione del veicolo?\nScegli: regolare / scaduta / non_verificato")
 
     if "foglio" in selected:
         _queue_control_question(state, "control_foglio_status", "Foglio di servizio esibito: scegli lo stato corretto.\nScegli: regolare / irregolare / assente / non_esibito")
@@ -3744,8 +3755,10 @@ def _apply_control_answer_to_state(state, key, value):
             _append_unique_local(concurrent, "CDS_126_11")
             add_flag("Circolava alla guida del predetto veicolo con patente scaduta di validità; indicare la data di scadenza. La patente è ritirata e sarà inviata alla Prefettura-UTG competente.")
         elif value == "non_esibita":
-            add_note("Patente non esibita all'atto del controllo: usare la voce documentale ex art. 180 se il titolo esiste ma non è stato mostrato.")
-            _append_unique_local(concurrent, "180-01DOC")
+            state.setdefault("control_queue", []).insert(0, {
+                "key": "control_patente_missing_mode",
+                "text": "Patente non mostrata: dopo la verifica, il titolo esiste ed è valido oppure manca/non è valido?\nScegli: esiste_valida / inesistente_non_valida / non_verificato"
+            })
         else:
             answers["patente_idonea"] = "no"
 
@@ -3757,8 +3770,10 @@ def _apply_control_answer_to_state(state, key, value):
             _append_unique_local(concurrent, "CDS_126_11")
             add_flag("Circolava alla guida del predetto veicolo con CAP/KB/CQC scaduto di validità; indicare la data di scadenza. Il titolo è ritirato e sarà inviato all'UMC competente.")
         elif value == "non_esibito":
-            add_note("KB / KA / CQC non esibito: se il titolo esiste ma non è stato mostrato, usare la voce documentale ex art. 180; se manca, ricorre l'art. 116 c.16 e c.18.")
-            _append_unique_local(concurrent, "180-09")
+            state.setdefault("control_queue", []).insert(0, {
+                "key": "control_kb_missing_mode",
+                "text": "KB / KA / CQC non mostrato: dopo la verifica, il titolo esiste ed è valido oppure manca/non è valido?\nScegli: esiste_valido / mancante_non_valido / non_verificato"
+            })
         else:
             answers["kb"] = "no"
 
@@ -3766,12 +3781,67 @@ def _apply_control_answer_to_state(state, key, value):
         if value == "regolare":
             answers["vehicle_authorized"] = "si"
         elif value == "non_esibita":
-            answers["vehicle_authorized"] = "si"
-            add_note("Licenza/autorizzazione NCC non esibita all'atto del controllo: usare la voce documentale ex art. 180 c.3 e c.7 secondo prontuario.")
-            _append_unique_local(concurrent, "180-06")
+            state.setdefault("control_queue", []).insert(0, {
+                "key": "control_autorizzazione_missing_mode",
+                "text": "Licenza/autorizzazione NCC non mostrata: dopo la verifica, il titolo esiste ed è regolare oppure è assente/sospeso/revocato?\nScegli: esiste_regolare / assente_sospesa_revocata / non_verificato"
+            })
         else:
             answers["vehicle_authorized"] = "no"
             answers["service_to_third"] = "si"
+
+    elif key == "control_patente_missing_mode":
+        if value == "esiste_valida":
+            _append_unique_local(concurrent, "180-01DOC")
+            add_note("Patente esistente e valida ma non esibita: applicare solo l'art. 180 c.1 e c.7, evitando il doppione con l'art. 116.")
+        elif value == "inesistente_non_valida":
+            answers["patente_idonea"] = "no"
+        else:
+            add_note("Patente non esibita e stato non ancora verificato: prima di chiudere il controllo distinguere art. 180 da art. 116 con accertamento banche dati/ufficio.")
+
+    elif key == "control_kb_missing_mode":
+        if value == "esiste_valido":
+            _append_unique_local(concurrent, "180-09")
+            add_note("KB/KA/CQC esistente e valido ma non esibito: applicare solo l'art. 180 c.5 e c.7, evitando il doppione con l'art. 116 c.16 e c.18.")
+        elif value == "mancante_non_valido":
+            answers["kb"] = "no"
+        else:
+            add_note("Titolo professionale non esibito e stato non ancora verificato: prima di chiudere il controllo distinguere art. 180 da art. 116.")
+
+    elif key == "control_autorizzazione_missing_mode":
+        if value == "esiste_regolare":
+            answers["vehicle_authorized"] = "si"
+            _append_unique_local(concurrent, "180-06")
+            add_note("Autorizzazione/licenza NCC esistente e regolare ma non esibita: applicare solo l'art. 180 c.3 e c.7, evitando il doppione con l'art. 85 c.4.")
+        elif value == "assente_sospesa_revocata":
+            answers["vehicle_authorized"] = "no"
+            answers["service_to_third"] = "si"
+        else:
+            add_note("Autorizzazione NCC non esibita e stato non ancora verificato: prima di chiudere il controllo distinguere art. 180 da art. 85 c.4.")
+
+    elif key == "control_carta_status":
+        if value == "esistente_non_esibito":
+            _append_unique_local(concurrent, "180-01DOC")
+            add_note("Documento di circolazione / DU esistente ma non esibito: applicare art. 180 c.1 e c.7.")
+        elif value == "assente_non_verificabile":
+            add_note("Documento di circolazione assente/non verificabile: effettuare accertamenti sulla regolarità del veicolo prima della chiusura del controllo.")
+        else:
+            add_note("Documento di circolazione non esibito e non ancora verificato: non generare automaticamente l'art. 180 finché non risulta che il documento esiste.")
+
+    elif key == "control_assicurazione_status":
+        if value == "esistente_non_esibita":
+            _append_unique_local(concurrent, "180-03")
+            add_note("Assicurazione esistente ma non esibita: applicare art. 180 c.1 e c.7.")
+        elif value == "copertura_assente":
+            add_note("Copertura assicurativa assente: non usare l'art. 180-03; valutare la contestazione sostanziale ex art. 193 CdS.")
+            add_flag("Dagli accertamenti la copertura assicurativa risulta assente o inefficace: valutare autonoma contestazione ex art. 193 CdS.")
+        else:
+            add_note("Assicurazione non esibita e stato non ancora verificato: non generare automaticamente l'art. 180-03 finché non risulta l'esistenza della copertura.")
+
+    elif key == "control_revisione_status":
+        answers["revisione_status"] = value
+        if value == "scaduta":
+            add_note("Revisione scaduta: valutare autonoma contestazione ex art. 80 CdS.")
+            add_flag("Dagli accertamenti il veicolo risulta con revisione scaduta: valutare autonoma contestazione ex art. 80 CdS.")
 
     elif key == "control_foglio_status":
         if value == "regolare":
