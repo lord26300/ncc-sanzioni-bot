@@ -365,6 +365,40 @@ VIOLATIONS = {
         )
     },
 
+    "116-01": {
+        "title": "Incauto affidamento del veicolo a persona priva dei titoli richiesti",
+        "article": "CdS art. 116 c. 14",
+        "pmr": "€ 397,00",
+        "reduced_30": "€ 277,90",
+        "over_60": "€ 794,00",
+        "edictal": "da € 397,00 a € 1.592,00",
+        "accessories": [
+            "Nessuna accessoria specifica automatica sul veicolo per la sola violazione del proprietario/affidante"
+        ],
+        "verbal_text": (
+            "Affidava o consentiva la conduzione del veicolo a soggetto privo dei titoli di guida o professionali richiesti "
+            "per il veicolo o per il servizio svolto, pur avendone la materiale disponibilità o la responsabilità. "
+            "La condotta integra l'illecito di cui all'art. 116, comma 14, CdS."
+        ),
+        "notes": [
+            "Va contestata al proprietario o a chi aveva la materiale disponibilità del veicolo e lo ha affidato al conducente privo dei titoli richiesti.",
+            "Può concorrere con le violazioni contestate al conducente ex art. 116 commi 15, 16, 17 e 18 CdS.",
+            "Descrivere in verbale gli elementi da cui risulta l'affidamento del mezzo al conducente."
+        ],
+        "fields_to_fill": [
+            "generalità dell'affidante/obbligato in solido",
+            "rapporto tra affidante e conducente",
+            "elementi da cui risulta l'affidamento del veicolo",
+            "titolo mancante del conducente (patente / KB / CQC / altro)"
+        ],
+        "short_ready_text": (
+            "Violazione concorrente: incauto affidamento del veicolo a persona priva dei titoli richiesti. "
+            "Norma: art. 116, comma 14, CdS. "
+            "PMR € 397,00; riduzione 30% € 277,90; oltre 60 giorni € 794,00; "
+            "edittale da € 397,00 a € 1.592,00."
+        )
+    },
+
     "116-02": {
         "title": "Guida senza patente o con patente di categoria diversa - prima violazione amministrativa",
         "article": "CdS art. 116 c. 15 e 17",
