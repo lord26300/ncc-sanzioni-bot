@@ -335,6 +335,119 @@ VIOLATIONS = {
             "Sanzioni accessorie non previste."
         )
     },
+
+    "116-02": {
+        "title": "Guida senza patente o con patente di categoria diversa - prima violazione amministrativa",
+        "article": "CdS art. 116 c. 15 e 17",
+        "pmr": "€ 5.100,00",
+        "reduced_30": "€ 3.570,00 (salvo i casi in cui non è ammesso)",
+        "over_60": "€ 15.299,50",
+        "edictal": "da € 5.100,00 a € 30.599,00",
+        "accessories": [
+            "Fermo amministrativo del veicolo per 3 mesi",
+            "Se il fermo non è applicabile: sospensione dell'eventuale patente posseduta"
+        ],
+        "verbal_text": (
+            "Circolava alla guida del predetto veicolo senza essere munito della patente di guida prescritta "
+            "perché mai conseguita, revocata, non rinnovata per mancanza dei prescritti requisiti, ovvero "
+            "non valida per il veicolo condotto e non riconducibile ai casi dell'art. 116, comma 15-bis, CdS. "
+            "Il veicolo, con trattenimento del documento di circolazione, è sottoposto a fermo amministrativo "
+            "come da separato verbale."
+        ),
+        "notes": [
+            "Va distinta dall'ipotesi di sola patente non al seguito, che rientra nell'art. 180 CdS.",
+            "La riduzione del 30% non è ammessa quando, in luogo del fermo, consegue la sospensione dell'eventuale patente posseduta.",
+            "Se ricorrono i presupposti di recidiva biennale o reiterazione, valutare 116-03 o 116-04."
+        ],
+        "fields_to_fill": [
+            "motivo della mancanza di patente (mai conseguita / revocata / non rinnovata / categoria non idonea)",
+            "eventuale provvedimento di revoca o esito visita medica",
+            "generalità del custode",
+            "luogo di custodia del veicolo",
+            "verifica estraneità o meno del proprietario"
+        ],
+        "short_ready_text": (
+            "Violazione concorrente: guida senza patente o con patente di categoria diversa non rientrante "
+            "nei casi dell'art. 116, comma 15-bis, CdS. Norma: art. 116, commi 15 e 17, CdS. "
+            "PMR € 5.100,00; riduzione 30% € 3.570,00 salvo i casi in cui non è ammessa; "
+            "oltre 60 giorni € 15.299,50; edittale da € 5.100,00 a € 30.599,00. "
+            "Accessoria: fermo amministrativo del veicolo per 3 mesi."
+        )
+    },
+    "116-03": {
+        "title": "Guida senza patente o con patente di categoria diversa - recidiva biennale",
+        "article": "CdS art. 116 c. 15 e 17",
+        "pmr": "Non ammesso",
+        "reduced_30": "Non ammesso",
+        "over_60": "Non ammesso",
+        "edictal": "da € 5.100,00 a € 30.599,00",
+        "accessories": [
+            "Sequestro amministrativo del veicolo ai fini della confisca"
+        ],
+        "verbal_text": (
+            "Dopo aver commesso la stessa violazione nel corso di un biennio, circolava nuovamente alla guida "
+            "del predetto veicolo senza essere munito della patente di guida prescritta perché mai conseguita, "
+            "revocata, non rinnovata per mancanza dei prescritti requisiti oppure non valida per il veicolo "
+            "condotto e non riconducibile ai casi dell'art. 116, comma 15-bis, CdS. Il veicolo, con trattenimento "
+            "del documento di circolazione, è sottoposto a sequestro amministrativo ai fini della confisca "
+            "come da separato verbale."
+        ),
+        "notes": [
+            "Ricorre quando vi è ripetizione della medesima violazione nel biennio senza i presupposti della reiterazione penale.",
+            "Non è ammesso il pagamento in misura ridotta perché è prevista la confisca del veicolo.",
+            "Il verbale va trasmesso al Prefetto per i provvedimenti di competenza."
+        ],
+        "fields_to_fill": [
+            "estremi del precedente verbale utile nel biennio",
+            "motivo della mancanza di patente",
+            "generalità del custode",
+            "luogo di custodia del veicolo",
+            "verifica estraneità o meno del proprietario"
+        ],
+        "short_ready_text": (
+            "Violazione concorrente: guida senza patente o con patente di categoria diversa, in recidiva biennale. "
+            "Norma: art. 116, commi 15 e 17, CdS. Pagamento in misura ridotta non ammesso. "
+            "Limiti edittali da € 5.100,00 a € 30.599,00. "
+            "Accessoria: sequestro del veicolo ai fini della confisca."
+        )
+    },
+    "116-04": {
+        "title": "Reiterazione nella guida senza patente",
+        "article": "CdS art. 116 c. 15 e 17",
+        "pmr": "Non applicabile - illecito penale",
+        "reduced_30": "Non applicabile",
+        "over_60": "Non applicabile",
+        "edictal": "Penale: informativa all'Autorità Giudiziaria",
+        "accessories": [
+            "Sequestro amministrativo del veicolo ai fini della confisca",
+            "Informativa di reato all'Autorità Giudiziaria"
+        ],
+        "verbal_text": (
+            "Circolava alla guida del predetto veicolo senza essere munito della prescritta patente di guida "
+            "perché mai conseguita, revocata, non rinnovata per mancanza dei prescritti requisiti oppure non "
+            "valida per il veicolo condotto e non riconducibile ai casi dell'art. 116, comma 15-bis, CdS. "
+            "Si dà atto che il conducente si trova in condizioni di reiterazione dell'illecito; si procede "
+            "pertanto con informativa all'Autorità Giudiziaria e con sequestro amministrativo del veicolo "
+            "ai fini della confisca."
+        ),
+        "notes": [
+            "La reiterazione dell'illecito di cui all'art. 116, comma 15, mantiene natura penale.",
+            "Se la reiterazione viene accertata successivamente, il verbale amministrativo va annullato e sostituito dagli atti di notizia di reato.",
+            "Competente è il tribunale in composizione monocratica; predisporre gli atti di polizia giudiziaria."
+        ],
+        "fields_to_fill": [
+            "estremi del precedente illecito definitivo utile alla reiterazione",
+            "motivo della mancanza di patente",
+            "generalità del custode",
+            "luogo di custodia del veicolo",
+            "riferimenti essenziali per l'informativa AG"
+        ],
+        "short_ready_text": (
+            "Fattispecie penale: reiterazione nella guida senza patente o con patente non idonea. "
+            "Norma: art. 116, commi 15 e 17, CdS. "
+            "Procedere con informativa all'Autorità Giudiziaria e sequestro del veicolo ai fini della confisca."
+        )
+    },
     "116-06": {
         "title": "Guida senza CAP o CQC",
         "article": "CdS art. 116 c. 16 e 18",
@@ -1446,7 +1559,7 @@ def build_pdf_markup(main_code=None, concurrent_codes=None, procedural_flags=Non
 
     if "Sequestro/confisca veicolo" in accessory_actions:
         add_button("SEQUESTRO_85", "PDF Sequestro")
-    if "Fermo veicolo 60 giorni" in accessory_actions:
+    if "Fermo veicolo 3 mesi" in accessory_actions or "Fermo veicolo 60 giorni" in accessory_actions:
         add_button("FERMO_116", "PDF Fermo")
         add_button("AVVISO_FERMO", "PDF Avviso Fermo")
 
@@ -1549,6 +1662,12 @@ def build_quick_payload_from_codes(main_code, concurrent_codes=None, extra_artic
         comunicazioni.append("- Comunicazione al Prefetto entro 5 giorni per i presupposti della revoca.")
     if main_code in {"085-05", "085-06", "085-07", "085-08"}:
         comunicazioni.append("- Trasmissione documento ritirato all'UMC competente.")
+    if "116-02" in concurrent_codes:
+        comunicazioni.append("- Applicare fermo del veicolo per 3 mesi; se il fermo non è applicabile, valutare la sospensione dell'eventuale patente posseduta.")
+    if "116-03" in concurrent_codes:
+        comunicazioni.append("- Trasmettere gli atti al Prefetto per i provvedimenti di competenza sulla confisca.")
+    if "116-04" in concurrent_codes:
+        comunicazioni.append("- Procedere con informativa all'Autorità Giudiziaria e con sequestro del veicolo.")
     if "116-06" in concurrent_codes:
         comunicazioni.append("- Valutare fermo del veicolo per 60 giorni.")
 
@@ -1701,6 +1820,9 @@ def normalize_violation_code(code):
         "08507": "085-07",
         "08508": "085-08",
         "08509": "085-09",
+        "11602": "116-02",
+        "11603": "116-03",
+        "11604": "116-04",
         "11606": "116-06",
         "18001": "180-01",
         "180DOC": "180-DOC",
@@ -1716,7 +1838,7 @@ def build_violation_markup_for_article(article_key):
     key = normalize_article_key(article_key)
     article_to_codes = {
         "art85": ["085-02", "085-04", "085-05", "085-06", "085-07", "085-08", "085-09"],
-        "art116": ["116-06"],
+        "art116": ["116-02", "116-03", "116-04", "116-06"],
         "art3l21": ["085-05", "085-06", "085-07", "085-08"],
         "art11l21": ["085-05", "085-06", "085-07", "085-08"],
         "art180": ["180-01", "180-DOC", "180-01DOC", "180-03", "180-06", "180-09"],
@@ -1811,6 +1933,10 @@ def _build_accessory_actions(main_code, concurrent_codes=None):
         add("Sequestro/confisca veicolo")
     if main_code in {"085-05", "085-06", "085-07", "085-08"}:
         add("Ritiro/sospensione documento di circolazione")
+    if "116-02" in concurrent_codes:
+        add("Fermo veicolo 3 mesi")
+    if "116-03" in concurrent_codes or "116-04" in concurrent_codes:
+        add("Sequestro/confisca veicolo")
     if "116-06" in concurrent_codes:
         add("Fermo veicolo 60 giorni")
 
@@ -4737,7 +4863,7 @@ def final_result_callback(call):
         items = []
         if "Sequestro/confisca veicolo" in accessory_actions:
             items.append(("SEQUESTRO_85", "Apri PDF Sequestro"))
-        if "Fermo veicolo 60 giorni" in accessory_actions:
+        if "Fermo veicolo 3 mesi" in accessory_actions or "Fermo veicolo 60 giorni" in accessory_actions:
             items.append(("FERMO_116", "Apri PDF Fermo"))
             items.append(("AVVISO_FERMO", "Apri PDF Avviso Fermo"))
         markup = build_specific_pdf_markup(items) or default_markup()
