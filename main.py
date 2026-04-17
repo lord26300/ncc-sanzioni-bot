@@ -2611,7 +2611,8 @@ def lookup_plate_in_registry(plate_text):
         licenza = get_value(licenza_idx)
         note = get_value(note_idx)
         owner_is_person = _is_persona_fisica_owner(intestatario)
-        sanctionable = uso == 'PROPRIO' and owner_is_person
+        uso_proprio_alert = uso == 'PROPRIO'
+        sanctionable = False
 
         lines = [
             f"Targa: {plate}",
@@ -2632,9 +2633,11 @@ def lookup_plate_in_registry(plate_text):
             lines.append(f"Licenza/autorizzazione: {licenza}")
 
         lines.append("")
-        if sanctionable:
-            lines.append("ESITO OPERATIVO: mezzo già sanzionabile.")
-            lines.append("Motivo: veicolo censito, uso proprio e intestatario persona fisica.")
+        if uso_proprio_alert:
+            lines.append("ESITO OPERATIVO: mezzo censito con ALERT.")
+            lines.append("Il veicolo risulta ad USO PROPRIO: la forma cooperativa, la P.IVA o l'attività di trasporto non bastano da sole.")
+            lines.append("Per svolgere NCC il veicolo deve risultare regolarmente adibito/autorizzato a NCC; se viene usato per trasporto a pagamento verso terzi, valutare il ramo art. 85 c. 4 CdS.")
+            lines.append("Verificare in concreto: autorizzazione/licenza NCC, foglio di servizio, prenotazione, passeggeri trasportati, corrispettivo e uso risultante da carta di circolazione/DU.")
         else:
             lines.append("ESITO OPERATIVO: mezzo censito.")
             lines.append("Valutare comunque licenza, foglio di servizio e modalità del trasporto concreto.")
@@ -3570,7 +3573,7 @@ def decide_violation(answers):
             return None, concurrent, notes, procedural_flags, ancillary_findings
         add_verbal("Accertato servizio di trasporto persone verso corrispettivo con veicolo risultante dal documento di circolazione adibito a uso proprio.")
         add_signal("Comunicazione al Prefetto del luogo della violazione nei casi di art. 85 comma 4 CdS.")
-        ancillary_findings.append("Uso proprio sul documento di circolazione incompatibile, allo stato, con servizio NCC/trasporto verso terzi a pagamento: verificare e verbalizzare dettagli del DU/libretto e del rapporto con i passeggeri.")
+        ancillary_findings.append("Uso proprio sul documento di circolazione incompatibile, allo stato, con servizio NCC/trasporto verso terzi a pagamento: la forma cooperativa o la P.IVA non bastano da sole; verificare e verbalizzare dettagli del DU/libretto, del titolo eventualmente esibito e del rapporto con i passeggeri.")
         vehicle_authorized = "no"
 
     if service_to_third == "no" and vehicle_authorized == "si" and violation_type in {None, "none"} and not concurrent:
@@ -3916,7 +3919,7 @@ def _control_text_from_state(state):
     else:
         lines.append("- nessuno")
     lines.append("")
-    lines.append("I documenti non selezionati verranno trattati come non esibiti/mancanti. Il bot farà solo le domande strettamente necessarie per distinguere tra mancata esibizione, mancanza sostanziale, documento scaduto/non valido e, se serve, uso proprio/uso terzi o servizio tramite agenzia.")
+    lines.append("I documenti non selezionati verranno trattati come non esibiti/mancanti. Il bot farà solo le domande strettamente necessarie per distinguere tra mancata esibizione, mancanza sostanziale, documento scaduto/non valido e, se serve, uso proprio/veicolo regolarmente adibito a NCC o servizio tramite agenzia.")
     return "\n".join(lines)
 
 
