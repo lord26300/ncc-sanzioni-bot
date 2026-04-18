@@ -646,28 +646,39 @@ VIOLATIONS["180-09"] = {
 }
 
 
-VIOLATIONS["158-RCT"] = {
-    "title": "Sosta in area/stallo non consentito nel terminal crociere",
-    "article": "CdS art. 158 / regolamentazione interna RCT",
-    "pmr": "Verificare prontuario locale",
-    "reduced_30": "Verificare prontuario locale",
-    "over_60": "Verificare prontuario locale",
-    "edictal": "Verificare voce di prontuario applicabile",
-    "accessories": ["Segnalazione RCT / valutare provvedimenti sul pass"],
-    "verbal_text": "Il veicolo sostava in area/stallo non consentito rispetto alla segnaletica interna e alla destinazione degli stalli previsti all'interno del terminal crociere di Civitavecchia, in violazione della disciplina di sosta e delle disposizioni interne della port facility.",
+VIOLATIONS["158-27"] = {
+    "title": "Sosta negli spazi riservati a taxi o autobus nel terminal crociere",
+    "article": "CdS art. 158 c. 2 lett. d) e c. 5-bis",
+    "pmr": "€ 165,00",
+    "reduced_30": "€ 115,50",
+    "over_60": "€ 330,00",
+    "edictal": "da € 165,00 a € 660,00",
+    "accessories": [
+        "Rimozione veicolo",
+        "2 punti"
+    ],
+    "verbal_text": (
+        "Effettuava la sosta nello spazio riservato allo stazionamento dei veicoli in servizio di piazza "
+        "(taxi) ovvero nello spazio riservato alla fermata/stazionamento degli autobus all'interno del terminal crociere."
+    ),
     "notes": [
-        "Usare questo ramo quando il servizio del veicolo è altrimenti regolare ma la sosta/fermata avviene in area o stallo non consentito.",
-        "Se emergono anche attesa generica o acquisizione clientela, valutare il ramo sostanziale NCC/taxi e non solo la sosta.",
-        "Per importi e voce definitiva usare il prontuario locale o la specifica contestazione ex art. 158 ritenuta applicabile dagli operanti."
+        "Usare questa voce quando il veicolo occupa uno stallo taxi o bus non consentito, anche senza impedire materialmente altri veicoli.",
+        "Se l'NCC, oltre alla sosta irregolare, acquisisce clientela o attende utenza generica, valutare il diverso ramo sostanziale del servizio.",
+        "Restano ferme la segnalazione a RCT e l'eventuale rimozione del veicolo."
     ],
     "fields_to_fill": [
-        "ubicazione precisa dello stallo/area",
-        "destinazione dello stallo occupato (taxi / NCC / altro)",
+        "ubicazione precisa dello stallo occupato",
         "segnaletica presente",
-        "eventuale intralcio o interferenza con il servizio portuale",
+        "destinazione dello stallo (taxi / bus)",
+        "eventuale intralcio o interferenza con il terminal",
         "eventuale segnalazione a RCT"
     ],
-    "short_ready_text": "Sosta/fermata in area o stallo non consentito all'interno del terminal crociere: verificare la specifica voce di prontuario ex art. 158 CdS applicabile e segnalare la violazione alla regolamentazione interna RCT."
+    "short_ready_text": (
+        "Sosta nello spazio riservato a taxi o autobus all'interno del terminal crociere. "
+        "Norma: art. 158, comma 2, lettera d), e comma 5-bis, CdS. "
+        "PMR € 165,00; riduzione 30% € 115,50; oltre 60 giorni € 330,00; "
+        "edittale da € 165,00 a € 660,00. Accessorie: rimozione del veicolo e 2 punti."
+    )
 }
 
 NCC_DB = {
@@ -969,9 +980,10 @@ ARTICOLI_DB = {
         "testo": (
             "Art. 158 CdS - Divieto di fermata e di sosta.\n\n"
             "Uso operativo nel bot:\n"
-            "- nel modulo stalli RCT il richiamo all'art. 158 serve per i casi in cui il veicolo, pur con servizio regolare, occupa uno stallo o un'area non consentita;\n"
-            "- se invece l'NCC usa la posizione fuori stallo per acquisire clientela o operare fuori regola, il bot orienta verso il ramo art. 85 c. 4-bis.\n\n"
-            "Per importi e voce esatta di prontuario del Reparto verificare il sottocaso concretamente applicato."
+            "- per gli stalli del terminal RCT, quando il veicolo occupa uno spazio riservato a taxi o autobus, la voce principale è l'art. 158, comma 2, lettera d), e comma 5-bis;\n"
+            "- quando invece crea impedimento ad altri veicoli si valuta il diverso sottocaso di prontuario relativo alla sosta in posizione di impedimento;\n"
+            "- se l'NCC usa la posizione fuori stallo per acquisire clientela o operare fuori regola, il bot orienta verso il ramo sostanziale dell'art. 85 CdS.\n\n"
+            "Per la sosta negli spazi riservati a taxi o autobus usare il prontuario 158-27."
         ),
         "link": "https://www.normattiva.it/"
     },
@@ -1541,6 +1553,7 @@ def get_article_keys_for_result(main_code=None, concurrent_codes=None):
         '180-06': 'art180',
         '180-09': 'art180',
         'CDS_126_11': 'art126',
+        '158-27': 'art158',
     }
 
     add(code_to_article.get(main_code))
@@ -1569,6 +1582,7 @@ def build_article_markup(article_keys=None):
         'art11l21': 'Art. 11 L. 21/1992',
         'art180': 'Art. 180 CdS',
         'art126': 'Art. 126 CdS',
+        'art158': 'Art. 158 CdS',
     }
 
     markup = types.InlineKeyboardMarkup(row_width=2)
@@ -1835,6 +1849,7 @@ def build_combined_markup(article_keys=None, question_key=None, force_ctrl_answe
             'art11l21': 'Art. 11 L. 21/1992',
             'art180': 'Art. 180 CdS',
             'art126': 'Art. 126 CdS',
+        'art158': 'Art. 158 CdS',
         }
         article_buttons = []
         for key in article_keys:
@@ -2010,7 +2025,7 @@ PDF_MODELS = {
     "180-03": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/180-03_certificato_assicurativo_non_al_seguito.pdf",
     "180-06": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/180-06_autorizzazione_ncc_non_al_seguito.pdf",
     "180-09": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/180-09_kb_cqc_non_al_seguito.pdf",
-    "158-RCT": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/158-RCT_stalli_rct.pdf",
+    "158-27": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/158-27_art158_c2d_c5bis_stalli_taxi_bus.pdf",
     "SEQUESTRO_85": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/VERBALE_SEQUESTRO_CUSTODIA.pdf",
     "FERMO_116": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/VERBALE_FERMO_O_SEQUESTRO.pdf",
     "AVVISO_FERMO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/AVVISO_FERMO.pdf",
@@ -2196,7 +2211,7 @@ def format_multiple(main_code, concurrent_codes=None, extra_notes=None, level=No
 def format_compact_violation(code):
     v = VIOLATIONS[code]
     lines = []
-    lines.append(f"{code} | {v['article']} | {v['title']}")
+    lines.append(f"{v['article']} | {v['title']}")
     lines.append(f"- PMR: {v['pmr']}")
     lines.append(f"- Riduzione 30%: {v['reduced_30']}")
     lines.append(f"- Oltre 60 gg: {v['over_60']}")
@@ -2757,10 +2772,10 @@ def _build_stalli_result(state):
     else:
         if vehicle_type == "NCC" and customer_acquisition:
             main_code = "085-05"
-            verdict = "NCC in stallo/area non consentita con elementi di attesa generica o acquisizione clientela: suggerito ramo 085-05."
+            verdict = "NCC in stallo/area non consentita con elementi di attesa generica o acquisizione clientela: valutare la violazione dell’art. 85, comma 4-bis, CdS."
         else:
-            main_code = "158-RCT"
-            verdict = "Violazione di sosta/fermata in area o stallo non consentito nel terminal: suggerita contestazione ramo art. 158 / regolamentazione RCT."
+            main_code = "158-27"
+            verdict = "Violazione di sosta nello spazio riservato a taxi o autobus nel terminal: valutare l’art. 158, comma 2, lettera d), e comma 5-bis, CdS, con segnalazione RCT."
 
     lines = [
         "CONTROLLO STALLI RCT\n",
@@ -2772,8 +2787,6 @@ def _build_stalli_result(state):
         "",
         f"Esito: {verdict}",
     ]
-    if main_code:
-        lines.append(f"Codice suggerito: {main_code}")
     lines.extend([
         "",
         "COSA VERBALIZZARE:",
@@ -3042,8 +3055,6 @@ def _build_license_use_result(state):
         f"Esito: {verdict}",
     ])
 
-    if main_code:
-        lines.append(f"Codice suggerito: {main_code}")
 
     if alerts:
         lines.append("")
