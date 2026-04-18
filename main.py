@@ -2738,7 +2738,7 @@ def begin_stalli_flow(chat_id):
 def _stalli_next_prompt(state):
     prompts = {
         "vehicle_type": "Tipo veicolo? (rispondi: NCC oppure TAXI)",
-        "stall_type": "Dove sostava il veicolo? (rispondi: stallo ncc / stallo taxi / fuori stalli)",
+        "stall_type": "Dove sostava il veicolo? (rispondi: stallo ncc / stallo taxi / stallo bus / fuori stalli)",
         "booked_client": "Era in attesa di cliente già prenotato o chiamata già acquisita? (si/no)",
         "customer_acquisition": "Emergono acquisizione clientela sul posto o attesa generica di utenti? (si/no)",
         "hindrance": "La sosta creava intralcio, occupazione bordo marciapiede o interferenza con i flussi del terminal? (si/no)",
@@ -2802,9 +2802,22 @@ def _build_stalli_result(state):
         for item in alerts:
             lines.append(f"- {item}")
 
+    verbali = []
+    if main_code:
+        v = VIOLATIONS.get(main_code, {})
+        verbali.append({
+            "code": main_code,
+            "title": v.get("title", ""),
+            "article": v.get("article", ""),
+            "text": v.get("verbal_text", verdict),
+            "notes": v.get("notes", []),
+            "fields": v.get("fields_to_fill", []),
+        })
+
     payload = {
         "main_code": main_code,
         "concurrent_codes": [],
+        "verbali": verbali,
         "procedural_flags": {"segnalazioni": ["Comune / ente rilasciante"] if main_code == "085-05" else []},
     }
     return "\n".join(lines), payload
@@ -2829,11 +2842,13 @@ def process_stalli_flow(chat_id, text):
             "ncc": "STALLO NCC",
             "stallo taxi": "STALLO TAXI",
             "taxi": "STALLO TAXI",
+            "stallo bus": "STALLO BUS",
+            "bus": "STALLO BUS",
             "fuori stalli": "FUORI STALLI",
             "fuori": "FUORI STALLI",
         }
         if value not in mapping:
-            return "Risposta non valida. Scrivi: stallo ncc / stallo taxi / fuori stalli.", None
+            return "Risposta non valida. Scrivi: stallo ncc / stallo taxi / stallo bus / fuori stalli.", None
         state["stall_type"] = mapping[value]
         state["step"] = "booked_client"
         save_user_states()
