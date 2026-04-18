@@ -645,6 +645,31 @@ VIOLATIONS["180-09"] = {
     "short_ready_text": "Art. 180 c.5 e c.7 per CAP/KB/CQC non al seguito: PMR € 42,00; riduzione 30% € 29,40; oltre 60 giorni € 86,50. Invito a presentare il titolo mancante."
 }
 
+
+VIOLATIONS["158-RCT"] = {
+    "title": "Sosta in area/stallo non consentito nel terminal crociere",
+    "article": "CdS art. 158 / regolamentazione interna RCT",
+    "pmr": "Verificare prontuario locale",
+    "reduced_30": "Verificare prontuario locale",
+    "over_60": "Verificare prontuario locale",
+    "edictal": "Verificare voce di prontuario applicabile",
+    "accessories": ["Segnalazione RCT / valutare provvedimenti sul pass"],
+    "verbal_text": "Il veicolo sostava in area/stallo non consentito rispetto alla segnaletica interna e alla destinazione degli stalli previsti all'interno del terminal crociere di Civitavecchia, in violazione della disciplina di sosta e delle disposizioni interne della port facility.",
+    "notes": [
+        "Usare questo ramo quando il servizio del veicolo è altrimenti regolare ma la sosta/fermata avviene in area o stallo non consentito.",
+        "Se emergono anche attesa generica o acquisizione clientela, valutare il ramo sostanziale NCC/taxi e non solo la sosta.",
+        "Per importi e voce definitiva usare il prontuario locale o la specifica contestazione ex art. 158 ritenuta applicabile dagli operanti."
+    ],
+    "fields_to_fill": [
+        "ubicazione precisa dello stallo/area",
+        "destinazione dello stallo occupato (taxi / NCC / altro)",
+        "segnaletica presente",
+        "eventuale intralcio o interferenza con il servizio portuale",
+        "eventuale segnalazione a RCT"
+    ],
+    "short_ready_text": "Sosta/fermata in area o stallo non consentito all'interno del terminal crociere: verificare la specifica voce di prontuario ex art. 158 CdS applicabile e segnalare la violazione alla regolamentazione interna RCT."
+}
+
 NCC_DB = {
     "norme": {
         "L21_3_11": {
@@ -936,6 +961,17 @@ ARTICOLI_DB = {
             "- si applica quando il documento esiste ma non viene esibito all'atto del controllo;\n"
             "- va distinto dalle violazioni sostanziali, cioe quando il titolo manca, e revocato, sospeso o non idoneo;\n"
             "- nel bot richiama soprattutto le ipotesi documentali per patente, autorizzazione NCC, foglio di servizio, carta di circolazione e assicurazione."
+        ),
+        "link": "https://www.normattiva.it/"
+    },
+    "art158": {
+        "titolo": "CdS art. 158",
+        "testo": (
+            "Art. 158 CdS - Divieto di fermata e di sosta.\n\n"
+            "Uso operativo nel bot:\n"
+            "- nel modulo stalli RCT il richiamo all'art. 158 serve per i casi in cui il veicolo, pur con servizio regolare, occupa uno stallo o un'area non consentita;\n"
+            "- se invece l'NCC usa la posizione fuori stallo per acquisire clientela o operare fuori regola, il bot orienta verso il ramo art. 85 c. 4-bis.\n\n"
+            "Per importi e voce esatta di prontuario del Reparto verificare il sottocaso concretamente applicato."
         ),
         "link": "https://www.normattiva.it/"
     },
@@ -1591,7 +1627,8 @@ def build_main_menu():
         types.KeyboardButton("Norme principali")
     )
     kb.add(
-        types.KeyboardButton("Controllo uso licenza NCC")
+        types.KeyboardButton("Controllo uso licenza NCC"),
+        types.KeyboardButton("Controllo stalli RCT")
     )
     kb.add(
         types.KeyboardButton("Casi comuni porto"),
@@ -1973,6 +2010,7 @@ PDF_MODELS = {
     "180-03": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/180-03_certificato_assicurativo_non_al_seguito.pdf",
     "180-06": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/180-06_autorizzazione_ncc_non_al_seguito.pdf",
     "180-09": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/180-09_kb_cqc_non_al_seguito.pdf",
+    "158-RCT": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/158-RCT_stalli_rct.pdf",
     "SEQUESTRO_85": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/VERBALE_SEQUESTRO_CUSTODIA.pdf",
     "FERMO_116": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/VERBALE_FERMO_O_SEQUESTRO.pdf",
     "AVVISO_FERMO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/AVVISO_FERMO.pdf",
@@ -2672,6 +2710,148 @@ def process_plate_lookup(chat_id, text):
     return result
 
 
+
+def begin_stalli_flow(chat_id):
+    user_states[chat_id] = {
+        "mode": "stalli_check",
+        "step": "vehicle_type",
+        "control_place": "Terminal crociere / RCT",
+    }
+    save_user_states()
+
+
+def _stalli_next_prompt(state):
+    prompts = {
+        "vehicle_type": "Tipo veicolo? (rispondi: NCC oppure TAXI)",
+        "stall_type": "Dove sostava il veicolo? (rispondi: stallo ncc / stallo taxi / fuori stalli)",
+        "booked_client": "Era in attesa di cliente già prenotato o chiamata già acquisita? (si/no)",
+        "customer_acquisition": "Emergono acquisizione clientela sul posto o attesa generica di utenti? (si/no)",
+        "hindrance": "La sosta creava intralcio, occupazione bordo marciapiede o interferenza con i flussi del terminal? (si/no)",
+    }
+    return prompts.get(state.get("step"))
+
+
+def _build_stalli_result(state):
+    vehicle_type = state.get("vehicle_type")
+    stall_type = state.get("stall_type")
+    booked_client = state.get("booked_client")
+    customer_acquisition = state.get("customer_acquisition")
+    hindrance = state.get("hindrance")
+
+    regular_stall = (stall_type == "STALLO NCC") if vehicle_type == "NCC" else (stall_type == "STALLO TAXI")
+
+    alerts = ["Nel terminal crociere gli stalli assegnati sono vincolanti e vanno rispettati secondo segnaletica e regolamentazione interna RCT."]
+    if stall_type == "FUORI STALLI":
+        alerts.append("Veicolo fuori dagli stalli assegnati.")
+    elif not regular_stall:
+        alerts.append(f"Veicolo {vehicle_type} fermo in stallo non destinato a quel servizio.")
+    if customer_acquisition:
+        alerts.append("Presente indice di acquisizione clientela / attesa generica: valutare illeciti sostanziali del servizio e non solo la sosta.")
+    if hindrance:
+        alerts.append("Presente intralcio o interferenza con la viabilità/organizzazione del terminal.")
+
+    main_code = None
+    verdict = ""
+    if regular_stall:
+        verdict = "Non emerge violazione stalli: il veicolo risulta nello stallo coerente con il servizio indicato."
+    else:
+        if vehicle_type == "NCC" and customer_acquisition:
+            main_code = "085-05"
+            verdict = "NCC in stallo/area non consentita con elementi di attesa generica o acquisizione clientela: suggerito ramo 085-05."
+        else:
+            main_code = "158-RCT"
+            verdict = "Violazione di sosta/fermata in area o stallo non consentito nel terminal: suggerita contestazione ramo art. 158 / regolamentazione RCT."
+
+    lines = [
+        "CONTROLLO STALLI RCT\n",
+        f"- Tipo veicolo: {vehicle_type}",
+        f"- Posizione rilevata: {stall_type}",
+        f"- Cliente già prenotato / chiamata già acquisita: {_yes_no_text(booked_client)}",
+        f"- Attesa generica / acquisizione clientela sul posto: {_yes_no_text(customer_acquisition)}",
+        f"- Intralcio / bordo marciapiede / interferenza terminal: {_yes_no_text(hindrance)}",
+        "",
+        f"Esito: {verdict}",
+    ]
+    if main_code:
+        lines.append(f"Codice suggerito: {main_code}")
+    lines.extend([
+        "",
+        "COSA VERBALIZZARE:",
+        "- stallo o area effettivamente occupata",
+        "- tipo di stallo previsto dalla segnaletica interna",
+        "- presenza di cliente prenotato o, al contrario, attesa generica",
+        "- eventuale intralcio, bordo marciapiede, interferenza con bus/taxi/NCC",
+        "- eventuale segnalazione a RCT per la disciplina interna del terminal",
+    ])
+    if alerts:
+        lines.append("")
+        lines.append("ALERT OPERATIVI:")
+        for item in alerts:
+            lines.append(f"- {item}")
+
+    payload = {
+        "main_code": main_code,
+        "concurrent_codes": [],
+        "procedural_flags": {"segnalazioni": ["Comune / ente rilasciante"] if main_code == "085-05" else []},
+    }
+    return "\n".join(lines), payload
+
+
+def process_stalli_flow(chat_id, text):
+    state = get_state(chat_id) or {}
+    step = state.get("step")
+    value = (text or "").strip().lower()
+
+    if step == "vehicle_type":
+        if value not in {"ncc", "taxi"}:
+            return "Risposta non valida. Scrivi NCC oppure TAXI.", None
+        state["vehicle_type"] = value.upper()
+        state["step"] = "stall_type"
+        save_user_states()
+        return _stalli_next_prompt(state), None
+
+    if step == "stall_type":
+        mapping = {
+            "stallo ncc": "STALLO NCC",
+            "ncc": "STALLO NCC",
+            "stallo taxi": "STALLO TAXI",
+            "taxi": "STALLO TAXI",
+            "fuori stalli": "FUORI STALLI",
+            "fuori": "FUORI STALLI",
+        }
+        if value not in mapping:
+            return "Risposta non valida. Scrivi: stallo ncc / stallo taxi / fuori stalli.", None
+        state["stall_type"] = mapping[value]
+        state["step"] = "booked_client"
+        save_user_states()
+        return _stalli_next_prompt(state), None
+
+    if step in {"booked_client", "customer_acquisition", "hindrance"}:
+        if value not in {"si", "sì", "no"}:
+            return "Risposta non valida. Rispondi si oppure no.", None
+        state[step] = value in {"si", "sì"}
+        next_map = {
+            "booked_client": "customer_acquisition",
+            "customer_acquisition": "hindrance",
+            "hindrance": None,
+        }
+        next_step = next_map[step]
+        if next_step:
+            state["step"] = next_step
+            save_user_states()
+            return _stalli_next_prompt(state), None
+        result, payload = _build_stalli_result(state)
+        state["last_result_payload"] = payload
+        state["last_result_main_code"] = payload.get("main_code")
+        state["last_result_concurrent"] = payload.get("concurrent_codes", [])
+        state["last_result_flags"] = payload.get("procedural_flags", {})
+        save_user_states()
+        return result, payload
+
+    return "Procedura stalli non attiva. Usa /stalli o il pulsante dedicato.", None
+
+
+
 def begin_license_use_flow(chat_id):
     user_states[chat_id] = {
         "mode": "license_use_check",
@@ -3298,6 +3478,17 @@ ARTICOLI_DB = {
             "- si applica quando il documento esiste ma non viene esibito all'atto del controllo;\n"
             "- va distinto dalle violazioni sostanziali, cioe quando il titolo manca, e revocato, sospeso o non idoneo;\n"
             "- nel bot richiama soprattutto le ipotesi documentali per patente, autorizzazione NCC, foglio di servizio, carta di circolazione e assicurazione."
+        ),
+        "link": "https://www.normattiva.it/"
+    },
+    "art158": {
+        "titolo": "CdS art. 158",
+        "testo": (
+            "Art. 158 CdS - Divieto di fermata e di sosta.\n\n"
+            "Uso operativo nel bot:\n"
+            "- nel modulo stalli RCT il richiamo all'art. 158 serve per i casi in cui il veicolo, pur con servizio regolare, occupa uno stallo o un'area non consentita;\n"
+            "- se invece l'NCC usa la posizione fuori stallo per acquisire clientela o operare fuori regola, il bot orienta verso il ramo art. 85 c. 4-bis.\n\n"
+            "Per importi e voce esatta di prontuario del Reparto verificare il sottocaso concretamente applicato."
         ),
         "link": "https://www.normattiva.it/"
     },
@@ -4975,6 +5166,16 @@ def licenza_command(message):
     )
 
 
+@bot.message_handler(commands=['stalli'])
+def stalli_command(message):
+    if not ensure_authorized(message):
+        return
+    begin_stalli_flow(message.chat.id)
+    bot.reply_to(
+        message,
+        "Controllo stalli RCT.\n\nQuesta procedura distingue la semplice violazione di sosta/stallo dalla possibile violazione sostanziale del servizio.\n\n" + _stalli_next_prompt(get_state(message.chat.id) or {}),
+    )
+
 @bot.message_handler(commands=['reset'])
 def reset_command(message):
     if not ensure_authorized(message):
@@ -5066,6 +5267,10 @@ def menu_norme_button(message):
 @bot.message_handler(func=lambda m: (m.text or "").strip() == "Controllo uso licenza NCC")
 def menu_licenza_button(message):
     licenza_command(message)
+
+@bot.message_handler(func=lambda m: (m.text or "").strip() == "Controllo stalli RCT")
+def menu_stalli_button(message):
+    stalli_command(message)
 
 
 @bot.message_handler(func=lambda m: (m.text or "").strip() == "Verifica targa")
@@ -5643,6 +5848,23 @@ def all_messages(message):
         bot.reply_to(message, response)
         return
 
+    if mode == "stalli_check":
+        response, payload = process_stalli_flow(chat_id, text)
+        if payload:
+            markup = build_final_result_markup(payload)
+            if not markup:
+                state_after = get_state(chat_id) or {}
+                main_code = state_after.get("last_result_main_code")
+                concurrent_codes = state_after.get("last_result_concurrent", [])
+                flags = state_after.get("last_result_flags", {})
+                markup = build_pdf_markup(main_code, concurrent_codes, flags) or build_article_markup(
+                    get_article_keys_for_result(main_code, concurrent_codes)
+                )
+            send_long_message(chat_id, response, reply_markup=markup, disable_web_page_preview=True)
+            return
+        bot.reply_to(message, response)
+        return
+
     if mode == "external_consent":
         response = process_external_consent(chat_id, text)
         bot.reply_to(message, response)
@@ -5662,6 +5884,7 @@ def setup_bot_commands():
         types.BotCommand("riattiva", "Riattiva il servizio"),
         types.BotCommand("help", "Come usare il bot"),
         types.BotCommand("licenza", "Controllo uso licenza NCC"),
+        types.BotCommand("stalli", "Controllo stalli RCT"),
     ]
     try:
         bot.set_my_commands(commands)
