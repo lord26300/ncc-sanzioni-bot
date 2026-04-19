@@ -28,6 +28,7 @@ RENDER_PUBLIC_URL = os.getenv("RENDER_PUBLIC_URL", "https://tuo-servizio.onrende
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1")
+GIURIS_CHANNEL_URL = "https://t.me/CircolazioneStradale"
 
 # GIF/video di benvenuto
 WELCOME_MEDIA_PATH = os.getenv("WELCOME_MEDIA_PATH", "welcome.mp4")
@@ -1642,7 +1643,8 @@ def build_main_menu():
     )
     kb.add(
         types.KeyboardButton("Controllo uso licenza NCC"),
-        types.KeyboardButton("Controllo stalli RCT")
+        types.KeyboardButton("Controllo stalli RCT"),
+        types.KeyboardButton("Aggiornamenti CdS / giurisprudenza")
     )
     kb.add(
         types.KeyboardButton("Casi comuni porto"),
@@ -2738,7 +2740,7 @@ def begin_stalli_flow(chat_id):
 def _stalli_next_prompt(state):
     prompts = {
         "vehicle_type": "Tipo veicolo? (rispondi: NCC oppure TAXI)",
-        "stall_type": "Dove sostava il veicolo? (rispondi: stallo ncc / stallo taxi / stallo bus / fuori stalli)",
+        "stall_type": "Dove sostava il veicolo? (rispondi: stallo ncc / stallo taxi / fuori stalli)",
         "booked_client": "Era in attesa di cliente già prenotato o chiamata già acquisita? (si/no)",
         "customer_acquisition": "Emergono acquisizione clientela sul posto o attesa generica di utenti? (si/no)",
         "hindrance": "La sosta creava intralcio, occupazione bordo marciapiede o interferenza con i flussi del terminal? (si/no)",
@@ -2802,22 +2804,9 @@ def _build_stalli_result(state):
         for item in alerts:
             lines.append(f"- {item}")
 
-    verbali = []
-    if main_code:
-        v = VIOLATIONS.get(main_code, {})
-        verbali.append({
-            "code": main_code,
-            "title": v.get("title", ""),
-            "article": v.get("article", ""),
-            "text": v.get("verbal_text", verdict),
-            "notes": v.get("notes", []),
-            "fields": v.get("fields_to_fill", []),
-        })
-
     payload = {
         "main_code": main_code,
         "concurrent_codes": [],
-        "verbali": verbali,
         "procedural_flags": {"segnalazioni": ["Comune / ente rilasciante"] if main_code == "085-05" else []},
     }
     return "\n".join(lines), payload
@@ -2842,13 +2831,11 @@ def process_stalli_flow(chat_id, text):
             "ncc": "STALLO NCC",
             "stallo taxi": "STALLO TAXI",
             "taxi": "STALLO TAXI",
-            "stallo bus": "STALLO BUS",
-            "bus": "STALLO BUS",
             "fuori stalli": "FUORI STALLI",
             "fuori": "FUORI STALLI",
         }
         if value not in mapping:
-            return "Risposta non valida. Scrivi: stallo ncc / stallo taxi / stallo bus / fuori stalli.", None
+            return "Risposta non valida. Scrivi: stallo ncc / stallo taxi / fuori stalli.", None
         state["stall_type"] = mapping[value]
         state["step"] = "booked_client"
         save_user_states()
@@ -5202,6 +5189,24 @@ def stalli_command(message):
         "Controllo stalli RCT.\n\nQuesta procedura distingue la semplice violazione di sosta/stallo dalla possibile violazione sostanziale del servizio.\n\n" + _stalli_next_prompt(get_state(message.chat.id) or {}),
     )
 
+
+@bot.message_handler(commands=['aggiornamenti'])
+def aggiornamenti_command(message):
+    if not ensure_authorized(message):
+        return
+    bot.reply_to(
+        message,
+        "Prima di redigere verbali su NCC, taxi o casi sensibili, verifica eventuali aggiornamenti recenti di Cassazione, tribunali o prassi operative sul canale Circolazione Stradale.",
+        reply_markup=build_giurisprudenza_check_markup(),
+        disable_web_page_preview=True,
+    )
+
+
+@bot.message_handler(func=lambda m: (m.text or "").strip() == "Aggiornamenti CdS / giurisprudenza")
+def menu_aggiornamenti_button(message):
+    aggiornamenti_command(message)
+
+
 @bot.message_handler(commands=['reset'])
 def reset_command(message):
     if not ensure_authorized(message):
@@ -5869,7 +5874,7 @@ def all_messages(message):
                 markup = build_pdf_markup(main_code, concurrent_codes, flags) or build_article_markup(
                     get_article_keys_for_result(main_code, concurrent_codes)
                 )
-            send_long_message(chat_id, response, reply_markup=markup, disable_web_page_preview=True)
+            send_long_message(chat_id, response, reply_markup=wrap_final_markup_with_giuris(markup), disable_web_page_preview=True)
             return
         bot.reply_to(message, response)
         return
@@ -5886,7 +5891,7 @@ def all_messages(message):
                 markup = build_pdf_markup(main_code, concurrent_codes, flags) or build_article_markup(
                     get_article_keys_for_result(main_code, concurrent_codes)
                 )
-            send_long_message(chat_id, response, reply_markup=markup, disable_web_page_preview=True)
+            send_long_message(chat_id, response, reply_markup=wrap_final_markup_with_giuris(markup), disable_web_page_preview=True)
             return
         bot.reply_to(message, response)
         return
@@ -5911,6 +5916,7 @@ def setup_bot_commands():
         types.BotCommand("help", "Come usare il bot"),
         types.BotCommand("licenza", "Controllo uso licenza NCC"),
         types.BotCommand("stalli", "Controllo stalli RCT"),
+        types.BotCommand("aggiornamenti", "Apri aggiornamenti CdS/giurisprudenza"),
     ]
     try:
         bot.set_my_commands(commands)
