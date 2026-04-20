@@ -82,8 +82,7 @@ TARGHE_SHEET_NAME = os.getenv("TARGHE_SHEET_NAME", "NCC")
 
 ACCESS_DATA_FILE = os.getenv("ACCESS_DATA_FILE", "access_data.json")
 USER_STATES_FILE = os.getenv("USER_STATES_FILE", "user_states.json")
-
-UI_MODULE_PREFS = {}
+PLATE_CONTROL_HISTORY_FILE = os.getenv("PLATE_CONTROL_HISTORY_FILE", "plate_control_history.json")
 
 LICENSE_DISTANCE_ALERT_KM = float(os.getenv("LICENSE_DISTANCE_ALERT_KM", "250"))
 COMMON_PLACE_COORDS = {
@@ -1064,6 +1063,8 @@ access_data = {
     "profiles": {}
 }
 
+plate_control_history = {}
+
 
 def _now_iso():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -1230,13 +1231,349 @@ def load_access_data():
         save_access_data()
 
 
+
+
+def load_plate_control_history():
+    global plate_control_history
+    if not os.path.exists(PLATE_CONTROL_HISTORY_FILE):
+        plate_control_history = {}
+        return
+    try:
+        with open(PLATE_CONTROL_HISTORY_FILE, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+        plate_control_history = payload if isinstance(payload, dict) else {}
+    except Exception:
+        plate_control_history = {}
+
+
+def save_plate_control_history():
+    try:
+        tmp = PLATE_CONTROL_HISTORY_FILE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(plate_control_history, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, PLATE_CONTROL_HISTORY_FILE)
+    except Exception as e:
+        print(f"ERRORE save_plate_control_history: {e}")
+
+
+def get_plate_control_entries(plate):
+    normalized = normalize_plate_value(plate)
+    entries = plate_control_history.get(normalized, [])
+    return entries if isinstance(entries, list) else []
+
+
+def register_plate_control(plate, control_date, control_place, control_driver, operator_user=None):
+    normalized = normalize_plate_value(plate)
+    if not normalized:
+        return
+    entry = {
+        "date": (control_date or "").strip(),
+        "place": (control_place or "").strip(),
+        "driver": (control_driver or "").strip(),
+        "operator": str(operator_user or ""),
+        "recorded_at": _now_iso(),
+    }
+    plate_control_history.setdefault(normalized, []).append(entry)
+    save_plate_control_history()
+
+
+def format_plate_control_summary(plate, max_items=5):
+    entries = get_plate_control_entries(plate)
+    if not entries:
+        return ""
+    ordered = sorted(entries, key=lambda x: (str(x.get("date", "")), str(x.get("recorded_at", ""))), reverse=True)
+    lines = [f"Controlli registrati: {len(ordered)}"]
+    for item in ordered[:max_items]:
+        d = item.get("date", "") or "data non indicata"
+        p = item.get("place", "") or "luogo non indicato"
+        dr = item.get("driver", "") or "autista non indicato"
+        lines.append(f"- {d} | {p} | autista: {dr}")
+    return "\n".join(lines)
+
+
+def build_plate_found_markup(plate):
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    markup.add(types.InlineKeyboardButton("Registra controllo", callback_data=f"plate_control_add:{normalize_plate_value(plate)}"))
+    return markup
+
+
+def begin_plate_control_register_flow(chat_id, plate):
+    user_states[chat_id] = {
+        "mode": "plate_control_register",
+        "plate": normalize_plate_value(plate),
+        "step": "control_date",
+    }
+    save_user_states()
+
+
+def process_plate_control_register(chat_id, text):
+    state = get_state(chat_id) or {}
+    step = state.get("step")
+    value = (text or "").strip()
+
+    if step == "control_date":
+        state["control_date"] = value
+        state["step"] = "control_place"
+        save_user_states()
+        return "Inserisci il luogo del controllo (es. Porto di Civitavecchia / Terminal 12).", None
+
+    if step == "control_place":
+        state["control_place"] = value
+        state["step"] = "control_driver"
+        save_user_states()
+        return "Inserisci il nominativo dell’autista controllato.", None
+
+    if step == "control_driver":
+        state["control_driver"] = value
+        register_plate_control(
+            state.get("plate"),
+            state.get("control_date"),
+            state.get("control_place"),
+            state.get("control_driver"),
+            operator_user=chat_id,
+        )
+        summary = format_plate_control_summary(state.get("plate"))
+        plate = state.get("plate")
+        clear_case(chat_id)
+        msg = (
+            f"Controllo registrato per la targa {plate}.\n\n"
+            + (summary or "Nessun riepilogo disponibile.")
+        )
+        return msg, {"done": True, "plate": plate}
+
+    return "Procedura registrazione controllo non attiva.", None
+
 def is_admin(user_id):
     return user_id == ADMIN_ID
 
 
+
+
+def load_plate_control_history():
+    global plate_control_history
+    if not os.path.exists(PLATE_CONTROL_HISTORY_FILE):
+        plate_control_history = {}
+        return
+    try:
+        with open(PLATE_CONTROL_HISTORY_FILE, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+        plate_control_history = payload if isinstance(payload, dict) else {}
+    except Exception:
+        plate_control_history = {}
+
+
+def save_plate_control_history():
+    try:
+        tmp = PLATE_CONTROL_HISTORY_FILE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(plate_control_history, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, PLATE_CONTROL_HISTORY_FILE)
+    except Exception as e:
+        print(f"ERRORE save_plate_control_history: {e}")
+
+
+def get_plate_control_entries(plate):
+    normalized = normalize_plate_value(plate)
+    entries = plate_control_history.get(normalized, [])
+    return entries if isinstance(entries, list) else []
+
+
+def register_plate_control(plate, control_date, control_place, control_driver, operator_user=None):
+    normalized = normalize_plate_value(plate)
+    if not normalized:
+        return
+    entry = {
+        "date": (control_date or "").strip(),
+        "place": (control_place or "").strip(),
+        "driver": (control_driver or "").strip(),
+        "operator": str(operator_user or ""),
+        "recorded_at": _now_iso(),
+    }
+    plate_control_history.setdefault(normalized, []).append(entry)
+    save_plate_control_history()
+
+
+def format_plate_control_summary(plate, max_items=5):
+    entries = get_plate_control_entries(plate)
+    if not entries:
+        return ""
+    ordered = sorted(entries, key=lambda x: (str(x.get("date", "")), str(x.get("recorded_at", ""))), reverse=True)
+    lines = [f"Controlli registrati: {len(ordered)}"]
+    for item in ordered[:max_items]:
+        d = item.get("date", "") or "data non indicata"
+        p = item.get("place", "") or "luogo non indicato"
+        dr = item.get("driver", "") or "autista non indicato"
+        lines.append(f"- {d} | {p} | autista: {dr}")
+    return "\n".join(lines)
+
+
+def build_plate_found_markup(plate):
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    markup.add(types.InlineKeyboardButton("Registra controllo", callback_data=f"plate_control_add:{normalize_plate_value(plate)}"))
+    return markup
+
+
+def begin_plate_control_register_flow(chat_id, plate):
+    user_states[chat_id] = {
+        "mode": "plate_control_register",
+        "plate": normalize_plate_value(plate),
+        "step": "control_date",
+    }
+    save_user_states()
+
+
+def process_plate_control_register(chat_id, text):
+    state = get_state(chat_id) or {}
+    step = state.get("step")
+    value = (text or "").strip()
+
+    if step == "control_date":
+        state["control_date"] = value
+        state["step"] = "control_place"
+        save_user_states()
+        return "Inserisci il luogo del controllo (es. Porto di Civitavecchia / Terminal 12).", None
+
+    if step == "control_place":
+        state["control_place"] = value
+        state["step"] = "control_driver"
+        save_user_states()
+        return "Inserisci il nominativo dell’autista controllato.", None
+
+    if step == "control_driver":
+        state["control_driver"] = value
+        register_plate_control(
+            state.get("plate"),
+            state.get("control_date"),
+            state.get("control_place"),
+            state.get("control_driver"),
+            operator_user=chat_id,
+        )
+        summary = format_plate_control_summary(state.get("plate"))
+        plate = state.get("plate")
+        clear_case(chat_id)
+        msg = (
+            f"Controllo registrato per la targa {plate}.\n\n"
+            + (summary or "Nessun riepilogo disponibile.")
+        )
+        return msg, {"done": True, "plate": plate}
+
+    return "Procedura registrazione controllo non attiva.", None
+
 def is_authorized(user_id):
     return user_id in access_data["authorized_users"]
 
+
+
+
+def load_plate_control_history():
+    global plate_control_history
+    if not os.path.exists(PLATE_CONTROL_HISTORY_FILE):
+        plate_control_history = {}
+        return
+    try:
+        with open(PLATE_CONTROL_HISTORY_FILE, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+        plate_control_history = payload if isinstance(payload, dict) else {}
+    except Exception:
+        plate_control_history = {}
+
+
+def save_plate_control_history():
+    try:
+        tmp = PLATE_CONTROL_HISTORY_FILE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(plate_control_history, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, PLATE_CONTROL_HISTORY_FILE)
+    except Exception as e:
+        print(f"ERRORE save_plate_control_history: {e}")
+
+
+def get_plate_control_entries(plate):
+    normalized = normalize_plate_value(plate)
+    entries = plate_control_history.get(normalized, [])
+    return entries if isinstance(entries, list) else []
+
+
+def register_plate_control(plate, control_date, control_place, control_driver, operator_user=None):
+    normalized = normalize_plate_value(plate)
+    if not normalized:
+        return
+    entry = {
+        "date": (control_date or "").strip(),
+        "place": (control_place or "").strip(),
+        "driver": (control_driver or "").strip(),
+        "operator": str(operator_user or ""),
+        "recorded_at": _now_iso(),
+    }
+    plate_control_history.setdefault(normalized, []).append(entry)
+    save_plate_control_history()
+
+
+def format_plate_control_summary(plate, max_items=5):
+    entries = get_plate_control_entries(plate)
+    if not entries:
+        return ""
+    ordered = sorted(entries, key=lambda x: (str(x.get("date", "")), str(x.get("recorded_at", ""))), reverse=True)
+    lines = [f"Controlli registrati: {len(ordered)}"]
+    for item in ordered[:max_items]:
+        d = item.get("date", "") or "data non indicata"
+        p = item.get("place", "") or "luogo non indicato"
+        dr = item.get("driver", "") or "autista non indicato"
+        lines.append(f"- {d} | {p} | autista: {dr}")
+    return "\n".join(lines)
+
+
+def build_plate_found_markup(plate):
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    markup.add(types.InlineKeyboardButton("Registra controllo", callback_data=f"plate_control_add:{normalize_plate_value(plate)}"))
+    return markup
+
+
+def begin_plate_control_register_flow(chat_id, plate):
+    user_states[chat_id] = {
+        "mode": "plate_control_register",
+        "plate": normalize_plate_value(plate),
+        "step": "control_date",
+    }
+    save_user_states()
+
+
+def process_plate_control_register(chat_id, text):
+    state = get_state(chat_id) or {}
+    step = state.get("step")
+    value = (text or "").strip()
+
+    if step == "control_date":
+        state["control_date"] = value
+        state["step"] = "control_place"
+        save_user_states()
+        return "Inserisci il luogo del controllo (es. Porto di Civitavecchia / Terminal 12).", None
+
+    if step == "control_place":
+        state["control_place"] = value
+        state["step"] = "control_driver"
+        save_user_states()
+        return "Inserisci il nominativo dell’autista controllato.", None
+
+    if step == "control_driver":
+        state["control_driver"] = value
+        register_plate_control(
+            state.get("plate"),
+            state.get("control_date"),
+            state.get("control_place"),
+            state.get("control_driver"),
+            operator_user=chat_id,
+        )
+        summary = format_plate_control_summary(state.get("plate"))
+        plate = state.get("plate")
+        clear_case(chat_id)
+        msg = (
+            f"Controllo registrato per la targa {plate}.\n\n"
+            + (summary or "Nessun riepilogo disponibile.")
+        )
+        return msg, {"done": True, "plate": plate}
+
+    return "Procedura registrazione controllo non attiva.", None
 
 def is_pending(user_id):
     return str(user_id) in access_data["pending_users"]
@@ -1534,41 +1871,6 @@ def get_state(chat_id):
     return user_states.get(chat_id)
 
 
-def set_ui_module(chat_id, module_name):
-    UI_MODULE_PREFS[int(chat_id)] = (module_name or "").strip().lower()
-
-
-def get_ui_module(chat_id):
-    return UI_MODULE_PREFS.get(int(chat_id))
-
-
-def build_module_selector_menu():
-    kb = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    kb.add(
-        types.KeyboardButton("🚕 Modulo TAXI"),
-        types.KeyboardButton("🚘 Modulo NCC")
-    )
-    kb.add(types.KeyboardButton("Aggiornamenti CdS / giurisprudenza"))
-    return kb
-
-
-def build_taxi_menu():
-    kb = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    kb.add(
-        types.KeyboardButton("Controllo stalli RCT"),
-        types.KeyboardButton("Controllo fiscale GDF")
-    )
-    kb.add(
-        types.KeyboardButton("Aggiornamenti CdS / giurisprudenza"),
-        types.KeyboardButton("Torna scelta modulo")
-    )
-    return kb
-
-
-def build_ncc_menu():
-    return build_main_menu()
-
-
 def normalize_article_key(article_key):
     if not article_key:
         return None
@@ -1732,11 +2034,7 @@ def build_main_menu():
     kb.add(
         types.KeyboardButton("Controllo uso licenza NCC"),
         types.KeyboardButton("Controllo stalli RCT"),
-        types.KeyboardButton("Controllo fiscale GDF")
-    )
-    kb.add(
-        types.KeyboardButton("Aggiornamenti CdS / giurisprudenza"),
-        types.KeyboardButton("Torna scelta modulo")
+        types.KeyboardButton("Aggiornamenti CdS / giurisprudenza")
     )
     kb.add(
         types.KeyboardButton("Casi comuni porto"),
@@ -2797,6 +3095,10 @@ def lookup_plate_in_registry(plate_text):
         if note:
             lines.extend(["", f"Note archivio: {note}"])
 
+        history_summary = format_plate_control_summary(plate)
+        if history_summary:
+            lines.extend(["", history_summary])
+
         return {
             "ok": True,
             "found": True,
@@ -2977,238 +3279,6 @@ def process_stalli_flow(chat_id, text):
 
     return "Procedura stalli non attiva. Usa /stalli o il pulsante dedicato.", None
 
-
-
-
-def begin_fiscal_flow(chat_id, service_type=None):
-    current = get_state(chat_id) or {}
-    module = service_type or get_ui_module(chat_id) or "ncc"
-    user_states[chat_id] = {
-        "mode": "fiscal_check",
-        "step": "payment_confirmed",
-        "service_type": module,
-        "previous_ui_module": module,
-    }
-    save_user_states()
-
-
-def _fiscal_next_prompt(state):
-    step = state.get("step")
-    prompts = {
-        "payment_confirmed": "Ti sei accertato del pagamento del corrispettivo? (si/no)",
-        "doc_emitted": "È stata emessa ricevuta / documento fiscale? (si/no)",
-        "pos_present": "Il POS era presente? (si/no)",
-        "electronic_requested": "È stato richiesto il pagamento elettronico? (si/no)",
-        "electronic_refused": "Il pagamento elettronico è stato rifiutato? (si/no)",
-        "pos_holder_same": "Il POS risultava riferibile al conducente / soggetto controllato? (si/no)",
-        "ncc_abusive": "Per il ramo NCC: si tratta di abusivo totale già accertato? (si/no)",
-    }
-    return prompts.get(step)
-
-
-def _bool_text(v):
-    return "SI" if v else "NO"
-
-
-def _build_fiscal_payload(state):
-    service_type = (state.get("service_type") or "ncc").upper()
-    payment_confirmed = bool(state.get("payment_confirmed"))
-    doc_emitted = bool(state.get("doc_emitted"))
-    pos_present = bool(state.get("pos_present"))
-    electronic_requested = bool(state.get("electronic_requested"))
-    electronic_refused = bool(state.get("electronic_refused"))
-    pos_holder_same = state.get("pos_holder_same")
-    ncc_abusive = bool(state.get("ncc_abusive"))
-
-    lines = [
-        "CONTROLLO FISCALE GDF",
-        "",
-        f"- Modulo operativo: {service_type}",
-        f"- Pagamento del corrispettivo accertato: {_bool_text(payment_confirmed)}",
-        f"- Documento fiscale emesso: {_bool_text(doc_emitted)}",
-        f"- POS presente: {_bool_text(pos_present)}",
-        f"- Pagamento elettronico richiesto: {_bool_text(electronic_requested)}",
-        f"- Pagamento elettronico rifiutato: {_bool_text(electronic_refused)}",
-    ]
-    if pos_holder_same is not None:
-        lines.append(f"- POS riferibile al soggetto controllato: {_bool_text(pos_holder_same)}")
-    if service_type == "NCC":
-        lines.append(f"- Abusivo totale già accertato: {_bool_text(ncc_abusive)}")
-
-    warnings = []
-    cds_main = None
-    fiscal_verbal = []
-    communications = []
-
-    if not payment_confirmed:
-        lines.extend(["", "Esito: senza accertamento del pagamento il modulo fiscale non consente la contestazione immediata sui corrispettivi."])
-        payload = {
-            "quick": "\n".join(lines),
-            "accessori": "Nessuna contestazione fiscale immediata sui corrispettivi senza pagamento accertato.",
-            "verbali": [],
-            "comunicazioni": "Valutare eventuali approfondimenti ispettivi successivi.",
-            "articoli": "Per la parte fiscale usare il PVC GDF solo dopo accertamento del corrispettivo.",
-            "main_code": None,
-            "concurrent_codes": [],
-            "procedural_flags": {},
-        }
-        return payload
-
-    if service_type == "NCC" and ncc_abusive:
-        cds_main = "085-02"
-        warnings.append("Per il servizio NCC abusivo totale resta fermo anche il ramo CdS principale ex art. 85, comma 4.")
-
-    if not doc_emitted:
-        fiscal_verbal.append(
-            "Accertato il pagamento del corrispettivo per la prestazione di trasporto, non risultava emessa documentazione fiscale; "
-            "valutare la contestazione fiscale ai sensi dell'art. 6 del D.Lgs. 471/1997 mediante PVC GDF."
-        )
-        warnings.append("Mancata emissione di documentazione fiscale a fronte del pagamento accertato.")
-
-    if pos_present and electronic_requested and electronic_refused:
-        fiscal_verbal.append(
-            "È stato richiesto il pagamento elettronico ma il soggetto lo ha rifiutato; valutare la contestazione specifica "
-            "sull'obbligo di accettazione dei pagamenti elettronici."
-        )
-        warnings.append("Rifiuto del pagamento elettronico con POS presente.")
-    elif not pos_present and electronic_requested:
-        fiscal_verbal.append(
-            "È stato richiesto il pagamento elettronico ma il POS non era disponibile; valutare la contestazione specifica "
-            "sull'obbligo di accettazione dei pagamenti elettronici."
-        )
-        warnings.append("POS assente a fronte di richiesta di pagamento elettronico.")
-
-    if pos_present and pos_holder_same is False:
-        warnings.append("POS presente ma riferibile a soggetto diverso dal controllato: possibile indice di interposizione o anomalia fiscale.")
-        communications.append("- Annotare estremi del dispositivo POS e del soggetto cui risulta riferibile.")
-
-    if cds_main:
-        lines.extend(["", "Esito CdS correlato: art. 85, comma 4, CdS (abusivo totale)."])
-    if not doc_emitted:
-        lines.append("Esito fiscale: omessa documentazione del corrispettivo accertato.")
-    if (pos_present and electronic_requested and electronic_refused) or ((not pos_present) and electronic_requested):
-        lines.append("Esito pagamenti elettronici: valutare la contestazione specifica sul POS.")
-    if warnings:
-        lines.extend(["", "ALERT OPERATIVI:"])
-        for w in warnings:
-            lines.append(f"- {w}")
-
-    articles_text = []
-    if cds_main:
-        articles_text.append(format_articolo("art85"))
-    articles_text.append(
-        "Riferimento fiscale operativo: art. 6 D.Lgs. 471/1997 per l'omessa documentazione dei corrispettivi, "
-        "da contestare con verbale/PVC fiscale GDF quando il pagamento è accertato."
-    )
-    articles_text.append(
-        "Riferimento pagamenti elettronici: obbligo di accettazione dei pagamenti elettronici, con contestazione specifica "
-        "se il pagamento elettronico richiesto viene rifiutato."
-    )
-
-    payload = build_quick_payload_from_codes(cds_main, []) if cds_main else {
-        "quick": "",
-        "accessori": "Nessuna sanzione accessoria CdS automatica in questo modulo.",
-        "verbali": [],
-        "comunicazioni": "",
-        "articoli": "",
-    }
-    existing_verbali = payload.get("verbali", [])
-    if fiscal_verbal:
-        existing_verbali.extend(fiscal_verbal)
-    payload["verbali"] = existing_verbali
-    payload["quick"] = "\n".join(lines)
-    payload["comunicazioni"] = "\n".join(communications) if communications else "Valutare inoltro/annotazione fiscale secondo procedura GDF."
-    payload["articoli"] = "\n\n".join(articles_text)
-    payload["main_code"] = cds_main
-    payload["concurrent_codes"] = []
-    payload["procedural_flags"] = {}
-    return payload
-
-
-def process_fiscal_flow(chat_id, text):
-    state = get_state(chat_id) or {}
-    step = state.get("step")
-    value = (text or "").strip().lower()
-
-    if step in {"payment_confirmed", "doc_emitted", "pos_present", "electronic_requested", "electronic_refused", "pos_holder_same", "ncc_abusive"}:
-        if value not in {"si", "sì", "no"}:
-            return "Risposta non valida. Rispondi si oppure no.", None
-        state[step] = value in {"si", "sì"}
-
-        if step == "payment_confirmed":
-            if not state["payment_confirmed"]:
-                payload = _build_fiscal_payload(state)
-                state["last_result_payload"] = payload
-                state["last_result_main_code"] = payload.get("main_code")
-                state["last_result_concurrent"] = payload.get("concurrent_codes", [])
-                state["last_result_flags"] = payload.get("procedural_flags", {})
-                save_user_states()
-                return payload["quick"], payload
-            state["step"] = "doc_emitted"
-            save_user_states()
-            return _fiscal_next_prompt(state), None
-
-        if step == "doc_emitted":
-            state["step"] = "pos_present"
-            save_user_states()
-            return _fiscal_next_prompt(state), None
-
-        if step == "pos_present":
-            if state["pos_present"]:
-                state["step"] = "electronic_requested"
-            else:
-                state["electronic_requested"] = False
-                state["electronic_refused"] = False
-                if (state.get("service_type") or "ncc").lower() == "ncc":
-                    state["step"] = "ncc_abusive"
-                else:
-                    payload = _build_fiscal_payload(state)
-                    state["last_result_payload"] = payload
-                    state["last_result_main_code"] = payload.get("main_code")
-                    state["last_result_concurrent"] = payload.get("concurrent_codes", [])
-                    state["last_result_flags"] = payload.get("procedural_flags", {})
-                    save_user_states()
-                    return payload["quick"], payload
-            save_user_states()
-            return _fiscal_next_prompt(state), None
-
-        if step == "electronic_requested":
-            if state["electronic_requested"]:
-                state["step"] = "electronic_refused"
-            else:
-                state["electronic_refused"] = False
-                state["step"] = "pos_holder_same"
-            save_user_states()
-            return _fiscal_next_prompt(state), None
-
-        if step == "electronic_refused":
-            state["step"] = "pos_holder_same"
-            save_user_states()
-            return _fiscal_next_prompt(state), None
-
-        if step == "pos_holder_same":
-            if (state.get("service_type") or "ncc").lower() == "ncc":
-                state["step"] = "ncc_abusive"
-                save_user_states()
-                return _fiscal_next_prompt(state), None
-            payload = _build_fiscal_payload(state)
-            state["last_result_payload"] = payload
-            state["last_result_main_code"] = payload.get("main_code")
-            state["last_result_concurrent"] = payload.get("concurrent_codes", [])
-            state["last_result_flags"] = payload.get("procedural_flags", {})
-            save_user_states()
-            return payload["quick"], payload
-
-        if step == "ncc_abusive":
-            payload = _build_fiscal_payload(state)
-            state["last_result_payload"] = payload
-            state["last_result_main_code"] = payload.get("main_code")
-            state["last_result_concurrent"] = payload.get("concurrent_codes", [])
-            state["last_result_flags"] = payload.get("procedural_flags", {})
-            save_user_states()
-            return payload["quick"], payload
-
-    return "Procedura fiscale non attiva. Usa /fiscale o il pulsante dedicato.", None
 
 
 def begin_license_use_flow(chat_id):
@@ -5332,56 +5402,9 @@ def start_command(message):
 
     bot.send_message(
         message.chat.id,
-        "Seleziona il modulo operativo da utilizzare.",
-        reply_markup=build_module_selector_menu()
+        authorized_start_text(uid),
+        reply_markup=build_main_menu()
     )
-
-
-@bot.message_handler(commands=['menu'])
-def menu_command(message):
-    if not ensure_authorized(message):
-        return
-    bot.send_message(message.chat.id, "Seleziona il modulo operativo.", reply_markup=build_module_selector_menu())
-
-
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "🚘 Modulo NCC")
-def select_ncc_module(message):
-    if not ensure_authorized(message):
-        return
-    set_ui_module(message.chat.id, "ncc")
-    bot.send_message(message.chat.id, "Modulo NCC attivo.", reply_markup=build_ncc_menu())
-
-
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "🚕 Modulo TAXI")
-def select_taxi_module(message):
-    if not ensure_authorized(message):
-        return
-    set_ui_module(message.chat.id, "taxi")
-    bot.send_message(message.chat.id, "Modulo TAXI attivo.", reply_markup=build_taxi_menu())
-
-
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "Torna scelta modulo")
-def back_to_module_choice(message):
-    if not ensure_authorized(message):
-        return
-    bot.send_message(message.chat.id, "Seleziona il modulo operativo.", reply_markup=build_module_selector_menu())
-
-
-@bot.message_handler(commands=['fiscale'])
-def fiscale_command(message):
-    if not ensure_authorized(message):
-        return
-    begin_fiscal_flow(message.chat.id, get_ui_module(message.chat.id) or "ncc")
-    bot.reply_to(
-        message,
-        "Controllo fiscale GDF. Procedura da usare quando il controllo consente di verificare anche corrispettivi, documento fiscale e pagamenti elettronici.\n\n"
-        + _fiscal_next_prompt(get_state(message.chat.id) or {}),
-    )
-
-
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "Controllo fiscale GDF")
-def fiscale_button(message):
-    fiscale_command(message)
 
 @bot.message_handler(commands=['help'])
 def help_command(message):
@@ -5458,7 +5481,10 @@ def targa_command(message):
             )
             return
 
-        bot.reply_to(message, result.get("message", "Errore nella ricerca targa."))
+        if result.get("ok") and result.get("found"):
+            bot.reply_to(message, result.get("message", "Targa trovata."), reply_markup=build_plate_found_markup(result.get("plate", plate)))
+        else:
+            bot.reply_to(message, result.get("message", "Errore nella ricerca targa."))
         return
 
     begin_plate_lookup_flow(message.chat.id)
@@ -5466,7 +5492,7 @@ def targa_command(message):
         message,
         "Inserisci la targa del mezzo da verificare.\n\n"
         "Esempio: AB123CD\n"
-        "Il bot controllerà l'archivio Excel aggiornato nel repository e ti dirà se il mezzo è adibito o meno al servizio NCC."
+        "Il bot controllerà l'archivio Excel aggiornato nel repository, mostrerà anche l'eventuale colonna note e ti permetterà di registrare i controlli già eseguiti sul mezzo."
     )
 
 
@@ -5736,7 +5762,7 @@ def menu_targa_button(message):
         message,
         "Inserisci la targa del mezzo da verificare.\n\n"
         "Esempio: AB123CD\n"
-        "Il bot controllerà l'archivio Excel aggiornato nel repository e ti dirà se il mezzo è adibito o meno al servizio NCC."
+        "Il bot controllerà l'archivio Excel aggiornato nel repository, mostrerà anche l'eventuale colonna note e ti permetterà di registrare i controlli già eseguiti sul mezzo."
     )
 
 @bot.message_handler(func=lambda m: (m.text or "").strip() == "Reset")
@@ -6202,21 +6228,6 @@ def answer_callback(call):
 def all_messages(message):
     text = (message.text or "").strip()
 
-
-    if text == "🚘 Modulo NCC":
-        set_ui_module(chat_id, "ncc")
-        bot.send_message(chat_id, "Modulo NCC attivo.", reply_markup=build_ncc_menu())
-        return
-
-    if text == "🚕 Modulo TAXI":
-        set_ui_module(chat_id, "taxi")
-        bot.send_message(chat_id, "Modulo TAXI attivo.", reply_markup=build_taxi_menu())
-        return
-
-    if text == "Torna scelta modulo":
-        bot.send_message(chat_id, "Seleziona il modulo operativo.", reply_markup=build_module_selector_menu())
-        return
-
     if text == "Aggiornamenti CdS / giurisprudenza":
         if not ensure_authorized(message):
             return
@@ -6240,13 +6251,7 @@ def all_messages(message):
     state = get_state(chat_id)
 
     if not state:
-        module = get_ui_module(chat_id)
-        if module == "taxi":
-            bot.reply_to(message, "Modulo TAXI attivo. Usa il menu dedicato oppure /stalli, /fiscale, /aggiornamenti o /menu.")
-        elif module == "ncc":
-            bot.reply_to(message, "Modulo NCC attivo. Usa il menu dedicato oppure /controllo, /caso, /targa, /stalli, /licenza, /fiscale, /aggiornamenti o /menu.")
-        else:
-            bot.reply_to(message, "Seleziona prima il modulo operativo con /start o /menu.")
+        bot.reply_to(message, "Usa /controllo per la checklist documentale guidata, /caso per il testo libero, /targa per verificare una targa, oppure uno scenario guidato tra /porto /aeroporto /stazione /hotel /navetta.")
         return
 
     mode = state.get("mode")
@@ -6261,6 +6266,14 @@ def all_messages(message):
         reply_with_article_buttons(message, response)
         return
 
+    if mode == "plate_control_register":
+        response, payload = process_plate_control_register(chat_id, text)
+        if payload and payload.get("done"):
+            bot.reply_to(message, response, reply_markup=build_plate_found_markup(payload.get("plate")))
+        else:
+            bot.reply_to(message, response)
+        return
+
     if mode == "plate_lookup":
         result = process_plate_lookup(chat_id, text)
 
@@ -6271,6 +6284,8 @@ def all_messages(message):
                 "Se vuoi, premi il pulsante qui sotto per inviare la richiesta di censimento.",
                 reply_markup=build_plate_not_found_markup(result.get("plate", text))
             )
+        elif result.get("ok") and result.get("found"):
+            bot.reply_to(message, result.get("message", "Targa trovata."), reply_markup=build_plate_found_markup(result.get("plate", text)))
         else:
             bot.reply_to(message, result.get("message", "Errore nella ricerca targa."))
         return
@@ -6350,23 +6365,6 @@ def all_messages(message):
         bot.reply_to(message, response)
         return
 
-    if mode == "fiscal_check":
-        response, payload = process_fiscal_flow(chat_id, text)
-        if payload:
-            markup = build_final_result_markup(payload)
-            if not markup:
-                state_after = get_state(chat_id) or {}
-                main_code = state_after.get("last_result_main_code")
-                concurrent_codes = state_after.get("last_result_concurrent", [])
-                flags = state_after.get("last_result_flags", {})
-                markup = build_pdf_markup(main_code, concurrent_codes, flags) or build_article_markup(
-                    get_article_keys_for_result(main_code, concurrent_codes)
-                )
-            send_long_message(chat_id, response, reply_markup=wrap_final_markup_with_giuris(markup), disable_web_page_preview=True)
-            return
-        bot.reply_to(message, response)
-        return
-
     if mode == "stalli_check":
         response, payload = process_stalli_flow(chat_id, text)
         if payload:
@@ -6405,8 +6403,6 @@ def setup_bot_commands():
         types.BotCommand("licenza", "Controllo uso licenza NCC"),
         types.BotCommand("stalli", "Controllo stalli RCT"),
         types.BotCommand("aggiornamenti", "Apri aggiornamenti CdS/giurisprudenza"),
-        types.BotCommand("fiscale", "Controllo fiscale GDF"),
-        types.BotCommand("menu", "Scelta modulo Taxi/NCC"),
     ]
     try:
         bot.set_my_commands(commands)
