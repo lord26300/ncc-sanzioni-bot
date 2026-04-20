@@ -3095,6 +3095,16 @@ def lookup_plate_in_registry(plate_text):
         if note:
             lines.extend(["", f"Note archivio: {note}"])
 
+        comune_licenza_val = ""
+        for key in ("comune licenza", "comune_licenza", "comune lic.", "licenza", "ente rilasciante", "comune autorizzazione"):
+            if key in normalized:
+                comune_licenza_val = str(normalized.get(key, "") or "").strip()
+                if comune_licenza_val:
+                    break
+        distance_alert = build_license_distance_alert_from_place(comune_licenza_val)
+        if distance_alert:
+            lines.extend(["", distance_alert])
+
         history_summary = format_plate_control_summary(plate)
         if history_summary:
             lines.extend(["", history_summary])
@@ -5492,7 +5502,7 @@ def targa_command(message):
         message,
         "Inserisci la targa del mezzo da verificare.\n\n"
         "Esempio: AB123CD\n"
-        "Il bot controllerà l'archivio Excel aggiornato nel repository, mostrerà anche l'eventuale colonna note e ti permetterà di registrare i controlli già eseguiti sul mezzo."
+        "Il bot controllerà l'archivio Excel aggiornato nel repository, mostrerà anche l'eventuale colonna note, lo storico dei controlli registrati sul mezzo e un alert distanza se il comune licenza è molto lontano da Civitavecchia."
     )
 
 
@@ -5762,7 +5772,7 @@ def menu_targa_button(message):
         message,
         "Inserisci la targa del mezzo da verificare.\n\n"
         "Esempio: AB123CD\n"
-        "Il bot controllerà l'archivio Excel aggiornato nel repository, mostrerà anche l'eventuale colonna note e ti permetterà di registrare i controlli già eseguiti sul mezzo."
+        "Il bot controllerà l'archivio Excel aggiornato nel repository, mostrerà anche l'eventuale colonna note, lo storico dei controlli registrati sul mezzo e un alert distanza se il comune licenza è molto lontano da Civitavecchia."
     )
 
 @bot.message_handler(func=lambda m: (m.text or "").strip() == "Reset")
