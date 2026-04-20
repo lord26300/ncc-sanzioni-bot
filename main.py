@@ -2740,7 +2740,7 @@ def begin_stalli_flow(chat_id):
 def _stalli_next_prompt(state):
     prompts = {
         "vehicle_type": "Tipo veicolo? (rispondi: NCC oppure TAXI)",
-        "stall_type": "Dove sostava il veicolo? (rispondi: stallo ncc / stallo taxi / fuori stalli)",
+        "stall_type": "Dove sostava il veicolo? (rispondi: stallo ncc / stallo taxi / stallo bus / fuori stalli)",
         "booked_client": "Era in attesa di cliente già prenotato o chiamata già acquisita? (si/no)",
         "customer_acquisition": "Emergono acquisizione clientela sul posto o attesa generica di utenti? (si/no)",
         "hindrance": "La sosta creava intralcio, occupazione bordo marciapiede o interferenza con i flussi del terminal? (si/no)",
@@ -2760,6 +2760,8 @@ def _build_stalli_result(state):
     alerts = ["Nel terminal crociere gli stalli assegnati sono vincolanti e vanno rispettati secondo segnaletica e regolamentazione interna RCT."]
     if stall_type == "FUORI STALLI":
         alerts.append("Veicolo fuori dagli stalli assegnati.")
+    elif stall_type == "STALLO BUS":
+        alerts.append(f"Veicolo {vehicle_type} fermo in spazio riservato ai bus.")
     elif not regular_stall:
         alerts.append(f"Veicolo {vehicle_type} fermo in stallo non destinato a quel servizio.")
     if customer_acquisition:
@@ -2804,12 +2806,23 @@ def _build_stalli_result(state):
         for item in alerts:
             lines.append(f"- {item}")
 
-    payload = {
-        "main_code": main_code,
-        "concurrent_codes": [],
-        "procedural_flags": {"segnalazioni": ["Comune / ente rilasciante"] if main_code == "085-05" else []},
-    }
+    if main_code:
+        payload = build_quick_payload_from_codes(main_code, [])
+    else:
+        payload = {
+            "quick": verdict,
+            "accessori": "Nessuna sanzione accessoria indicata.",
+            "verbali": [],
+            "comunicazioni": "Nessuna comunicazione automatica suggerita.",
+            "articoli": "Nessun articolo ulteriore selezionato.",
+        }
+
+    payload["main_code"] = main_code
+    payload["concurrent_codes"] = []
+    payload["procedural_flags"] = {"segnalazioni": ["Comune / ente rilasciante"] if main_code == "085-05" else []}
+    payload["quick"] = "\n".join(lines)
     return "\n".join(lines), payload
+
 
 
 def process_stalli_flow(chat_id, text):
@@ -2831,11 +2844,13 @@ def process_stalli_flow(chat_id, text):
             "ncc": "STALLO NCC",
             "stallo taxi": "STALLO TAXI",
             "taxi": "STALLO TAXI",
+            "stallo bus": "STALLO BUS",
+            "bus": "STALLO BUS",
             "fuori stalli": "FUORI STALLI",
             "fuori": "FUORI STALLI",
         }
         if value not in mapping:
-            return "Risposta non valida. Scrivi: stallo ncc / stallo taxi / fuori stalli.", None
+            return "Risposta non valida. Scrivi: stallo ncc / stallo taxi / stallo bus / fuori stalli.", None
         state["stall_type"] = mapping[value]
         state["step"] = "booked_client"
         save_user_states()
@@ -5534,6 +5549,23 @@ def control_answer_callback(call):
             pass
         bot.send_message(chat_id, f"Errore interno nel flusso risposte: {e}")
 
+
+@bot.callback_query_handler(func=lambda call: str(call.data) == "giuris_checked")
+def giuris_checked_callback(call):
+    try:
+        bot.answer_callback_query(call.id, "Verifica aggiornata registrata.")
+    except Exception:
+        pass
+    try:
+        bot.send_message(
+            call.message.chat.id,
+            "Controllo aggiornamenti registrato. Puoi proseguire con l'istruttoria e il verbale.",
+            disable_web_page_preview=True,
+        )
+    except Exception:
+        pass
+
+
 @bot.callback_query_handler(func=lambda call: str(call.data).startswith("final:"))
 def final_result_callback(call):
     chat_id = call.message.chat.id
@@ -5763,6 +5795,17 @@ def answer_callback(call):
 def all_messages(message):
     text = (message.text or "").strip()
 
+    if text == "Aggiornamenti CdS / giurisprudenza":
+        if not ensure_authorized(message):
+            return
+        bot.reply_to(
+            message,
+            "Prima di redigere verbali su NCC, taxi o casi sensibili, verifica eventuali aggiornamenti recenti di Cassazione, tribunali o prassi operative sul canale Circolazione Stradale.",
+            reply_markup=build_giurisprudenza_check_markup(),
+            disable_web_page_preview=True,
+        )
+        return
+
     # I comandi /... devono essere gestiti solo dai rispettivi handler dedicati,
     # senza interrompere il flusso del caso guidato o del controllo documentale.
     if text.startswith("/"):
@@ -5917,6 +5960,7 @@ def setup_bot_commands():
         types.BotCommand("licenza", "Controllo uso licenza NCC"),
         types.BotCommand("stalli", "Controllo stalli RCT"),
         types.BotCommand("aggiornamenti", "Apri aggiornamenti CdS/giurisprudenza"),
+        types.BotCommand("aggiornamenti", "Apri aggiornamenti CdS/giurisprudenza"),
     ]
     try:
         bot.set_my_commands(commands)
@@ -5949,3 +5993,21 @@ if __name__ == "__main__":
     threading.Thread(target=run_bot, daemon=True).start()
     port = int(os.getenv("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
+
+def build_giurisprudenza_check_markup():
+    kb = types.InlineKeyboardMarkup(row_width=1)
+    kb.add(types.InlineKeyboardButton("Apri Circolazione Stradale", url=GIURIS_CHANNEL_URL))
+    kb.add(types.InlineKeyboardButton("Ho verificato gli aggiornamenti", callback_data="giuris_checked"))
+    return kb
+
+
+def wrap_final_markup_with_giuris(markup=None):
+    kb = types.InlineKeyboardMarkup(row_width=2)
+    kb.add(types.InlineKeyboardButton("Apri Circolazione Stradale", url=GIURIS_CHANNEL_URL))
+    kb.add(types.InlineKeyboardButton("Ho verificato gli aggiornamenti", callback_data="giuris_checked"))
+    if markup and getattr(markup, "keyboard", None):
+        for row in markup.keyboard:
+            kb.row(*row)
+    return kb
+
+
