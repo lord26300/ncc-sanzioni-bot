@@ -682,6 +682,40 @@ VIOLATIONS["158-27"] = {
     )
 }
 
+VIOLATIONS["193-02"] = {
+    "title": "Circolazione senza copertura assicurativa",
+    "article": "CdS art. 193 c. 2",
+    "pmr": "€ 866,00",
+    "reduced_30": "Verificare casi di legge",
+    "over_60": "€ 1.732,00",
+    "edictal": "da € 866,00 a € 3.464,00",
+    "accessories": [
+        "Sequestro amministrativo del veicolo ai fini della confisca"
+    ],
+    "verbal_text": (
+        "Circolava con il veicolo sopra indicato privo della prescritta copertura assicurativa per la responsabilità civile verso terzi. "
+        "Dagli accertamenti eseguiti la copertura risultava assente o inefficace. "
+        "Il veicolo è sottoposto a sequestro amministrativo ai fini della confisca, come da separato verbale."
+    ),
+    "notes": [
+        "Usare questa voce solo quando l'assenza o inefficacia della copertura è accertata; se il certificato non è esibito ma la polizza esiste, usare il solo art. 180.",
+        "Verificare eventuali casi di riduzione e restituzione del veicolo secondo la disciplina vigente e il prontuario di reparto.",
+        "Predisporre gli atti accessori di sequestro e le annotazioni conseguenti."
+    ],
+    "fields_to_fill": [
+        "modalità dell'accertamento della mancanza di copertura",
+        "estremi del veicolo",
+        "generalità del custode",
+        "luogo di custodia del veicolo"
+    ],
+    "short_ready_text": (
+        "Violazione accertata: circolazione senza copertura assicurativa. "
+        "Norma: art. 193, comma 2, CdS. "
+        "Sanzione da € 866,00 a € 3.464,00; accessoria: sequestro amministrativo del veicolo ai fini della confisca."
+    )
+}
+
+
 NCC_DB = {
     "norme": {
         "L21_3_11": {
@@ -985,6 +1019,19 @@ ARTICOLI_DB = {
             "- quando invece crea impedimento ad altri veicoli si valuta il diverso sottocaso di prontuario relativo alla sosta in posizione di impedimento;\n"
             "- se l'NCC usa la posizione fuori stallo per acquisire clientela o operare fuori regola, il bot orienta verso il ramo sostanziale dell'art. 85 CdS.\n\n"
             "Per la sosta negli spazi riservati a taxi o autobus usare il prontuario 158-27."
+        ),
+        "link": "https://www.normattiva.it/"
+    },
+    "art193": {
+        "titolo": "CdS art. 193",
+        "testo": (
+            "Art. 193 CdS – Obbligo dell'assicurazione di responsabilità civile.\n\n"
+            "Uso operativo nel bot:\n"
+            "- se la copertura assicurativa esiste ma il certificato/prova documentale non è esibito, si resta nel ramo art. 180;\n"
+            "- se dagli accertamenti risulta l'assenza o l'inefficacia della copertura, si applica il ramo sostanziale dell'art. 193 CdS;\n"
+            "- la sanzione base per la circolazione senza copertura assicurativa è da € 866,00 a € 3.464,00;\n"
+            "- si applica il sequestro del veicolo ai fini della confisca secondo i casi previsti dalla norma.\n\n"
+            "Per i dettagli di prontuario e le riduzioni nei casi particolari verificare sempre la voce operativa aggiornata del Reparto."
         ),
         "link": "https://www.normattiva.it/"
     },
@@ -1504,6 +1551,8 @@ def normalize_article_key(article_key):
         '180': 'art180',
         'art126': 'art126',
         '126': 'art126',
+        'art193': 'art193',
+        '193': 'art193',
     }
     return aliases.get(key)
 
@@ -1555,6 +1604,7 @@ def get_article_keys_for_result(main_code=None, concurrent_codes=None):
         '180-09': 'art180',
         'CDS_126_11': 'art126',
         '158-27': 'art158',
+        '193-02': 'art193',
     }
 
     add(code_to_article.get(main_code))
@@ -1584,6 +1634,7 @@ def build_article_markup(article_keys=None):
         'art180': 'Art. 180 CdS',
         'art126': 'Art. 126 CdS',
         'art158': 'Art. 158 CdS',
+        'art193': 'Art. 193 CdS',
     }
 
     markup = types.InlineKeyboardMarkup(row_width=2)
@@ -1677,6 +1728,8 @@ def build_pdf_markup(main_code=None, concurrent_codes=None, procedural_flags=Non
     communications = _build_communications(procedural_flags)
 
     if "Sequestro/confisca veicolo" in accessory_actions:
+        add_button("SEQUESTRO_85", "PDF Sequestro")
+    if main_code == "193-02" or "Circolazione senza copertura assicurativa" in [VIOLATIONS.get(c, {}).get("title", "") for c in concurrent_codes]:
         add_button("SEQUESTRO_85", "PDF Sequestro")
     if "Fermo veicolo 3 mesi" in accessory_actions or "Fermo veicolo 60 giorni" in accessory_actions:
         add_button("FERMO_116", "PDF Fermo")
@@ -1852,6 +1905,7 @@ def build_combined_markup(article_keys=None, question_key=None, force_ctrl_answe
             'art180': 'Art. 180 CdS',
             'art126': 'Art. 126 CdS',
         'art158': 'Art. 158 CdS',
+        'art193': 'Art. 193 CdS',
         }
         article_buttons = []
         for key in article_keys:
@@ -2027,6 +2081,8 @@ PDF_MODELS = {
     "180-03": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/180-03_certificato_assicurativo_non_al_seguito.pdf",
     "180-06": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/180-06_autorizzazione_ncc_non_al_seguito.pdf",
     "180-09": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/180-09_kb_cqc_non_al_seguito.pdf",
+    "193-02": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/193-02_art193_senza_assicurazione.pdf",
+    "PVC-FISCALE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/PVC_corrispettivi_gdf.pdf",
     "158-27": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/158-27_art158_c2d_c5bis_stalli_taxi_bus.pdf",
     "SEQUESTRO_85": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/VERBALE_SEQUESTRO_CUSTODIA.pdf",
     "FERMO_116": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/VERBALE_FERMO_O_SEQUESTRO.pdf",
@@ -3520,6 +3576,19 @@ ARTICOLI_DB = {
         ),
         "link": "https://www.normattiva.it/"
     },
+    "art193": {
+        "titolo": "CdS art. 193",
+        "testo": (
+            "Art. 193 CdS – Obbligo dell'assicurazione di responsabilità civile.\n\n"
+            "Uso operativo nel bot:\n"
+            "- se la copertura assicurativa esiste ma il certificato/prova documentale non è esibito, si resta nel ramo art. 180;\n"
+            "- se dagli accertamenti risulta l'assenza o l'inefficacia della copertura, si applica il ramo sostanziale dell'art. 193 CdS;\n"
+            "- la sanzione base per la circolazione senza copertura assicurativa è da € 866,00 a € 3.464,00;\n"
+            "- si applica il sequestro del veicolo ai fini della confisca secondo i casi previsti dalla norma.\n\n"
+            "Per i dettagli di prontuario e le riduzioni nei casi particolari verificare sempre la voce operativa aggiornata del Reparto."
+        ),
+        "link": "https://www.normattiva.it/"
+    },
     "art126": {
         "titolo": "CdS art. 126",
         "testo": (
@@ -4433,8 +4502,9 @@ def _apply_control_answer_to_state(state, key, value):
             _append_unique_local(concurrent, "180-03")
             add_note("Assicurazione esistente ma non esibita: applicare art. 180 c.1 e c.7.")
         elif value == "copertura_assente":
-            add_note("Copertura assicurativa assente: non usare l'art. 180-03; valutare la contestazione sostanziale ex art. 193 CdS.")
-            add_flag("Dagli accertamenti la copertura assicurativa risulta assente o inefficace: valutare autonoma contestazione ex art. 193 CdS.")
+            _append_unique_local(concurrent, "193-02")
+            add_note("Copertura assicurativa assente: non usare l'art. 180-03; applicare il ramo sostanziale ex art. 193 CdS.")
+            add_flag("Dagli accertamenti la copertura assicurativa risulta assente o inefficace: contestare l'art. 193 CdS con i relativi atti accessori.")
         else:
             add_note("Assicurazione non esibita e stato non ancora verificato: non generare automaticamente l'art. 180-03 finché non risulta l'esistenza della copertura.")
 
@@ -5205,6 +5275,23 @@ def stalli_command(message):
     )
 
 
+def build_giurisprudenza_check_markup():
+    kb = types.InlineKeyboardMarkup(row_width=1)
+    kb.add(types.InlineKeyboardButton("Apri Circolazione Stradale", url=GIURIS_CHANNEL_URL))
+    kb.add(types.InlineKeyboardButton("Ho verificato gli aggiornamenti", callback_data="giuris_checked"))
+    return kb
+
+
+def wrap_final_markup_with_giuris(markup=None):
+    kb = types.InlineKeyboardMarkup(row_width=2)
+    kb.add(types.InlineKeyboardButton("Apri Circolazione Stradale", url=GIURIS_CHANNEL_URL))
+    kb.add(types.InlineKeyboardButton("Ho verificato gli aggiornamenti", callback_data="giuris_checked"))
+    if markup and getattr(markup, "keyboard", None):
+        for row in markup.keyboard:
+            kb.row(*row)
+    return kb
+
+
 @bot.message_handler(commands=['aggiornamenti'])
 def aggiornamenti_command(message):
     if not ensure_authorized(message):
@@ -5604,7 +5691,7 @@ def final_result_callback(call):
         text = payload.get("accessori")
         accessory_actions = _build_accessory_actions(main_code, concurrent_codes)
         items = []
-        if "Sequestro/confisca veicolo" in accessory_actions:
+        if "Sequestro/confisca veicolo" in accessory_actions or main_code == "193-02" or "193-02" in concurrent_codes:
             items.append(("SEQUESTRO_85", "Apri PDF Sequestro"))
         if "Fermo veicolo 3 mesi" in accessory_actions or "Fermo veicolo 60 giorni" in accessory_actions:
             items.append(("FERMO_116", "Apri PDF Fermo"))
@@ -5654,7 +5741,7 @@ def final_result_callback(call):
     send_long_message(
         chat_id,
         text,
-        reply_markup=markup,
+        reply_markup=wrap_final_markup_with_giuris(markup),
         disable_web_page_preview=True
     )
 
@@ -5960,7 +6047,6 @@ def setup_bot_commands():
         types.BotCommand("licenza", "Controllo uso licenza NCC"),
         types.BotCommand("stalli", "Controllo stalli RCT"),
         types.BotCommand("aggiornamenti", "Apri aggiornamenti CdS/giurisprudenza"),
-        types.BotCommand("aggiornamenti", "Apri aggiornamenti CdS/giurisprudenza"),
     ]
     try:
         bot.set_my_commands(commands)
@@ -5993,21 +6079,5 @@ if __name__ == "__main__":
     threading.Thread(target=run_bot, daemon=True).start()
     port = int(os.getenv("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
-
-def build_giurisprudenza_check_markup():
-    kb = types.InlineKeyboardMarkup(row_width=1)
-    kb.add(types.InlineKeyboardButton("Apri Circolazione Stradale", url=GIURIS_CHANNEL_URL))
-    kb.add(types.InlineKeyboardButton("Ho verificato gli aggiornamenti", callback_data="giuris_checked"))
-    return kb
-
-
-def wrap_final_markup_with_giuris(markup=None):
-    kb = types.InlineKeyboardMarkup(row_width=2)
-    kb.add(types.InlineKeyboardButton("Apri Circolazione Stradale", url=GIURIS_CHANNEL_URL))
-    kb.add(types.InlineKeyboardButton("Ho verificato gli aggiornamenti", callback_data="giuris_checked"))
-    if markup and getattr(markup, "keyboard", None):
-        for row in markup.keyboard:
-            kb.row(*row)
-    return kb
 
 
