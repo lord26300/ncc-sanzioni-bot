@@ -2034,6 +2034,9 @@ def build_main_menu():
     kb.add(
         types.KeyboardButton("Controllo uso licenza NCC"),
         types.KeyboardButton("Controllo stalli RCT"),
+        types.KeyboardButton("Controllo servizio TAXI")
+    )
+    kb.add(
         types.KeyboardButton("Aggiornamenti CdS / giurisprudenza")
     )
     kb.add(
@@ -3289,6 +3292,290 @@ def process_stalli_flow(chat_id, text):
 
     return "Procedura stalli non attiva. Usa /stalli o il pulsante dedicato.", None
 
+
+
+
+def begin_taxi_flow(chat_id):
+    user_states[chat_id] = {
+        "mode": "taxi_check",
+        "step": "scenario",
+    }
+    save_user_states()
+
+
+def _taxi_next_prompt(state):
+    prompts = {
+        "scenario": (
+            "Seleziona lo scenario taxi scrivendo una delle opzioni:\n"
+            "- trasferimento_ncc\n"
+            "- fuori_stallo_porto\n"
+            "- cliente_prenotato\n"
+            "- altro_comune"
+        ),
+        "trasferimento_ncc_systematic": "Il trasferimento del cliente dal taxi a un NCC appare organizzato/sistematico o collegato sempre agli stessi soggetti? (si/no)",
+        "trasferimento_ncc_abusive": "L'NCC coinvolto appare abusivo o irregolare? (si/no)",
+        "fuori_stallo_where": "Dove sostava il taxi? (scrivi: stallo ncc / stallo bus / fuori stalli / bordo marciapiede)",
+        "fuori_stallo_hindrance": "La posizione creava intralcio o interferenza con il terminal? (si/no)",
+        "fuori_stallo_client": "Il taxi era in attesa del proprio cliente o di utenza generica? (scrivi: proprio / generica)",
+        "cliente_prenotato_origin": "La richiesta del servizio risulta originata nel comune che ha rilasciato la licenza taxi? (si/no/non_so)",
+        "cliente_prenotato_local_pickup": "Il prelievo del cliente avveniva a Civitavecchia/porto? (si/no)",
+        "cliente_prenotato_systematic": "Il taxi opera in modo abituale/sistematico al porto di Civitavecchia? (si/no)",
+        "altro_comune_license": "Inserisci il comune della licenza taxi.",
+        "altro_comune_pickup": "Il cliente è stato preso a Civitavecchia/porto? (si/no)",
+        "altro_comune_origin": "La richiesta del servizio risulta originata nel comune della licenza? (si/no/non_so)",
+        "altro_comune_agreement": "Esiste un accordo/convenzione formale che autorizza l'operatività in quel luogo? (si/no/non_so)",
+        "altro_comune_systematic": "Il taxi opera in modo abituale/sistematico a Civitavecchia/porto? (si/no)",
+    }
+    return prompts.get(state.get("step"))
+
+
+def _taxi_articles_text():
+    return (
+        "Riferimenti operativi TAXI:\n\n"
+        "- Legge 21/1992: il servizio taxi è servizio di piazza e va distinto dall'NCC;\n"
+        "- art. 158 CdS: utile per sosta, stalli e fermata in area non consentita;\n"
+        "- regolamenti comunali e disciplina locale/portuale: da verificare sempre per stalli, turni, territorialità e accessi;\n"
+        "- la prenotazione del taxi non basta da sola a rendere regolare un prelievo fuori ambito se il servizio è organizzato in modo stabile fuori territorio.\n\n"
+        "Nei casi di altri comuni, verificare sempre: comune licenza, luogo di presa cliente, origine della richiesta, eventuale accordo formale, sistematicità dell'attività."
+    )
+
+
+def _taxi_payload(quick_lines, verbali, comunicazioni=None):
+    return {
+        "quick": "\n".join(quick_lines),
+        "accessori": "Valutare accessorie solo se richiamate dalla specifica violazione di sosta/fermata o dalla disciplina locale applicabile.",
+        "verbali": verbali,
+        "comunicazioni": comunicazioni or "Valutare segnalazione al Comune competente / Polizia Locale / ente gestore dell'area.",
+        "articoli": _taxi_articles_text(),
+        "main_code": None,
+        "concurrent_codes": [],
+        "procedural_flags": {},
+    }
+
+
+def process_taxi_flow(chat_id, text):
+    state = get_state(chat_id) or {}
+    step = state.get("step")
+    value = (text or "").strip().lower()
+
+    if step == "scenario":
+        mapping = {
+            "trasferimento_ncc": "trasferimento_ncc",
+            "fuori_stallo_porto": "fuori_stallo_porto",
+            "cliente_prenotato": "cliente_prenotato",
+            "altro_comune": "altro_comune",
+        }
+        if value not in mapping:
+            return "Risposta non valida. Scrivi: trasferimento_ncc / fuori_stallo_porto / cliente_prenotato / altro_comune.", None
+        scenario = mapping[value]
+        state["scenario"] = scenario
+        next_step = {
+            "trasferimento_ncc": "trasferimento_ncc_systematic",
+            "fuori_stallo_porto": "fuori_stallo_where",
+            "cliente_prenotato": "cliente_prenotato_origin",
+            "altro_comune": "altro_comune_license",
+        }[scenario]
+        state["step"] = next_step
+        save_user_states()
+        return _taxi_next_prompt(state), None
+
+    if step == "trasferimento_ncc_systematic":
+        if value not in {"si","sì","no"}:
+            return "Rispondi si oppure no.", None
+        state["trasferimento_ncc_systematic"] = value in {"si","sì"}
+        state["step"] = "trasferimento_ncc_abusive"
+        save_user_states()
+        return _taxi_next_prompt(state), None
+
+    if step == "trasferimento_ncc_abusive":
+        if value not in {"si","sì","no"}:
+            return "Rispondi si oppure no.", None
+        abusive = value in {"si","sì"}
+        systematic = bool(state.get("trasferimento_ncc_systematic"))
+        quick = [
+            "CONTROLLO TAXI – TRASFERIMENTO CLIENTE A NCC",
+            "",
+            f"- Condotta sistematica/organizzata: {'SI' if systematic else 'NO'}",
+            f"- NCC coinvolto abusivo/irregolare: {'SI' if abusive else 'NO'}",
+            ""
+        ]
+        verbali = []
+        if systematic or abusive:
+            quick.append("Esito: condotta ad alta criticità operativa. Il taxi appare utilizzato come ponte verso un servizio NCC, con possibile elusione della disciplina di settore.")
+            verbali.append(
+                "Il conducente del taxi, anziché concludere regolarmente il servizio, trasferiva il cliente verso un veicolo NCC/servizio ulteriore. Descrivere in verbale modalità del trasferimento, punto di scarico, soggetti coinvolti, dichiarazioni del cliente e ogni elemento che faccia emergere organizzazione o collegamento stabile tra taxi e NCC."
+            )
+            if abusive:
+                verbali.append("Se l'NCC risulta abusivo o irregolare, descrivere il possibile concorso/favoreggiamento del taxi nell'attività accertata.")
+        else:
+            quick.append("Esito: episodio da approfondire. In assenza di sistematicità o altri indici forti, descrivere bene la dinamica prima di contestare.")
+            verbali.append("Descrivere l'episodio, chiarendo motivo del trasferimento e libertà di scelta del cliente.")
+        payload = _taxi_payload(quick, verbali)
+        state["last_result_payload"] = payload
+        save_user_states()
+        return payload["quick"], payload
+
+    if step == "fuori_stallo_where":
+        mapping = {
+            "stallo ncc": "STALLO NCC",
+            "stallo bus": "STALLO BUS",
+            "fuori stalli": "FUORI STALLI",
+            "bordo marciapiede": "BORDO MARCIAPIEDE",
+        }
+        if value not in mapping:
+            return "Risposta non valida. Scrivi: stallo ncc / stallo bus / fuori stalli / bordo marciapiede.", None
+        state["fuori_stallo_where"] = mapping[value]
+        state["step"] = "fuori_stallo_hindrance"
+        save_user_states()
+        return _taxi_next_prompt(state), None
+
+    if step == "fuori_stallo_hindrance":
+        if value not in {"si","sì","no"}:
+            return "Rispondi si oppure no.", None
+        state["fuori_stallo_hindrance"] = value in {"si","sì"}
+        state["step"] = "fuori_stallo_client"
+        save_user_states()
+        return _taxi_next_prompt(state), None
+
+    if step == "fuori_stallo_client":
+        if value not in {"proprio","generica"}:
+            return "Risposta non valida. Scrivi: proprio oppure generica.", None
+        where = state.get("fuori_stallo_where")
+        hindrance = bool(state.get("fuori_stallo_hindrance"))
+        generic = value == "generica"
+        quick = [
+            "CONTROLLO TAXI – FUORI STALLO PORTO",
+            "",
+            f"- Posizione: {where}",
+            f"- Intralcio/interferenza: {'SI' if hindrance else 'NO'}",
+            f"- Attesa cliente proprio o utenza generica: {'utenza generica' if generic else 'cliente proprio'}",
+            ""
+        ]
+        verbali = []
+        quick.append("Esito: verificare primariamente la violazione su stalli/sosta e la disciplina locale dell'area portuale.")
+        if where == "STALLO BUS":
+            verbali.append("Il taxi sostava nello spazio riservato ai bus; descrivere segnaletica presente, posizione del mezzo e interferenza con l'area di fermata/stazionamento.")
+        elif where == "STALLO NCC":
+            verbali.append("Il taxi sostava in stallo riservato ad altra categoria di servizio; descrivere segnaletica, area occupata ed eventuale interferenza con il servizio regolare.")
+        else:
+            verbali.append("Il taxi sostava fuori dagli stalli assegnati / a bordo marciapiede nell'area portuale; descrivere segnaletica, intralcio ed eventuale interferenza con i flussi del terminal.")
+        if generic:
+            verbali.append("L'attesa appariva rivolta a utenza generica e non al proprio cliente già individuato; verbalizzare le circostanze concrete osservate.")
+        payload = _taxi_payload(quick, verbali)
+        state["last_result_payload"] = payload
+        save_user_states()
+        return payload["quick"], payload
+
+    if step == "cliente_prenotato_origin":
+        if value not in {"si","sì","no","non_so"}:
+            return "Rispondi: si / no / non_so.", None
+        state["cliente_prenotato_origin"] = value
+        state["step"] = "cliente_prenotato_local_pickup"
+        save_user_states()
+        return _taxi_next_prompt(state), None
+
+    if step == "cliente_prenotato_local_pickup":
+        if value not in {"si","sì","no"}:
+            return "Rispondi si oppure no.", None
+        state["cliente_prenotato_local_pickup"] = value in {"si","sì"}
+        state["step"] = "cliente_prenotato_systematic"
+        save_user_states()
+        return _taxi_next_prompt(state), None
+
+    if step == "cliente_prenotato_systematic":
+        if value not in {"si","sì","no"}:
+            return "Rispondi si oppure no.", None
+        origin = state.get("cliente_prenotato_origin")
+        local_pickup = bool(state.get("cliente_prenotato_local_pickup"))
+        systematic = value in {"si","sì"}
+        quick = [
+            "CONTROLLO TAXI – CLIENTE PRENOTATO",
+            "",
+            f"- Origine richiesta nel comune licenza: {origin.upper()}",
+            f"- Prelievo a Civitavecchia/porto: {'SI' if local_pickup else 'NO'}",
+            f"- Operatività abituale/sistematica al porto: {'SI' if systematic else 'NO'}",
+            ""
+        ]
+        verbali = []
+        if local_pickup and origin == "no":
+            quick.append("Esito: caso ad alta criticità. La prenotazione non sana automaticamente un prelievo fuori ambito se la richiesta nasce fuori dal comune della licenza.")
+            verbali.append("Descrivere come e dove risulta originata la richiesta del servizio, con particolare attenzione al luogo del cliente al momento della chiamata/prenotazione.")
+        elif local_pickup and origin == "non_so":
+            quick.append("Esito: caso borderline da approfondire. Prima di contestare occorre chiarire dove sia nata la richiesta del servizio.")
+            verbali.append("Acquisire elementi su sito/app/telefono, luogo del cliente, orario richiesta, eventuale sistematicità dell'operatività nel porto.")
+        else:
+            quick.append("Esito: la sola prenotazione non basta per contestare; verificare comunque la sistematicità dell'attività e la corretta territorialità.")
+        if systematic:
+            verbali.append("L'operatività del taxi al porto appare abituale/sistematica: verbalizzare numero di controlli, frequenza, clienti diversi ed eventuali elementi desunti dal cruscotto operativo.")
+        payload = _taxi_payload(quick, verbali)
+        state["last_result_payload"] = payload
+        save_user_states()
+        return payload["quick"], payload
+
+    if step == "altro_comune_license":
+        state["altro_comune_license"] = value.strip().title()
+        state["step"] = "altro_comune_pickup"
+        save_user_states()
+        return _taxi_next_prompt(state), None
+
+    if step == "altro_comune_pickup":
+        if value not in {"si","sì","no"}:
+            return "Rispondi si oppure no.", None
+        state["altro_comune_pickup"] = value in {"si","sì"}
+        state["step"] = "altro_comune_origin"
+        save_user_states()
+        return _taxi_next_prompt(state), None
+
+    if step == "altro_comune_origin":
+        if value not in {"si","sì","no","non_so"}:
+            return "Rispondi: si / no / non_so.", None
+        state["altro_comune_origin"] = value
+        state["step"] = "altro_comune_agreement"
+        save_user_states()
+        return _taxi_next_prompt(state), None
+
+    if step == "altro_comune_agreement":
+        if value not in {"si","sì","no","non_so"}:
+            return "Rispondi: si / no / non_so.", None
+        state["altro_comune_agreement"] = value
+        state["step"] = "altro_comune_systematic"
+        save_user_states()
+        return _taxi_next_prompt(state), None
+
+    if step == "altro_comune_systematic":
+        if value not in {"si","sì","no"}:
+            return "Rispondi si oppure no.", None
+        comune = state.get("altro_comune_license")
+        pickup = bool(state.get("altro_comune_pickup"))
+        origin = state.get("altro_comune_origin")
+        agreement = state.get("altro_comune_agreement")
+        systematic = value in {"si","sì"}
+        quick = [
+            "CONTROLLO TAXI – ALTRO COMUNE",
+            "",
+            f"- Comune licenza: {comune}",
+            f"- Cliente preso a Civitavecchia/porto: {'SI' if pickup else 'NO'}",
+            f"- Origine richiesta nel comune licenza: {origin.upper()}",
+            f"- Accordo/convenzione formale: {agreement.upper()}",
+            f"- Operatività abituale/sistematica: {'SI' if systematic else 'NO'}",
+            ""
+        ]
+        verbali = []
+        if pickup and agreement == "no" and origin == "no":
+            quick.append("Esito: alta criticità per prelievo fuori ambito territoriale senza copertura formale dichiarata.")
+            verbali.append("Descrivere in verbale il comune della licenza, il luogo di presa cliente, l'origine della richiesta e l'assenza di accordi/convenzioni noti.")
+        elif pickup and agreement in {"non_so", "si"}:
+            quick.append("Esito: verificare prima gli estremi di eventuali accordi/convenzioni e la reale origine della richiesta del servizio.")
+        else:
+            quick.append("Esito: il solo rientro/trasporto da altro comune non basta per contestare; verificare sempre dove nasce la richiesta.")
+        if systematic:
+            verbali.append("L'operatività del taxi di altro comune nel porto appare sistematica: verbalizzare frequenza, controlli pregressi e ogni elemento oggettivo disponibile.")
+        payload = _taxi_payload(quick, verbali)
+        state["last_result_payload"] = payload
+        save_user_states()
+        return payload["quick"], payload
+
+    return "Procedura taxi non attiva. Usa /taxi o il pulsante dedicato.", None
 
 
 def begin_license_use_flow(chat_id):
@@ -5648,6 +5935,24 @@ def wrap_final_markup_with_giuris(markup=None):
     return kb
 
 
+
+@bot.message_handler(commands=['taxi'])
+def taxi_command(message):
+    if not ensure_authorized(message):
+        return
+    begin_taxi_flow(message.chat.id)
+    bot.reply_to(
+        message,
+        "Controllo servizio TAXI.\n\nQuesta procedura guida nei casi taxi più ricorrenti: fuori stallo al porto, cliente trasferito a NCC, cliente prenotato e taxi di altro comune che opera a Civitavecchia.\n\n"
+        + _taxi_next_prompt(get_state(message.chat.id) or {}),
+    )
+
+
+@bot.message_handler(func=lambda m: (m.text or "").strip() == "Controllo servizio TAXI")
+def menu_taxi_button(message):
+    taxi_command(message)
+
+
 @bot.message_handler(commands=['aggiornamenti'])
 def aggiornamenti_command(message):
     if not ensure_authorized(message):
@@ -6261,7 +6566,7 @@ def all_messages(message):
     state = get_state(chat_id)
 
     if not state:
-        bot.reply_to(message, "Usa /controllo per la checklist documentale guidata, /caso per il testo libero, /targa per verificare una targa, oppure uno scenario guidato tra /porto /aeroporto /stazione /hotel /navetta.")
+        bot.reply_to(message, "Usa /controllo per la checklist documentale guidata, /caso per il testo libero, /targa per verificare una targa, /taxi per il controllo taxi, oppure uno scenario guidato tra /porto /aeroporto /stazione /hotel /navetta.")
         return
 
     mode = state.get("mode")
@@ -6358,6 +6663,15 @@ def all_messages(message):
         send_long_message(chat_id, result, reply_markup=markup, disable_web_page_preview=True)
         return
 
+    if mode == "taxi_check":
+        response, payload = process_taxi_flow(chat_id, text)
+        if payload:
+            markup = build_final_result_markup(payload)
+            send_long_message(chat_id, response, reply_markup=wrap_final_markup_with_giuris(markup), disable_web_page_preview=True)
+            return
+        bot.reply_to(message, response)
+        return
+
     if mode == "license_use_check":
         response, payload = process_license_use_flow(chat_id, text)
         if payload:
@@ -6413,6 +6727,7 @@ def setup_bot_commands():
         types.BotCommand("licenza", "Controllo uso licenza NCC"),
         types.BotCommand("stalli", "Controllo stalli RCT"),
         types.BotCommand("aggiornamenti", "Apri aggiornamenti CdS/giurisprudenza"),
+        types.BotCommand("taxi", "Controllo servizio TAXI"),
     ]
     try:
         bot.set_my_commands(commands)
