@@ -2172,6 +2172,7 @@ def build_quick_payload_from_codes(main_code, concurrent_codes=None, extra_artic
     comunicazioni = []
     if main_code in {"085-02"}:
         comunicazioni.append("- Trasmissione al Prefetto entro 10 giorni.")
+        comunicazioni.append("- Valutare immediatamente il PVC fiscale e la contestazione sul POS se il pagamento del corrispettivo è stato accertato.")
     if main_code in {"085-04"}:
         comunicazioni.append("- Comunicazione al Prefetto entro 5 giorni per i presupposti della revoca.")
     if main_code in {"085-05", "085-06", "085-07", "085-08"}:
@@ -2425,6 +2426,7 @@ PDF_MODELS = {
     "180-09": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/180-09_kb_cqc_non_al_seguito.pdf",
     "193-02": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/193-02_art193_senza_assicurazione.pdf",
     "PVC-FISCALE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/PVC_corrispettivi_gdf.pdf",
+    "POS-RIFIUTO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/POS_rifiuto_pagamento_elettronico.pdf",
     "158-27": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/158-27_art158_c2d_c5bis_stalli_taxi_bus.pdf",
     "SEQUESTRO_85": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/VERBALE_SEQUESTRO_CUSTODIA.pdf",
     "FERMO_116": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/VERBALE_FERMO_O_SEQUESTRO.pdf",
@@ -4025,12 +4027,9 @@ def process_port_common_followup(chat_id, text):
         state["answers"]["recurrence_triennio"] = value
 
         if state.get("porto_case_key") == "abusivo_totale":
-            state["pending_question"] = {
-                "key": "kb",
-                "text": "Il conducente ha KB/KA/CQC richiesto?"
-            }
             save_user_states()
-            return build_article_verification_prompt(state["answers"], "kb", state["pending_question"]["text"]), None, "kb"
+            result, payload = _finalize_port_common_case(chat_id)
+            return result, payload, None
 
         save_user_states()
         result, payload = _finalize_port_common_case(chat_id)
@@ -6389,7 +6388,20 @@ def final_result_callback(call):
             cidx = idx - 1
             code = concurrent_codes[cidx] if len(concurrent_codes) > cidx else None
 
-        markup = build_specific_pdf_markup([(code, f"Apri PDF Verbale {idx + 1}")]) or default_markup()
+        items = []
+        if code:
+            items.append((code, f"Apri PDF Verbale {idx + 1}"))
+
+        lower_text = str(text).lower()
+        if idx == 0 and main_code == "085-02":
+            items.append(("PVC-FISCALE", "Apri verbale scontrino/PVC"))
+            items.append(("POS-RIFIUTO", "Apri verbale POS"))
+        elif "documentazione fiscale" in lower_text or "corrispettivo" in lower_text or "pvc" in lower_text:
+            items.append(("PVC-FISCALE", "Apri verbale scontrino/PVC"))
+        elif "pagamento elettronico" in lower_text or "pos" in lower_text:
+            items.append(("POS-RIFIUTO", "Apri verbale POS"))
+
+        markup = build_specific_pdf_markup(items) or default_markup()
 
     else:
         text = "Sezione non disponibile."
