@@ -2064,8 +2064,8 @@ def build_main_menu():
         types.KeyboardButton("Aggiornamenti CdS / giurisprudenza")
     )
     kb.add(
-        types.KeyboardButton("Casi comuni porto"),
-        types.KeyboardButton("📄 Archivio verbali")
+        types.KeyboardButton("Porto"),
+        types.KeyboardButton("📄 Verbali")
     )
     return kb
 
@@ -2143,6 +2143,10 @@ def build_final_result_markup(payload):
         markup.add(types.InlineKeyboardButton("VERBALE 3", callback_data="final:v3"))
     if len(verbali) >= 4:
         markup.add(types.InlineKeyboardButton("VERBALE 4", callback_data="final:v4"))
+    if len(verbali) >= 5:
+        markup.add(types.InlineKeyboardButton("VERBALE 5", callback_data="final:v5"))
+    if len(verbali) >= 6:
+        markup.add(types.InlineKeyboardButton("VERBALE 6", callback_data="final:v6"))
 
     markup.add(
         types.InlineKeyboardButton("COMUNICAZIONI", callback_data="final:comunicazioni"),
@@ -2189,6 +2193,12 @@ def build_quick_payload_from_codes(main_code, concurrent_codes=None, extra_artic
     for item in concurrent:
         if item.get("verbal_text"):
             verbali.append(item["verbal_text"])
+
+    for code in concurrent_codes:
+        if code == "PVC-FISCALE":
+            verbali.append("Accertato il pagamento del corrispettivo per la prestazione di trasporto, non risultava emessa documentazione fiscale; procedere con il PVC fiscale.")
+        elif code == "POS-RIFIUTO":
+            verbali.append("A fronte della richiesta di pagamento mediante strumenti elettronici, il soggetto rifiutava il pagamento elettronico ovvero non metteva a disposizione un POS utilizzabile.")
 
     comunicazioni = []
     if main_code in {"085-02"}:
@@ -2399,6 +2409,19 @@ def build_violation_markup_for_article(article_key):
     for i in range(0, len(buttons), 2):
         markup.row(*buttons[i:i+2])
     return markup
+
+
+
+def send_pdf_by_code(chat_id, code, caption=None):
+    url = PDF_MODELS.get(code)
+    if not url:
+        bot.send_message(chat_id, f"Template non disponibile per il codice: {code}")
+        return
+
+    markup = types.InlineKeyboardMarkup()
+    markup.add(types.InlineKeyboardButton("Apri PDF", url=url))
+    label = caption or f"Template pronto: {code}"
+    bot.send_message(chat_id, label, reply_markup=markup, disable_web_page_preview=True)
 
 
 def send_long_message(chat_id, text, reply_markup=None, disable_web_page_preview=True, chunk_size=3500):
@@ -3960,7 +3983,10 @@ def begin_port_common_case(chat_id, case_key):
     elif case_key == "abusivo_totale":
         state["answers"].update({
             "vehicle_authorized": "no",
-            "service_to_third": "si"
+            "service_to_third": "si",
+            "kb": "no",
+            "booking": "no",
+            "foglio_status": "assente"
         })
         q = {
             "key": "recurrence_triennio",
@@ -3993,6 +4019,12 @@ def _finalize_port_common_case(chat_id):
     answers = state.get("answers", {})
 
     main_code, concurrent, notes, procedural_flags, ancillary_findings = decide_violation(answers)
+
+    if state.get("porto_case_key") == "abusivo_totale" and main_code in {"085-02", "085-04"}:
+        fixed_codes = ["116-06", "180-01", "PVC-FISCALE", "POS-RIFIUTO"]
+        for code in fixed_codes:
+            if code not in concurrent:
+                concurrent.append(code)
 
     if main_code:
         payload = build_final_payload(
@@ -5574,7 +5606,7 @@ def approve_command(message):
     except Exception:
         pass
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "Casi comuni porto")
+@bot.message_handler(func=lambda m: (m.text or "").strip() == "Porto")
 def menu_port_common_cases_button(message):
     if not ensure_authorized(message):
         return
@@ -5990,7 +6022,7 @@ def menu_aggiornamenti_button(message):
     aggiornamenti_command(message)
 
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "📄 Archivio verbali")
+@bot.message_handler(func=lambda m: (m.text or "").strip() == "📄 Verbali")
 def open_archivio_verbali(message):
     if not ensure_authorized(message):
         return
@@ -6416,9 +6448,9 @@ def final_result_callback(call):
     elif action == "articoli":
         text = payload.get("articoli")
 
-    elif action in {"v1", "v2", "v3", "v4"}:
+    elif action in {"v1", "v2", "v3", "v4", "v5", "v6"}:
         verbali = payload.get("verbali", [])
-        idx = {"v1": 0, "v2": 1, "v3": 2, "v4": 3}[action]
+        idx = {"v1": 0, "v2": 1, "v3": 2, "v4": 3, "v5": 4, "v6": 5}[action]
         text = verbali[idx] if len(verbali) > idx else f"Verbale {idx + 1} non disponibile."
 
         if idx == 0:
@@ -6432,12 +6464,9 @@ def final_result_callback(call):
             items.append((code, f"Apri PDF Verbale {idx + 1}"))
 
         lower_text = str(text).lower()
-        if idx == 0 and main_code == "085-02":
+        if "documentazione fiscale" in lower_text or "corrispettivo" in lower_text or "pvc" in lower_text:
             items.append(("PVC-FISCALE", "Apri verbale scontrino/PVC"))
-            items.append(("POS-RIFIUTO", "Apri verbale POS"))
-        elif "documentazione fiscale" in lower_text or "corrispettivo" in lower_text or "pvc" in lower_text:
-            items.append(("PVC-FISCALE", "Apri verbale scontrino/PVC"))
-        elif "pagamento elettronico" in lower_text or "pos" in lower_text:
+        if "pagamento elettronico" in lower_text or "pos" in lower_text:
             items.append(("POS-RIFIUTO", "Apri verbale POS"))
 
         markup = build_specific_pdf_markup(items) or default_markup()
