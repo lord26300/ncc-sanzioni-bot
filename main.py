@@ -2145,8 +2145,6 @@ def build_final_result_markup(payload):
         markup.add(types.InlineKeyboardButton("VERBALE 4", callback_data="final:v4"))
     if len(verbali) >= 5:
         markup.add(types.InlineKeyboardButton("VERBALE 5", callback_data="final:v5"))
-    if len(verbali) >= 6:
-        markup.add(types.InlineKeyboardButton("VERBALE 6", callback_data="final:v6"))
 
     markup.add(
         types.InlineKeyboardButton("COMUNICAZIONI", callback_data="final:comunicazioni"),
@@ -2193,12 +2191,6 @@ def build_quick_payload_from_codes(main_code, concurrent_codes=None, extra_artic
     for item in concurrent:
         if item.get("verbal_text"):
             verbali.append(item["verbal_text"])
-
-    for code in concurrent_codes:
-        if code == "PVC-FISCALE":
-            verbali.append("Accertato il pagamento del corrispettivo per la prestazione di trasporto, non risultava emessa documentazione fiscale; procedere con il PVC fiscale.")
-        elif code == "POS-RIFIUTO":
-            verbali.append("A fronte della richiesta di pagamento mediante strumenti elettronici, il soggetto rifiutava il pagamento elettronico ovvero non metteva a disposizione un POS utilizzabile.")
 
     comunicazioni = []
     if main_code in {"085-02"}:
@@ -2420,8 +2412,7 @@ def send_pdf_by_code(chat_id, code, caption=None):
 
     markup = types.InlineKeyboardMarkup()
     markup.add(types.InlineKeyboardButton("Apri PDF", url=url))
-    label = caption or f"Template pronto: {code}"
-    bot.send_message(chat_id, label, reply_markup=markup, disable_web_page_preview=True)
+    bot.send_message(chat_id, caption or f"Template pronto: {code}", reply_markup=markup, disable_web_page_preview=True)
 
 
 def send_long_message(chat_id, text, reply_markup=None, disable_web_page_preview=True, chunk_size=3500):
@@ -4021,10 +4012,13 @@ def _finalize_port_common_case(chat_id):
     main_code, concurrent, notes, procedural_flags, ancillary_findings = decide_violation(answers)
 
     if state.get("porto_case_key") == "abusivo_totale" and main_code in {"085-02", "085-04"}:
-        fixed_codes = ["116-06", "180-01", "PVC-FISCALE", "POS-RIFIUTO"]
-        for code in fixed_codes:
+        fixed_package = ["116-06", "180-01", "PVC-FISCALE", "POS-RIFIUTO"]
+        for code in fixed_package:
             if code not in concurrent:
                 concurrent.append(code)
+        ancillary_findings = list(ancillary_findings or [])
+        if "Pacchetto abusivo totale applicato: mezzo non autorizzato, conducente senza KB, assenza prenotazione/foglio di servizio, verbali fiscali e POS." not in ancillary_findings:
+            ancillary_findings.append("Pacchetto abusivo totale applicato: mezzo non autorizzato, conducente senza KB, assenza prenotazione/foglio di servizio, verbali fiscali e POS.")
 
     if main_code:
         payload = build_final_payload(
@@ -6448,9 +6442,9 @@ def final_result_callback(call):
     elif action == "articoli":
         text = payload.get("articoli")
 
-    elif action in {"v1", "v2", "v3", "v4", "v5", "v6"}:
+    elif action in {"v1", "v2", "v3", "v4", "v5"}:
         verbali = payload.get("verbali", [])
-        idx = {"v1": 0, "v2": 1, "v3": 2, "v4": 3, "v5": 4, "v6": 5}[action]
+        idx = {"v1": 0, "v2": 1, "v3": 2, "v4": 3, "v5": 4}[action]
         text = verbali[idx] if len(verbali) > idx else f"Verbale {idx + 1} non disponibile."
 
         if idx == 0:
@@ -6464,9 +6458,12 @@ def final_result_callback(call):
             items.append((code, f"Apri PDF Verbale {idx + 1}"))
 
         lower_text = str(text).lower()
-        if "documentazione fiscale" in lower_text or "corrispettivo" in lower_text or "pvc" in lower_text:
+        if idx == 0 and main_code == "085-02":
             items.append(("PVC-FISCALE", "Apri verbale scontrino/PVC"))
-        if "pagamento elettronico" in lower_text or "pos" in lower_text:
+            items.append(("POS-RIFIUTO", "Apri verbale POS"))
+        elif "documentazione fiscale" in lower_text or "corrispettivo" in lower_text or "pvc" in lower_text:
+            items.append(("PVC-FISCALE", "Apri verbale scontrino/PVC"))
+        elif "pagamento elettronico" in lower_text or "pos" in lower_text:
             items.append(("POS-RIFIUTO", "Apri verbale POS"))
 
         markup = build_specific_pdf_markup(items) or default_markup()
