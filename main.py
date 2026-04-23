@@ -1049,68 +1049,6 @@ ARTICOLI_DB = {
    }
 }
 
-ARCHIVIO_VERBALI_MAP = {
-    "🚨 NCC abusivo totale": "085-02",
-    "💰 Verbale scontrino": "PVC-FISCALE",
-    "💳 Verbale POS": "POS-RIFIUTO",
-    "🚖 Taxi fuori stallo": "TAXI-FUORI-STALLO",
-    "🚖 Taxi → NCC": "TAXI-TRASFERIMENTO-NCC",
-    "🚖 Taxi altro comune": "TAXI-ALTRO-COMUNE",
-    "🚖 Taxi cliente prenotato": "TAXI-CLIENTE-PRENOTATO",
-    "🛑 Senza assicurazione": "193-02",
-    "🚫 Sosta irregolare": "158-27",
-}
-
-AUTO_TEMPLATE_MAP = {
-    "085-02": ["085-02", "PVC-FISCALE", "POS-RIFIUTO"],
-    "085-04": ["085-04", "PVC-FISCALE", "POS-RIFIUTO"],
-    "193-02": ["193-02"],
-    "158-27": ["158-27"],
-    "116-01": ["116-01"],
-    "116-02": ["116-02"],
-    "116-03": ["116-03"],
-    "116-04": ["116-04"],
-    "116-06": ["116-06"],
-    "TAXI-TRASFERIMENTO-NCC": ["TAXI-TRASFERIMENTO-NCC"],
-    "TAXI-FUORI-STALLO": ["TAXI-FUORI-STALLO"],
-    "TAXI-CLIENTE-PRENOTATO": ["TAXI-CLIENTE-PRENOTATO"],
-    "TAXI-ALTRO-COMUNE": ["TAXI-ALTRO-COMUNE"],
-}
-
-AUTO_TEMPLATE_LABELS = {
-    "085-02": "NCC abusivo totale",
-    "085-04": "NCC abusivo totale recidiva",
-    "193-02": "Senza assicurazione",
-    "158-27": "Sosta irregolare",
-    "116-01": "Incauto affidamento",
-    "116-02": "Guida senza patente",
-    "116-03": "Guida senza patente recidiva",
-    "116-04": "Reiterazione guida senza patente",
-    "116-06": "Guida senza KB/CQC",
-    "TAXI-TRASFERIMENTO-NCC": "Taxi → NCC",
-    "TAXI-FUORI-STALLO": "Taxi fuori stallo",
-    "TAXI-CLIENTE-PRENOTATO": "Taxi cliente prenotato",
-    "TAXI-ALTRO-COMUNE": "Taxi altro comune",
-}
-
-def build_archivio_verbali_menu():
-    kb = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    kb.add(types.KeyboardButton("🚨 NCC abusivo totale"), types.KeyboardButton("💰 Verbale scontrino"))
-    kb.add(types.KeyboardButton("💳 Verbale POS"), types.KeyboardButton("🚖 Taxi fuori stallo"))
-    kb.add(types.KeyboardButton("🚖 Taxi → NCC"), types.KeyboardButton("🚖 Taxi altro comune"))
-    kb.add(types.KeyboardButton("🚖 Taxi cliente prenotato"), types.KeyboardButton("🛑 Senza assicurazione"))
-    kb.add(types.KeyboardButton("🚫 Sosta irregolare"))
-    kb.add(types.KeyboardButton("🔙 Indietro"))
-    return kb
-
-
-def build_auto_templates_keyboard(main_code):
-    kb = types.InlineKeyboardMarkup()
-    label = AUTO_TEMPLATE_LABELS.get(main_code, "Verbali correlati")
-    kb.add(types.InlineKeyboardButton(f"📄 Apri verbali: {label}", callback_data=f"pdf_multi:{main_code}"))
-    return kb
-
-
 # =========================
 # ACCESSO / AUTORIZZAZIONI
 # =========================
@@ -2079,6 +2017,30 @@ def build_plate_not_found_markup(plate):
     )
     return markup
 
+ARCHIVIO_VERBALI_MAP = {
+    "🚨 NCC abusivo totale": "085-02",
+    "💰 Verbale scontrino": "PVC-FISCALE",
+    "💳 Verbale POS": "POS-RIFIUTO",
+    "🚖 Taxi fuori stallo": "TAXI-FUORI-STALLO",
+    "🚖 Taxi → NCC": "TAXI-TRASFERIMENTO-NCC",
+    "🚖 Taxi altro comune": "TAXI-ALTRO-COMUNE",
+    "🚖 Taxi cliente prenotato": "TAXI-CLIENTE-PRENOTATO",
+    "🛑 Senza assicurazione": "193-02",
+    "🚫 Sosta irregolare": "158-27",
+}
+
+
+def build_archivio_verbali_menu():
+    kb = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    kb.add(types.KeyboardButton("🚨 NCC abusivo totale"), types.KeyboardButton("💰 Verbale scontrino"))
+    kb.add(types.KeyboardButton("💳 Verbale POS"), types.KeyboardButton("🚖 Taxi fuori stallo"))
+    kb.add(types.KeyboardButton("🚖 Taxi → NCC"), types.KeyboardButton("🚖 Taxi altro comune"))
+    kb.add(types.KeyboardButton("🚖 Taxi cliente prenotato"), types.KeyboardButton("🛑 Senza assicurazione"))
+    kb.add(types.KeyboardButton("🚫 Sosta irregolare"))
+    kb.add(types.KeyboardButton("🔙 Indietro"))
+    return kb
+
+
 def build_main_menu():
     kb = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     kb.add(
@@ -2103,10 +2065,7 @@ def build_main_menu():
     )
     kb.add(
         types.KeyboardButton("Casi comuni porto"),
-        types.KeyboardButton("Reset")
-    )
-    kb.add(
-        types.KeyboardButton("Help")
+        types.KeyboardButton("📄 Archivio verbali")
     )
     return kb
 
@@ -5764,48 +5723,6 @@ def start_command(message):
         reply_markup=build_main_menu()
     )
 
-
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "📄 Archivio verbali")
-def open_archivio_verbali(message):
-    if not ensure_authorized(message):
-        return
-    bot.send_message(message.chat.id, "Seleziona il verbale da aprire.", reply_markup=build_archivio_verbali_menu())
-
-
-@bot.message_handler(func=lambda m: (m.text or "").strip() in ARCHIVIO_VERBALI_MAP)
-def open_archivio_verbale_direct(message):
-    if not ensure_authorized(message):
-        return
-    code = ARCHIVIO_VERBALI_MAP.get((message.text or "").strip())
-    send_pdf_by_code(message.chat.id, code)
-
-
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "🔙 Indietro")
-def back_from_archivio(message):
-    if not ensure_authorized(message):
-        return
-    bot.send_message(message.chat.id, "Menu principale", reply_markup=build_main_menu())
-
-
-@bot.callback_query_handler(func=lambda call: (call.data or "").startswith("pdf_multi:"))
-def open_multiple_pdfs(call):
-    try:
-        main_code = (call.data or "").split(":", 1)[1]
-        codes = AUTO_TEMPLATE_MAP.get(main_code, [main_code])
-        for code in codes:
-            send_pdf_by_code(call.message.chat.id, code)
-        bot.answer_callback_query(call.id, "Verbali inviati.")
-    except Exception as e:
-        try:
-            bot.answer_callback_query(call.id, "Errore nell'invio dei verbali.")
-        except Exception:
-            pass
-        try:
-            bot.send_message(call.message.chat.id, f"Errore: {e}")
-        except Exception:
-            pass
-
-
 @bot.message_handler(commands=['help'])
 def help_command(message):
     if not ensure_authorized(message):
@@ -6073,6 +5990,32 @@ def menu_aggiornamenti_button(message):
     aggiornamenti_command(message)
 
 
+@bot.message_handler(func=lambda m: (m.text or "").strip() == "📄 Archivio verbali")
+def open_archivio_verbali(message):
+    if not ensure_authorized(message):
+        return
+    bot.send_message(
+        message.chat.id,
+        "Seleziona il verbale da aprire.",
+        reply_markup=build_archivio_verbali_menu()
+    )
+
+
+@bot.message_handler(func=lambda m: (m.text or "").strip() in ARCHIVIO_VERBALI_MAP)
+def open_archivio_verbale_direct(message):
+    if not ensure_authorized(message):
+        return
+    code = ARCHIVIO_VERBALI_MAP.get((message.text or "").strip())
+    send_pdf_by_code(message.chat.id, code)
+
+
+@bot.message_handler(func=lambda m: (m.text or "").strip() == "🔙 Indietro")
+def back_from_archivio(message):
+    if not ensure_authorized(message):
+        return
+    bot.send_message(message.chat.id, "Menu principale", reply_markup=build_main_menu())
+
+
 @bot.message_handler(commands=['reset'])
 def reset_command(message):
     if not ensure_authorized(message):
@@ -6182,14 +6125,6 @@ def menu_targa_button(message):
         "Esempio: AB123CD\n"
         "Il bot controllerà l'archivio Excel aggiornato nel repository, mostrerà anche l'eventuale colonna note, lo storico dei controlli registrati sul mezzo e un alert distanza se il comune licenza è molto lontano da Civitavecchia."
     )
-
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "Reset")
-def menu_reset_button(message):
-    reset_command(message)
-
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "Help")
-def menu_help_button(message):
-    help_command(message)
 
 @bot.callback_query_handler(func=lambda call: str(call.data).startswith("ctrl_doc_toggle:"))
 def control_doc_toggle_callback(call):
@@ -6783,10 +6718,7 @@ def all_messages(message):
         response, payload = process_taxi_flow(chat_id, text)
         if payload:
             markup = build_final_result_markup(payload)
-            state_after = get_state(chat_id) or {}
-            main_code = state_after.get("last_result_main_code")
-            auto_markup = build_auto_templates_keyboard(main_code) if main_code else None
-            send_long_message(chat_id, response, reply_markup=auto_markup or wrap_final_markup_with_giuris(markup), disable_web_page_preview=True)
+            send_long_message(chat_id, response, reply_markup=wrap_final_markup_with_giuris(markup), disable_web_page_preview=True)
             return
         bot.reply_to(message, response)
         return
@@ -6803,10 +6735,7 @@ def all_messages(message):
                 markup = build_pdf_markup(main_code, concurrent_codes, flags) or build_article_markup(
                     get_article_keys_for_result(main_code, concurrent_codes)
                 )
-            state_after = get_state(chat_id) or {}
-            main_code = state_after.get("last_result_main_code")
-            auto_markup = build_auto_templates_keyboard(main_code) if main_code else None
-            send_long_message(chat_id, response, reply_markup=auto_markup or wrap_final_markup_with_giuris(markup), disable_web_page_preview=True)
+            send_long_message(chat_id, response, reply_markup=wrap_final_markup_with_giuris(markup), disable_web_page_preview=True)
             return
         bot.reply_to(message, response)
         return
@@ -6823,10 +6752,7 @@ def all_messages(message):
                 markup = build_pdf_markup(main_code, concurrent_codes, flags) or build_article_markup(
                     get_article_keys_for_result(main_code, concurrent_codes)
                 )
-            state_after = get_state(chat_id) or {}
-            main_code = state_after.get("last_result_main_code")
-            auto_markup = build_auto_templates_keyboard(main_code) if main_code else None
-            send_long_message(chat_id, response, reply_markup=auto_markup or wrap_final_markup_with_giuris(markup), disable_web_page_preview=True)
+            send_long_message(chat_id, response, reply_markup=wrap_final_markup_with_giuris(markup), disable_web_page_preview=True)
             return
         bot.reply_to(message, response)
         return
@@ -6846,9 +6772,7 @@ def all_messages(message):
 def setup_bot_commands():
     commands = [
         types.BotCommand("start", "Avvia il bot"),
-        types.BotCommand("reset", "Annulla procedura"),
         types.BotCommand("riattiva", "Riattiva il servizio"),
-        types.BotCommand("help", "Come usare il bot"),
         types.BotCommand("licenza", "Controllo uso licenza NCC"),
         types.BotCommand("stalli", "Controllo stalli RCT"),
         types.BotCommand("aggiornamenti", "Apri aggiornamenti CdS/giurisprudenza"),
