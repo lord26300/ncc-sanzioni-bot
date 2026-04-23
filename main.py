@@ -683,6 +683,53 @@ VIOLATIONS["158-27"] = {
     )
 }
 
+
+TEMPLATE_ONLY_CODES = {
+    "PVC-FISCALE": {
+        "title": "Verbale scontrino / PVC fiscale",
+        "article": "Verbale fiscale GDF",
+        "pmr": "N/D",
+        "reduced_30": "N/D",
+        "over_60": "N/D",
+        "edictal": "Verificare disciplina fiscale",
+        "accessories": ["Valutare secondo normativa fiscale"],
+        "verbal_text": "Accertato il pagamento del corrispettivo per la prestazione di trasporto, non risultava emessa documentazione fiscale; procedere con il PVC fiscale.",
+        "notes": ["Template operativo fiscale da allegare quando il pagamento è accertato."],
+        "fields_to_fill": ["corrispettivo accertato", "modalità del pagamento", "generalità del soggetto controllato"],
+        "short_ready_text": "Procedere con PVC fiscale per omessa documentazione del corrispettivo."
+    },
+    "POS-RIFIUTO": {
+        "title": "Verbale POS / rifiuto pagamento elettronico",
+        "article": "Pagamenti elettronici",
+        "pmr": "N/D",
+        "reduced_30": "N/D",
+        "over_60": "N/D",
+        "edictal": "Verificare disciplina vigente",
+        "accessories": ["Valutare secondo normativa sui pagamenti elettronici"],
+        "verbal_text": "A fronte della richiesta di pagamento mediante strumenti elettronici, il soggetto rifiutava il pagamento elettronico ovvero non metteva a disposizione un POS utilizzabile.",
+        "notes": ["Template operativo da usare quando è accertata la richiesta di pagamento elettronico."],
+        "fields_to_fill": ["importo della transazione", "modalità della richiesta", "eventuali dichiarazioni del soggetto"],
+        "short_ready_text": "Procedere con verbale POS / rifiuto pagamento elettronico."
+    }
+}
+
+def get_violation_record(code):
+    if code in VIOLATIONS:
+        return VIOLATIONS[code]
+    return TEMPLATE_ONLY_CODES.get(code, {
+        "title": f"Template/voce operativa: {code}",
+        "article": "Voce operativa",
+        "pmr": "N/D",
+        "reduced_30": "N/D",
+        "over_60": "N/D",
+        "edictal": "N/D",
+        "accessories": [],
+        "verbal_text": f"Template operativo collegato al codice {code}.",
+        "notes": [],
+        "fields_to_fill": [],
+        "short_ready_text": f"Usare il template collegato al codice {code}."
+    })
+
 VIOLATIONS["193-02"] = {
     "title": "Circolazione senza copertura assicurativa",
     "article": "CdS art. 193 c. 2",
@@ -2157,8 +2204,8 @@ def build_quick_payload_from_codes(main_code, concurrent_codes=None, extra_artic
     concurrent_codes = concurrent_codes or []
     extra_articles = extra_articles or []
 
-    main = VIOLATIONS.get(main_code, {})
-    concurrent = [VIOLATIONS[c] for c in concurrent_codes if c in VIOLATIONS]
+    main = get_violation_record(main_code) if main_code else {}
+    concurrent = [get_violation_record(c) for c in concurrent_codes]
 
     quick_parts = []
     if main:
@@ -2409,7 +2456,6 @@ def send_pdf_by_code(chat_id, code, caption=None):
     if not url:
         bot.send_message(chat_id, f"Template non disponibile per il codice: {code}")
         return
-
     markup = types.InlineKeyboardMarkup()
     markup.add(types.InlineKeyboardButton("Apri PDF", url=url))
     bot.send_message(chat_id, caption or f"Template pronto: {code}", reply_markup=markup, disable_web_page_preview=True)
@@ -2530,7 +2576,7 @@ def _build_communications(procedural_flags=None):
     return _dedupe_keep_order(mapped)
 
 def _compact_details_for_code(code):
-    v = VIOLATIONS[code]
+    v = get_violation_record(code)
     lines = []
     lines.append(f"{code} — {v['article']}")
     lines.append(v["title"])
@@ -2646,7 +2692,7 @@ def format_multiple(main_code, concurrent_codes=None, extra_notes=None, level=No
     return "\n".join(lines)
 
 def format_compact_violation(code):
-    v = VIOLATIONS[code]
+    v = get_violation_record(code)
     lines = []
     lines.append(f"{v['article']} | {v['title']}")
     lines.append(f"- PMR: {v['pmr']}")
@@ -4016,9 +4062,6 @@ def _finalize_port_common_case(chat_id):
         for code in fixed_package:
             if code not in concurrent:
                 concurrent.append(code)
-        ancillary_findings = list(ancillary_findings or [])
-        if "Pacchetto abusivo totale applicato: mezzo non autorizzato, conducente senza KB, assenza prenotazione/foglio di servizio, verbali fiscali e POS." not in ancillary_findings:
-            ancillary_findings.append("Pacchetto abusivo totale applicato: mezzo non autorizzato, conducente senza KB, assenza prenotazione/foglio di servizio, verbali fiscali e POS.")
 
     if main_code:
         payload = build_final_payload(
