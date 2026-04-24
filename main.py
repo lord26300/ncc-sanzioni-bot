@@ -2192,6 +2192,8 @@ def build_final_result_markup(payload):
         markup.add(types.InlineKeyboardButton("VERBALE 4", callback_data="final:v4"))
     if len(verbali) >= 5:
         markup.add(types.InlineKeyboardButton("VERBALE 5", callback_data="final:v5"))
+    if len(verbali) >= 5:
+        markup.add(types.InlineKeyboardButton("VERBALE 5", callback_data="final:v5"))
 
     markup.add(
         types.InlineKeyboardButton("COMUNICAZIONI", callback_data="final:comunicazioni"),
@@ -2986,6 +2988,9 @@ def format_partial_assessment(answers, concurrent_codes=None, extra_notes=None, 
     lines.append("AVVERTENZA")
     lines.append("Completa il quadro con ulteriori risposte oppure verifica su prontuario, normativa vigente e disciplina locale.")
     return "\n".join(lines)
+
+def normalize_header(value):
+    return re.sub(r"\\s+", " ", str(value or "").strip().lower())
 
 def normalize_plate_value(value):
     if value is None:
