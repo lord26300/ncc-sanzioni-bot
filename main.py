@@ -2065,26 +2065,25 @@ def build_plate_not_found_markup(plate):
     return markup
 
 ARCHIVIO_VERBALI_MAP = {
-    "🚨 NCC abusivo totale": "085-02",
-    "💰 Verbale scontrino": "PVC-FISCALE",
-    "💳 Verbale POS": "POS-RIFIUTO",
-    "🚖 Taxi fuori stallo": "TAXI-FUORI-STALLO",
-    "🚖 Taxi → NCC": "TAXI-TRASFERIMENTO-NCC",
-    "🚖 Taxi altro comune": "TAXI-ALTRO-COMUNE",
-    "🚖 Taxi cliente prenotato": "TAXI-CLIENTE-PRENOTATO",
-    "🛑 Senza assicurazione": "193-02",
-    "🚫 Sosta irregolare": "158-27",
+    "NCC abusivo totale": "085-02",
+    "NCC abusivo totale recidiva": "085-04",
+    "Guida senza KB / CAP / CQC": "116-06",
+    "Mancanza foglio servizio / prenotazione": "180-01",
+    "Verbale scontrino / PVC": "PVC-FISCALE",
+    "Verbale POS": "POS-RIFIUTO",
+    "Senza assicurazione": "193-02",
+    "Sosta stallo taxi / bus": "158-27",
+    "Taxi fuori stallo porto": "TAXI-FUORI-STALLO",
+    "Taxi verso NCC": "TAXI-TRASFERIMENTO-NCC",
+    "Taxi altro comune": "TAXI-ALTRO-COMUNE",
+    "Taxi cliente prenotato": "TAXI-CLIENTE-PRENOTATO",
 }
 
-
 def build_archivio_verbali_menu():
-    kb = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    kb.add(types.KeyboardButton("🚨 NCC abusivo totale"), types.KeyboardButton("💰 Verbale scontrino"))
-    kb.add(types.KeyboardButton("💳 Verbale POS"), types.KeyboardButton("🚖 Taxi fuori stallo"))
-    kb.add(types.KeyboardButton("🚖 Taxi → NCC"), types.KeyboardButton("🚖 Taxi altro comune"))
-    kb.add(types.KeyboardButton("🚖 Taxi cliente prenotato"), types.KeyboardButton("🛑 Senza assicurazione"))
-    kb.add(types.KeyboardButton("🚫 Sosta irregolare"))
-    kb.add(types.KeyboardButton("🔙 Indietro"))
+    kb = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1)
+    for label in ARCHIVIO_VERBALI_MAP.keys():
+        kb.add(types.KeyboardButton(label))
+    kb.add(types.KeyboardButton("Indietro"))
     return kb
 
 
@@ -2460,7 +2459,10 @@ def send_pdf_by_code(chat_id, code, caption=None):
         return
     markup = types.InlineKeyboardMarkup()
     markup.add(types.InlineKeyboardButton("Apri PDF", url=url))
-    bot.send_message(chat_id, caption or f"Template pronto: {code}", reply_markup=markup, disable_web_page_preview=True)
+    label = caption
+    if not label:
+        label = next((name for name, mapped_code in ARCHIVIO_VERBALI_MAP.items() if mapped_code == code), f"Template pronto: {code}")
+    bot.send_message(chat_id, label, reply_markup=markup, disable_web_page_preview=True)
 
 
 def send_long_message(chat_id, text, reply_markup=None, disable_web_page_preview=True, chunk_size=3500):
@@ -6068,11 +6070,7 @@ def menu_aggiornamenti_button(message):
 def open_archivio_verbali(message):
     if not ensure_authorized(message):
         return
-    bot.send_message(
-        message.chat.id,
-        "Seleziona il verbale da aprire.",
-        reply_markup=build_archivio_verbali_menu()
-    )
+    bot.send_message(message.chat.id, "Verbali disponibili:", reply_markup=build_archivio_verbali_menu())
 
 
 @bot.message_handler(func=lambda m: (m.text or "").strip() in ARCHIVIO_VERBALI_MAP)
@@ -6083,7 +6081,7 @@ def open_archivio_verbale_direct(message):
     send_pdf_by_code(message.chat.id, code)
 
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "🔙 Indietro")
+@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Indietro", "🔙 Indietro"})
 def back_from_archivio(message):
     if not ensure_authorized(message):
         return
