@@ -2067,23 +2067,30 @@ def build_plate_not_found_markup(plate):
 ARCHIVIO_VERBALI_MAP = {
     "NCC abusivo totale": "085-02",
     "NCC abusivo totale recidiva": "085-04",
-    "Guida senza KB / CAP / CQC": "116-06",
-    "Mancanza foglio servizio / prenotazione": "180-01",
-    "Verbale scontrino / PVC": "PVC-FISCALE",
+    "Guida senza KB": "116-06",
+    "Foglio servizio prenotazione": "180-01",
+    "Verbale scontrino PVC": "PVC-FISCALE",
     "Verbale POS": "POS-RIFIUTO",
     "Senza assicurazione": "193-02",
-    "Sosta stallo taxi / bus": "158-27",
+    "Sosta stallo taxi bus": "158-27",
     "Taxi fuori stallo porto": "TAXI-FUORI-STALLO",
     "Taxi verso NCC": "TAXI-TRASFERIMENTO-NCC",
     "Taxi altro comune": "TAXI-ALTRO-COMUNE",
     "Taxi cliente prenotato": "TAXI-CLIENTE-PRENOTATO",
 }
 
+ARCHIVIO_VERBALI_ALIASES = {
+    "Guida senza KB / CAP / CQC": "116-06",
+    "Mancanza foglio servizio / prenotazione": "180-01",
+    "Verbale scontrino / PVC": "PVC-FISCALE",
+    "Sosta stallo taxi / bus": "158-27",
+}
+
 def build_archivio_verbali_menu():
-    kb = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1)
+    kb = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1, one_time_keyboard=False)
     for label in ARCHIVIO_VERBALI_MAP.keys():
-        kb.add(types.KeyboardButton(label))
-    kb.add(types.KeyboardButton("Indietro"))
+        kb.row(types.KeyboardButton(label))
+    kb.row(types.KeyboardButton("Indietro"))
     return kb
 
 
@@ -6070,14 +6077,16 @@ def menu_aggiornamenti_button(message):
 def open_archivio_verbali(message):
     if not ensure_authorized(message):
         return
-    bot.send_message(message.chat.id, "Verbali disponibili:", reply_markup=build_archivio_verbali_menu())
+    kb = build_archivio_verbali_menu()
+    bot.send_message(message.chat.id, "Verbali disponibili:", reply_markup=kb)
 
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() in ARCHIVIO_VERBALI_MAP)
+@bot.message_handler(func=lambda m: (m.text or "").strip() in ARCHIVIO_VERBALI_MAP or (m.text or "").strip() in ARCHIVIO_VERBALI_ALIASES)
 def open_archivio_verbale_direct(message):
     if not ensure_authorized(message):
         return
-    code = ARCHIVIO_VERBALI_MAP.get((message.text or "").strip())
+    label = (message.text or "").strip()
+    code = ARCHIVIO_VERBALI_MAP.get(label) or ARCHIVIO_VERBALI_ALIASES.get(label)
     send_pdf_by_code(message.chat.id, code)
 
 
