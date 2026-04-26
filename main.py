@@ -4090,6 +4090,15 @@ def _finalize_port_common_case(chat_id):
         for code in fixed_package:
             if code not in concurrent:
                 concurrent.append(code)
+        abusivo_procacciamento_text = (
+            "Accertato procacciamento diretto di clientela/utenza indifferenziata su area pubblica o terminal, "
+            "in assenza di titolo autorizzativo NCC e di prenotazione preventiva documentabile. "
+            "La condotta costituisce elemento fattuale/probatorio dell’esercizio abusivo del servizio e viene assorbita "
+            "nella contestazione principale ex art. 85, comma 4, CdS, senza verbale autonomo di procacciamento."
+        )
+        procedural_flags.setdefault("verbale_additions", [])
+        if abusivo_procacciamento_text not in procedural_flags["verbale_additions"]:
+            procedural_flags["verbale_additions"].append(abusivo_procacciamento_text)
 
     if state.get("porto_case_key") == "procacciamento" or answers.get("procacciamento") == "si":
         if "PROCACCIAMENTO" not in concurrent:
