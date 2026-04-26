@@ -710,6 +710,19 @@ TEMPLATE_ONLY_CODES = {
         "notes": ["Template operativo da usare quando è accertata la richiesta di pagamento elettronico."],
         "fields_to_fill": ["importo della transazione", "modalità della richiesta", "eventuali dichiarazioni del soggetto"],
         "short_ready_text": "Procedere con verbale POS / rifiuto pagamento elettronico."
+    },
+    "PROCACCIAMENTO": {
+        "title": "Procacciamento diretto di clientela / utenza indifferenziata",
+        "article": "CdS art. 85 c. 4-bis + L. 21/1992 artt. 3 e 11",
+        "pmr": "Collegato alla voce 085-05 / 085-06 / 085-07 / 085-08",
+        "reduced_30": "Secondo progressione art. 85 c. 4-bis",
+        "over_60": "Secondo progressione art. 85 c. 4-bis",
+        "edictal": "Secondo progressione art. 85 c. 4-bis",
+        "accessories": ["Sospensione documento di circolazione secondo progressione"],
+        "verbal_text": "Il veicolo NCC stazionava/operava in area pubblica o terminal e acquisiva o procacciava direttamente clientela/utenza indifferenziata, senza prenotazione preventiva documentabile presso sede/rimessa o tramite strumenti consentiti. La condotta viene ricondotta alla violazione delle prescrizioni operative degli artt. 3 e 11 della L. 21/1992, sanzionata dall'art. 85, comma 4-bis, CdS.",
+        "notes": ["Voce da allegare automaticamente quando nel caso porto risulta procacciamento.", "Usare insieme alla voce principale 085-05 / 085-06 / 085-07 / 085-08 secondo la progressione nel quinquennio.", "Indicare elementi osservati: avvicinamento clienti, proposta trasporto, assenza prenotazione, attesa su area pubblica/terminal."],
+        "fields_to_fill": ["luogo preciso del procacciamento", "modalità di acquisizione della clientela", "generalità dei passeggeri/clienti se identificati", "assenza di prenotazione preventiva documentabile", "eventuali dichiarazioni del conducente o dei clienti"],
+        "short_ready_text": "Verbale/annotazione per procacciamento diretto di clientela: condotta collegata alla violazione degli artt. 3 e 11 L. 21/1992 e alla voce art. 85 c. 4-bis CdS."
     }
 }
 
@@ -2034,24 +2047,22 @@ def build_article_markup(article_keys=None):
 
 def build_port_common_cases_markup():
     markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(
-        types.InlineKeyboardButton(
-            "KB presente + mezzo uso proprio",
-            callback_data="porto_case:uso_proprio_kb"
-        ),
-        types.InlineKeyboardButton(
-            "Abusivo totale",
-            callback_data="porto_case:abusivo_totale"
-        ),
-        types.InlineKeyboardButton(
-            "NCC con licenza/KB ma senza prenotazione",
-            callback_data="porto_case:procacciamento"
-        ),
-        types.InlineKeyboardButton(
-            "Altro caso porto",
-            callback_data="porto_case:altro"
-        )
-    )
+    markup.row(types.InlineKeyboardButton(
+        "KB presente + mezzo uso proprio",
+        callback_data="porto_case:uso_proprio_kb"
+    ))
+    markup.row(types.InlineKeyboardButton(
+        "Abusivo totale",
+        callback_data="porto_case:abusivo_totale"
+    ))
+    markup.row(types.InlineKeyboardButton(
+        "Procacciamento clienti NCC",
+        callback_data="porto_case:procacciamento"
+    ))
+    markup.row(types.InlineKeyboardButton(
+        "Altro caso porto",
+        callback_data="porto_case:altro"
+    ))
     return markup
 
 def build_plate_not_found_markup(plate):
@@ -2071,6 +2082,7 @@ ARCHIVIO_VERBALI_MAP = {
     "Foglio servizio prenotazione": "180-01",
     "Verbale scontrino PVC": "PVC-FISCALE",
     "Verbale POS": "POS-RIFIUTO",
+    "Procacciamento clienti NCC": "PROCACCIAMENTO",
     "Senza assicurazione": "193-02",
     "Sosta stallo taxi bus": "158-27",
     "Taxi fuori stallo porto": "TAXI-FUORI-STALLO",
@@ -2502,6 +2514,7 @@ PDF_MODELS = {
     "085-02": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-02_art85_c4_prima_violazione.pdf",
     "085-04": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-02_art85_c4_seconda_nel_triennio.pdf",
     "085-05": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4bis_prima_nel_quinquennio.pdf",
+    "PROCACCIAMENTO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4bis_prima_nel_quinquennio.pdf",
     "085-06": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4bis_seconda_nel_quinquennio.pdf",
     "085-07": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4bis_terza_nel_quinquennio.pdf",
     "085-08": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4bis_quarta_o_successiva_nel_quinquennio.pdf",
@@ -4050,6 +4063,7 @@ def begin_port_common_case(chat_id, case_key):
             "service_to_third": "si",
             "booking": "no",
             "public_waiting": "si",
+            "procacciamento": "si",
             "violation_type": "art3_11"
         })
         q = {
@@ -4076,6 +4090,13 @@ def _finalize_port_common_case(chat_id):
         for code in fixed_package:
             if code not in concurrent:
                 concurrent.append(code)
+
+    if state.get("porto_case_key") == "procacciamento" or answers.get("procacciamento") == "si":
+        if "PROCACCIAMENTO" not in concurrent:
+            concurrent.insert(0, "PROCACCIAMENTO")
+        note = "Accertato procacciamento diretto di clientela/utenza indifferenziata: allegare verbale/annotazione PROCACCIAMENTO insieme alla voce principale art. 85 c. 4-bis."
+        if note not in notes:
+            notes.append(note)
 
     if main_code:
         payload = build_final_payload(
