@@ -2065,31 +2065,57 @@ def build_plate_not_found_markup(plate):
     return markup
 
 ARCHIVIO_VERBALI_MAP = {
-    "NCC abusivo totale": "085-02",
-    "NCC abusivo totale recidiva": "085-04",
-    "Guida senza KB": "116-06",
-    "Foglio servizio prenotazione": "180-01",
-    "Verbale scontrino PVC": "PVC-FISCALE",
-    "Verbale POS": "POS-RIFIUTO",
-    "Senza assicurazione": "193-02",
-    "Sosta stallo taxi bus": "158-27",
-    "Taxi fuori stallo porto": "TAXI-FUORI-STALLO",
-    "Taxi verso NCC": "TAXI-TRASFERIMENTO-NCC",
-    "Taxi altro comune": "TAXI-ALTRO-COMUNE",
-    "Taxi cliente prenotato": "TAXI-CLIENTE-PRENOTATO",
+    "Art 85 C4 1 - NCC abusivo con veicolo non autorizzato/adibito - 1° violazione": "085-02",
+    "Art 85 C4 2 - NCC abusivo con veicolo non autorizzato/adibito - 2° violazione nel triennio": "085-04",
+    "Art 85 C4bis 1 - NCC irregolare per artt. 3/11 L.21/1992 - 1° violazione": "085-05",
+    "Art 85 C4bis 2 - NCC irregolare per artt. 3/11 L.21/1992 - 2° violazione": "085-06",
+    "Art 85 C4bis 3 - NCC irregolare per artt. 3/11 L.21/1992 - 3° violazione": "085-07",
+    "Art 85 C4bis 4 - NCC irregolare per artt. 3/11 L.21/1992 - 4° o successiva": "085-08",
+    "Art 85 C4ter - Altre prescrizioni autorizzazione NCC": "085-09",
+    "Art 116 C15 C17 1 - Guida senza patente o categoria diversa - 1° violazione": "116-02",
+    "Art 116 C15 C17 2 - Guida senza patente - recidiva biennale": "116-03",
+    "Art 116 C15 C17 3 - Guida senza patente - reiterazione penale": "116-04",
+    "Art 116 C16 C18 - Guida senza KB KA CQC": "116-06",
+    "Art 158 C2d C5bis - Sosta su stalli taxi/bus": "158-27",
+    "Art 180 - Foglio di servizio/prenotazione non esibito": "180-01",
+    "Art 180 C1 C7 - Patente o carta non al seguito": "180-01DOC",
+    "Art 180 C1 C7 - Certificato assicurativo non al seguito": "180-03",
+    "Art 180 C3 C7 - Autorizzazione NCC non al seguito": "180-06",
+    "Art 180 C5 C7 - KB/CQC non al seguito": "180-09",
+    "Art 193 C2 - Circolazione senza copertura assicurativa": "193-02",
+    "Avviso fermo amministrativo": "AVVISO_FERMO",
+    "Comunicazione Comune": "COM_COMUNE",
+    "Comunicazione Prefetto": "COM_PREFETTO",
+    "Comunicazione RENT": "COM_RENT",
+    "Comunicazione Ruolo conducenti": "COM_RUOLO",
+    "Comunicazione UMC": "COM_UMC",
+    "Fermo / sequestro veicolo": "FERMO_116",
+    "Sequestro / custodia veicolo": "SEQUESTRO_85",
+    "Verbale POS - rifiuto pagamento elettronico": "POS-RIFIUTO",
+    "PVC corrispettivi GdF": "PVC-FISCALE",
 }
 
 ARCHIVIO_VERBALI_ALIASES = {
+    "NCC abusivo totale": "085-02",
+    "NCC abusivo totale recidiva": "085-04",
+    "Guida senza KB": "116-06",
     "Guida senza KB / CAP / CQC": "116-06",
+    "Foglio servizio prenotazione": "180-01",
     "Mancanza foglio servizio / prenotazione": "180-01",
+    "Verbale scontrino PVC": "PVC-FISCALE",
     "Verbale scontrino / PVC": "PVC-FISCALE",
+    "Verbale POS": "POS-RIFIUTO",
+    "Senza assicurazione": "193-02",
+    "Sosta stallo taxi bus": "158-27",
     "Sosta stallo taxi / bus": "158-27",
 }
 
 def build_archivio_verbali_menu():
+    """Crea il menu Verbali completo: un pulsante per ogni PDF mappato."""
     kb = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1, one_time_keyboard=False)
-    for label in ARCHIVIO_VERBALI_MAP.keys():
-        kb.row(types.KeyboardButton(label))
+    for label, code in ARCHIVIO_VERBALI_MAP.items():
+        if code in PDF_MODELS:
+            kb.row(types.KeyboardButton(label))
     kb.row(types.KeyboardButton("Indietro"))
     return kb
 
