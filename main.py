@@ -3101,6 +3101,35 @@ def _is_persona_fisica_owner(owner_name):
 
 
 
+def build_license_distance_alert_from_place(comune_licenza_val, control_place="Civitavecchia"):
+    """Crea un alert se il comune della licenza è molto distante dal luogo di controllo.
+    Funzione difensiva: non blocca mai il controllo targa in caso di dati mancanti.
+    """
+    comune = (comune_licenza_val or "").strip()
+    if not comune:
+        return ""
+    try:
+        license_coords = _lookup_place_coords(comune)
+        control_coords = _lookup_place_coords(control_place or "Civitavecchia")
+        if not license_coords or not control_coords:
+            return ""
+        distance = _haversine_km(
+            license_coords["lat"], license_coords["lon"],
+            control_coords["lat"], control_coords["lon"]
+        )
+        if distance >= LICENSE_DISTANCE_ALERT_KM:
+            return (
+                "ALERT DISTANZA LICENZA\n"
+                f"Comune/ente licenza: {comune}\n"
+                f"Distanza stimata dal luogo di controllo ({control_place}): circa {distance} km.\n"
+                "La distanza, da sola, non prova l'illecito, ma è un indice operativo da approfondire "
+                "insieme a prenotazione, foglio di servizio, sede/rimessa e modalità di acquisizione clientela."
+            )
+    except Exception:
+        return ""
+    return ""
+
+
 def lookup_plate_in_registry(plate_text):
     plate = normalize_plate_value(plate_text)
     if not plate:
@@ -3110,7 +3139,7 @@ def lookup_plate_in_registry(plate_text):
         return {
             "ok": False,
             "message": (
-                f"Archivio targhe non trovato: {TARGHE_FILE_PATH}."
+                f"Archivio targhe non trovato: {TARGHE_FILE_PATH}. "
                 "Carica il file Excel nel repository e verifica il percorso in TARGHE_FILE_PATH."
             )
         }
@@ -3118,17 +3147,15 @@ def lookup_plate_in_registry(plate_text):
     try:
         from openpyxl import load_workbook
     except Exception as e:
-        return {
-            "ok": False,
-            "message": f"Libreria openpyxl non disponibile sul server: {e}"
-        }
+        return {"ok": False, "message": f"Libreria openpyxl non disponibile sul server: {e}"}
 
     try:
         workbook = load_workbook(TARGHE_FILE_PATH, data_only=True, read_only=True)
+
         target_sheet_name = TARGHE_SHEET_NAME if TARGHE_SHEET_NAME in workbook.sheetnames else None
         if not target_sheet_name:
             for candidate in workbook.sheetnames:
-                if str(candidate).strip().lower() == 'ncc':
+                if str(candidate).strip().lower() == "ncc":
                     target_sheet_name = candidate
                     break
         sheet = workbook[target_sheet_name] if target_sheet_name else workbook[workbook.sheetnames[0]]
@@ -3140,16 +3167,7 @@ def lookup_plate_in_registry(plate_text):
             return {"ok": False, "message": "Il file Excel targhe è vuoto."}
 
         headers = [normalize_header_value(h) for h in headers_raw]
-
         targa_idx = _find_first_matching_column(headers, {"targa", "plate", "telaio/targa", "veicolo", "mezzo"})
-        uso_idx = _find_first_matching_column(headers, {"uso veicolo", "uso", "uso del veicolo"})
-        intestatario_idx = _find_first_matching_column(headers, {"intestatario", "proprietario", "ragione sociale", "titolare"})
-        residenza_idx = _find_first_matching_column(headers, {"residenza intestatario", "residenza", "indirizzo intestatario", "comune intestatario"})
-        modello_idx = _find_first_matching_column(headers, {"modello", "veicolo modello", "marca modello"})
-        destinazione_idx = _find_first_matching_column(headers, {"destinazione uso veicoli", "destinazione uso", "destinazione"})
-        licenza_idx = _find_first_matching_column(headers, {"licenza autoveicolo", "licenza", "autorizzazione", "licenza ncc"})
-        note_idx = _find_first_matching_column(headers, {"note", "annotazioni", "osservazioni"})
-
         if targa_idx is None:
             return {
                 "ok": False,
@@ -3171,23 +3189,31 @@ def lookup_plate_in_registry(plate_text):
                 "message": f"Il mezzo con targa {plate} non è stato censito."
             }
 
-        def get_value(idx):
-            if idx is None or idx >= len(found_row):
-                return ""
-            value = found_row[idx]
-            if value is None:
-                return ""
-            return str(value).strip()
+        # Dizionario della riga Excel indicizzato per intestazione normalizzata.
+        # IMPORTANTE: non usare variabili non inizializzate tipo 'normalized'.
+        row_data = {}
+        for idx, header in enumerate(headers):
+            if not header:
+                continue
+            value = found_row[idx] if idx < len(found_row) else ""
+            row_data[header] = "" if value is None else str(value).strip()
 
-        uso = get_value(uso_idx).upper()
-        intestatario = get_value(intestatario_idx)
-        residenza = get_value(residenza_idx)
-        modello = get_value(modello_idx)
-        destinazione = get_value(destinazione_idx)
-        licenza = get_value(licenza_idx)
-        note = get_value(note_idx)
-        owner_is_person = _is_persona_fisica_owner(intestatario)
-        uso_proprio_alert = uso == 'PROPRIO'
+        def first_value(*aliases):
+            for alias in aliases:
+                key = normalize_header_value(alias)
+                if key in row_data and row_data[key]:
+                    return row_data[key]
+            return ""
+
+        uso = first_value("uso veicolo", "uso", "uso del veicolo").upper()
+        intestatario = first_value("intestatario", "proprietario", "ragione sociale", "titolare")
+        residenza = first_value("residenza intestatario", "residenza", "indirizzo intestatario", "comune intestatario")
+        modello = first_value("modello", "veicolo modello", "marca modello")
+        destinazione = first_value("destinazione uso veicoli", "destinazione uso", "destinazione")
+        licenza = first_value("licenza autoveicolo", "licenza", "autorizzazione", "licenza ncc")
+        note = first_value("note", "annotazioni", "osservazioni")
+
+        uso_proprio_alert = uso == "PROPRIO"
         sanctionable = False
 
         lines = [
@@ -3208,15 +3234,6 @@ def lookup_plate_in_registry(plate_text):
         if licenza:
             lines.append(f"Licenza/autorizzazione: {licenza}")
 
-        # Dizionario normalizzato riga Excel: evita errore "name 'normalized' is not defined"
-        # e consente di cercare campi opzionali come Comune licenza/ente rilasciante.
-        normalized = {}
-        for idx, header in enumerate(headers):
-            if not header:
-                continue
-            value = found_row[idx] if idx < len(found_row) else ""
-            normalized[header] = "" if value is None else str(value).strip()
-
         lines.append("")
         if uso_proprio_alert:
             lines.append("ESITO OPERATIVO: mezzo censito con ALERT.")
@@ -3230,12 +3247,10 @@ def lookup_plate_in_registry(plate_text):
         if note:
             lines.extend(["", f"Note archivio: {note}"])
 
-        comune_licenza_val = ""
-        for key in ("comune licenza", "comune_licenza", "comune lic.", "licenza", "ente rilasciante", "comune autorizzazione"):
-            if key in normalized:
-                comune_licenza_val = str(normalized.get(key, "") or "").strip()
-                if comune_licenza_val:
-                    break
+        comune_licenza_val = first_value(
+            "comune licenza", "comune_licenza", "comune lic.",
+            "ente rilasciante", "comune autorizzazione", "comune licenza/autorizzazione"
+        )
         distance_alert = build_license_distance_alert_from_place(comune_licenza_val)
         if distance_alert:
             lines.extend(["", distance_alert])
@@ -3252,11 +3267,14 @@ def lookup_plate_in_registry(plate_text):
             "owner": intestatario,
             "owner_residence": residenza,
             "sanctionable": sanctionable,
-            "message": "\n".join(lines)
+            "message": "\n".join(lines),
         }
-    except Exception as e:
-        return {"ok": False, "message": f"Errore lettura archivio targhe: {e}"}
 
+    except Exception as e:
+        return {
+            "ok": False,
+            "message": f"Errore lettura archivio targhe: {type(e).__name__}: {e}",
+        }
 
 def begin_plate_lookup_flow(chat_id):
     user_states[chat_id] = {
