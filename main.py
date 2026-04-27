@@ -524,9 +524,9 @@ VIOLATIONS = {
             "Fermo veicolo per 60 giorni"
         ],
         "verbal_text": (
-            "Circolava alla guida del predetto veicolo adibito a servizio di noleggio con conducente "
+            "Circolava alla guida del predetto veicolo, utilizzato di fatto per lo svolgimento di un servizio di trasporto di persone assimilabile al noleggio con conducente, "
             "munito di patente ma non del prescritto certificato di abilitazione professionale / titolo "
-            "professionale richiesto per il servizio svolto."
+            "professionale richiesto per il servizio concretamente svolto."
         ),
         "notes": [
             "Da valutare il concorso con le violazioni ex art. 85 CdS.",
@@ -538,7 +538,7 @@ VIOLATIONS = {
             "eventuale affidante del veicolo"
         ],
         "short_ready_text": (
-            "Violazione concorrente: guida del veicolo adibito al servizio senza il prescritto titolo professionale. "
+            "Violazione concorrente: guida del veicolo utilizzato di fatto per il servizio senza il prescritto titolo professionale. "
             "Norma: art. 116, commi 16 e 18, CdS. "
             "PMR € 408,00; riduzione 30% € 285,60; oltre 60 giorni € 817,00; "
             "edittale da € 408,00 a € 1.634,00. "
@@ -3208,6 +3208,15 @@ def lookup_plate_in_registry(plate_text):
         if licenza:
             lines.append(f"Licenza/autorizzazione: {licenza}")
 
+        # Dizionario normalizzato riga Excel: evita errore "name 'normalized' is not defined"
+        # e consente di cercare campi opzionali come Comune licenza/ente rilasciante.
+        normalized = {}
+        for idx, header in enumerate(headers):
+            if not header:
+                continue
+            value = found_row[idx] if idx < len(found_row) else ""
+            normalized[header] = "" if value is None else str(value).strip()
+
         lines.append("")
         if uso_proprio_alert:
             lines.append("ESITO OPERATIVO: mezzo censito con ALERT.")
@@ -4103,6 +4112,7 @@ def _finalize_port_common_case(chat_id):
         procacciamento_porto_text = (
             "Accertato il procacciamento diretto e attivo di clientela all’interno "
             "dell’area portuale ad accesso regolamentato (terminal crociere RCT), "
+            "accessibile previo controllo e autorizzazione, "
             "in assenza di preventiva prenotazione del servizio e di qualsiasi titolo "
             "autorizzativo per l’esercizio dell’attività di noleggio con conducente."
         )
