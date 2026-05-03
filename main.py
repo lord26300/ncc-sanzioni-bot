@@ -2121,31 +2121,15 @@ def build_archivio_verbali_menu():
 
 
 def build_main_menu():
+    """Menu principale compatto: 2 pulsanti per riga, tutti con emoji e testi corti."""
     kb = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    kb.add(
-        types.KeyboardButton("Inserisci un caso NCC"),
-        types.KeyboardButton("Controlli operativi")
-    )
-    kb.add(
-        types.KeyboardButton("Checklist documentale"),
-        types.KeyboardButton("Documenti da controllare")
-    )
-    kb.add(
-        types.KeyboardButton("Verifica targa"),
-        types.KeyboardButton("Norme principali")
-    )
-    kb.add(
-        types.KeyboardButton("Controllo uso licenza NCC"),
-        types.KeyboardButton("Controllo stalli RCT"),
-        types.KeyboardButton("Controllo servizio TAXI")
-    )
-    kb.add(
-        types.KeyboardButton("📚 Agg. CdS")
-    )
-    kb.add(
-        types.KeyboardButton("⚓ Porto"),
-        types.KeyboardButton("📄 Verbali")
-    )
+    kb.row(types.KeyboardButton("📝 Caso NCC"), types.KeyboardButton("🛠️ Operativi"))
+    kb.row(types.KeyboardButton("✅ Checklist"), types.KeyboardButton("📋 Documenti"))
+    kb.row(types.KeyboardButton("🔎 Targa"), types.KeyboardButton("⚖️ Norme"))
+    kb.row(types.KeyboardButton("🪪 Licenza"), types.KeyboardButton("🅿️ Stalli"))
+    kb.row(types.KeyboardButton("🚖 Taxi"), types.KeyboardButton("📚 Agg. CdS"))
+    kb.row(types.KeyboardButton("⚓ Porto"), types.KeyboardButton("📄 Verbali"))
+    kb.row(types.KeyboardButton("🧭 85/180"))
     return kb
 
 def build_pdf_markup(main_code=None, concurrent_codes=None, procedural_flags=None):
@@ -2214,18 +2198,8 @@ def build_final_result_markup(payload):
     )
 
     verbali = payload.get("verbali", [])
-    if len(verbali) >= 1:
-        markup.add(types.InlineKeyboardButton("VERBALE 1", callback_data="final:v1"))
-    if len(verbali) >= 2:
-        markup.add(types.InlineKeyboardButton("VERBALE 2", callback_data="final:v2"))
-    if len(verbali) >= 3:
-        markup.add(types.InlineKeyboardButton("VERBALE 3", callback_data="final:v3"))
-    if len(verbali) >= 4:
-        markup.add(types.InlineKeyboardButton("VERBALE 4", callback_data="final:v4"))
-    if len(verbali) >= 5:
-        markup.add(types.InlineKeyboardButton("VERBALE 5", callback_data="final:v5"))
-    if len(verbali) >= 5:
-        markup.add(types.InlineKeyboardButton("VERBALE 5", callback_data="final:v5"))
+    for i, _ in enumerate(verbali, start=1):
+        markup.add(types.InlineKeyboardButton(f"📄 Verbale {i}", callback_data=f"final:v{i}"))
 
     markup.add(
         types.InlineKeyboardButton("COMUNICAZIONI", callback_data="final:comunicazioni"),
@@ -6098,7 +6072,7 @@ def taxi_command(message):
     )
 
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "Controllo servizio TAXI")
+@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Controllo servizio TAXI", "🚖 Taxi"})
 def menu_taxi_button(message):
     taxi_command(message)
 
@@ -6118,6 +6092,32 @@ def aggiornamenti_command(message):
 @bot.message_handler(func=lambda m: (m.text or "").strip() == "Aggiornamenti CdS / giurisprudenza")
 def menu_aggiornamenti_button(message):
     aggiornamenti_command(message)
+
+
+
+
+@bot.message_handler(func=lambda m: (m.text or "").strip() in {"🧭 85/180", "85/180", "Art 85 180"})
+def menu_85180_button(message):
+    if not ensure_authorized(message):
+        return
+    text = (
+        "🧭 GUIDA RAPIDA 85 / 180\n\n"
+        "🚫 Abusivo totale:\n"
+        "• mezzo NON NCC → art. 85 c.4\n"
+        "• NO verbale 180 per licenza/foglio, perché non è NCC\n"
+        "• procacciamento = elemento probatorio dentro 85, non verbale autonomo\n\n"
+        "✅ NCC regolare:\n"
+        "• licenza/foglio esistono ma non sono al seguito → 180-06 c.3+c.7\n"
+        "• KB/CQC esiste ma non è al seguito → 180-09 c.5+c.7\n"
+        "• patente/carta non al seguito → 180-01DOC c.1+c.7\n"
+        "• mancata presentazione dopo invito → 180-10 c.8\n\n"
+        "⚠️ Foglio falso/fittizio/di copertura:\n"
+        "• non è 180: valuta art. 85 c.4-bis.\n\n"
+        "💶 Fiscale/POS:\n"
+        "• pagamento senza documento fiscale → PVC\n"
+        "• cliente chiede elettronico e rifiuta/assenza/guasto POS → verbale POS specifico"
+    )
+    bot.reply_to(message, text, reply_markup=build_main_menu())
 
 
 @bot.message_handler(func=lambda m: (m.text or "").strip() == "📄 Verbali")
@@ -6220,36 +6220,36 @@ def menu_porto_button(message):
 def menu_aggiornamenti_short_button(message):
     aggiornamenti_command(message)
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "Inserisci un caso NCC")
+@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Inserisci un caso NCC", "📝 Caso NCC"})
 def menu_caso_button(message):
     caso_command(message)
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "Checklist documentale")
+@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Checklist documentale", "✅ Checklist"})
 def menu_controllo_button(message):
     controllo_command(message)
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "Controlli operativi")
+@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Controlli operativi", "🛠️ Operativi"})
 def menu_checklist_button(message):
     checklist_command(message)
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "Documenti da controllare")
+@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Documenti da controllare", "📋 Documenti"})
 def menu_documenti_button(message):
     documenti_command(message)
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "Norme principali")
+@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Norme principali", "⚖️ Norme"})
 def menu_norme_button(message):
     norme_command(message)
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "Controllo uso licenza NCC")
+@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Controllo uso licenza NCC", "🪪 Licenza"})
 def menu_licenza_button(message):
     licenza_command(message)
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "Controllo stalli RCT")
+@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Controllo stalli RCT", "🅿️ Stalli"})
 def menu_stalli_button(message):
     stalli_command(message)
 
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "Verifica targa")
+@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Verifica targa", "🔎 Targa"})
 def menu_targa_button(message):
     if not ensure_authorized(message):
         return
@@ -6552,9 +6552,9 @@ def final_result_callback(call):
     elif action == "articoli":
         text = payload.get("articoli")
 
-    elif action in {"v1", "v2", "v3", "v4", "v5"}:
+    elif re.fullmatch(r"v\d+", action):
         verbali = payload.get("verbali", [])
-        idx = {"v1": 0, "v2": 1, "v3": 2, "v4": 3, "v5": 4}[action]
+        idx = int(action[1:]) - 1
         text = verbali[idx] if len(verbali) > idx else f"Verbale {idx + 1} non disponibile."
 
         if idx == 0:
