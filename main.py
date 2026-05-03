@@ -2282,18 +2282,10 @@ def build_final_result_markup(payload):
     )
 
     verbali = payload.get("verbali", [])
-    if len(verbali) >= 1:
-        markup.add(types.InlineKeyboardButton("VERBALE 1", callback_data="final:v1"))
-    if len(verbali) >= 2:
-        markup.add(types.InlineKeyboardButton("VERBALE 2", callback_data="final:v2"))
-    if len(verbali) >= 3:
-        markup.add(types.InlineKeyboardButton("VERBALE 3", callback_data="final:v3"))
-    if len(verbali) >= 4:
-        markup.add(types.InlineKeyboardButton("VERBALE 4", callback_data="final:v4"))
-    if len(verbali) >= 5:
-        markup.add(types.InlineKeyboardButton("VERBALE 5", callback_data="final:v5"))
-    if len(verbali) >= 5:
-        markup.add(types.InlineKeyboardButton("VERBALE 5", callback_data="final:v5"))
+    # Pulsanti verbali dinamici: evita duplicati e supporta anche 6+ verbali.
+    # Esempio abusivo totale: 1 principale + 4/5 concorrenti = Verbale 1, 2, 3, 4, 5, 6...
+    for i in range(1, min(len(verbali), 10) + 1):
+        markup.add(types.InlineKeyboardButton(f"📄 Verbale {i}", callback_data=f"final:v{i}"))
 
     markup.add(
         types.InlineKeyboardButton("📨 COMUNICAZIONI", callback_data="final:comunicazioni"),
@@ -6615,10 +6607,10 @@ def final_result_callback(call):
     elif action == "articoli":
         text = payload.get("articoli")
 
-    elif action in {"v1", "v2", "v3", "v4", "v5"}:
+    elif re.fullmatch(r"v\d+", action or ""):
         verbali = payload.get("verbali", [])
-        idx = {"v1": 0, "v2": 1, "v3": 2, "v4": 3, "v5": 4}[action]
-        text = verbali[idx] if len(verbali) > idx else f"Verbale {idx + 1} non disponibile."
+        idx = int(action[1:]) - 1
+        text = verbali[idx] if 0 <= idx < len(verbali) else f"Verbale {idx + 1} non disponibile."
 
         if idx == 0:
             code = main_code
