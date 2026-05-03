@@ -548,17 +548,17 @@ VIOLATIONS = {
 }
 
 VIOLATIONS["180-01"] = {
-    "title": "Mancata esibizione del foglio di servizio / documento di controllo",
-    "article": "CdS art. 180 (valutazione separata)",
-    "pmr": "Verificare prontuario",
-    "reduced_30": "Verificare prontuario",
-    "over_60": "Verificare prontuario",
-    "edictal": "Verificare fattispecie concreta",
-    "accessories": ["Verificare"],
-    "verbal_text": "Il conducente non esibiva nell'immediatezza il foglio di servizio o il codice identificativo del servizio richiesto in controllo.",
-    "notes": ["Da usare come richiamo operativo separato e solo se la fattispecie concreta è documentale/non sostanziale."],
-    "fields_to_fill": ["documento richiesto", "modalità della richiesta", "esito del controllo"],
-    "short_ready_text": "Valutare autonoma contestazione documentale per mancata esibizione immediata del foglio di servizio/codice identificativo del servizio."
+    "title": "Mancanza momentanea di documenti",
+    "article": "CdS art. 180 c. 1 e c. 7",
+    "pmr": "€ 42,00",
+    "reduced_30": "€ 29,40",
+    "over_60": "€ 86,50",
+    "edictal": "da € 42,00 a € 173,00",
+    "accessories": ["Nessuna"],
+    "verbal_text": "Circolava alla guida del veicolo sopra indicato senza portare con sé un documento di guida/circolazione, pur dichiarando di esserne in possesso.",
+    "notes": ["Per foglio di servizio, autorizzazione o licenza NCC usare 180-06 (art. 180 c.3 e c.7)."],
+    "fields_to_fill": ["documento mancante", "ufficio di presentazione", "termine per esibizione"],
+    "short_ready_text": "Art. 180 c.1 e c.7: mancanza momentanea di documenti di guida/circolazione. PMR € 42,00; riduzione 30% € 29,40; oltre 60 giorni € 86,50."
 }
 
 
@@ -647,6 +647,20 @@ VIOLATIONS["180-09"] = {
     "short_ready_text": "Art. 180 c.5 e c.7 per CAP/KB/CQC non al seguito: PMR € 42,00; riduzione 30% € 29,40; oltre 60 giorni € 86,50. Invito a presentare il titolo mancante."
 }
 
+
+VIOLATIONS["180-10"] = {
+    "title": "Inottemperanza all'invito di presentare documenti o fornire informazioni",
+    "article": "CdS art. 180 c. 8",
+    "pmr": "€ 430,00",
+    "reduced_30": "€ 301,00",
+    "over_60": "€ 865,50",
+    "edictal": "da € 430,00 a € 1.731,00",
+    "accessories": ["Nessuna"],
+    "verbal_text": "Invitato con precedente verbale a esibire documenti o fornire informazioni entro il termine indicato, lasciava scadere i termini senza giustificato motivo, non ottemperando a quanto richiesto.",
+    "notes": ["Da usare solo dopo mancata ottemperanza all'invito già notificato/contestato. Non sostituisce la violazione documentale iniziale."],
+    "fields_to_fill": ["numero e data del verbale/invito", "documento o informazione richiesta", "termine assegnato", "ufficio presso cui presentarsi"],
+    "short_ready_text": "Art. 180 c.8: inottemperanza all'invito di presentare documenti o fornire informazioni. PMR € 430,00; riduzione 30% € 301,00; oltre 60 giorni € 865,50."
+}
 
 VIOLATIONS["158-27"] = {
     "title": "Sosta negli spazi riservati a taxi o autobus nel terminal crociere",
@@ -1366,7 +1380,7 @@ def format_plate_control_summary(plate, max_items=5):
 
 def build_plate_found_markup(plate):
     markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(types.InlineKeyboardButton("Registra controllo", callback_data=f"plate_control_add:{normalize_plate_value(plate)}"))
+    markup.add(types.InlineKeyboardButton("📝 Registra controllo", callback_data=f"plate_control_add:{normalize_plate_value(plate)}"))
     return markup
 
 
@@ -1482,7 +1496,7 @@ def format_plate_control_summary(plate, max_items=5):
 
 def build_plate_found_markup(plate):
     markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(types.InlineKeyboardButton("Registra controllo", callback_data=f"plate_control_add:{normalize_plate_value(plate)}"))
+    markup.add(types.InlineKeyboardButton("📝 Registra controllo", callback_data=f"plate_control_add:{normalize_plate_value(plate)}"))
     return markup
 
 
@@ -1598,7 +1612,7 @@ def format_plate_control_summary(plate, max_items=5):
 
 def build_plate_found_markup(plate):
     markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(types.InlineKeyboardButton("Registra controllo", callback_data=f"plate_control_add:{normalize_plate_value(plate)}"))
+    markup.add(types.InlineKeyboardButton("📝 Registra controllo", callback_data=f"plate_control_add:{normalize_plate_value(plate)}"))
     return markup
 
 
@@ -2103,11 +2117,12 @@ ARCHIVIO_VERBALI_MAP = {
     "Art 116 C15 C17 3 - Guida senza patente - reiterazione penale": "116-04",
     "Art 116 C16 C18 - Guida senza KB KA CQC": "116-06",
     "Art 158 C2d C5bis - Sosta su stalli taxi/bus": "158-27",
-    "Art 180 - Foglio di servizio/prenotazione non esibito": "180-01",
-    "Art 180 C1 C7 - Patente o carta non al seguito": "180-01DOC",
-    "Art 180 C1 C7 - Certificato assicurativo non al seguito": "180-03",
-    "Art 180 C3 C7 - Autorizzazione NCC non al seguito": "180-06",
-    "Art 180 C5 C7 - KB/CQC non al seguito": "180-09",
+    "📄 Art 180 C3 C7 - Foglio servizio/licenza non al seguito": "180-06",
+    "🪪 Art 180 C1 C7 - Patente o carta non al seguito": "180-01DOC",
+    "🛡️ Art 180 C1 C7 - Certificato assicurativo non al seguito": "180-03",
+    "📑 Art 180 C3 C7 - Autorizzazione/Licenza NCC non al seguito": "180-06",
+    "🪪 Art 180 C5 C7 - KB/CQC non al seguito": "180-09",
+    "⏳ Art 180 C8 - Inottemperanza invito documenti": "180-10",
     "Art 193 C2 - Circolazione senza copertura assicurativa": "193-02",
     "Avviso fermo amministrativo": "AVVISO_FERMO",
     "Comunicazione Comune": "COM_COMUNE",
@@ -2117,19 +2132,19 @@ ARCHIVIO_VERBALI_MAP = {
     "Comunicazione UMC": "COM_UMC",
     "Fermo / sequestro veicolo": "FERMO_116",
     "Sequestro / custodia veicolo": "SEQUESTRO_85",
-    "Verbale POS - rifiuto pagamento elettronico": "POS-RIFIUTO",
-    "Verbale POS - dispositivo assente/non disponibile": "POS-ASSENTE",
-    "Verbale POS - dispositivo non funzionante": "POS-NON-FUNZIONANTE",
-    "PVC corrispettivi GdF": "PVC-FISCALE",
+    "💳 Verbale POS - rifiuto pagamento elettronico": "POS-RIFIUTO",
+    "📵 Verbale POS - dispositivo assente/non disponibile": "POS-ASSENTE",
+    "🛠️ Verbale POS - dispositivo non funzionante": "POS-NON-FUNZIONANTE",
+    "🧾 PVC corrispettivi GdF": "PVC-FISCALE",
 }
 
 ARCHIVIO_VERBALI_ALIASES = {
-    "NCC abusivo totale": "085-02",
-    "NCC abusivo totale recidiva": "085-04",
-    "Guida senza KB": "116-06",
-    "Guida senza KB / CAP / CQC": "116-06",
-    "Foglio servizio prenotazione": "180-01",
-    "Mancanza foglio servizio / prenotazione": "180-01",
+    "🚨 NCC abusivo totale": "085-02",
+    "🚨 NCC abusivo totale recidiva": "085-04",
+    "🪪 Guida senza KB": "116-06",
+    "🪪 Guida senza KB / CAP / CQC": "116-06",
+    "Foglio servizio prenotazione": "180-06",
+    "Mancanza foglio servizio / prenotazione": "180-06",
     "Verbale scontrino PVC": "PVC-FISCALE",
     "Verbale scontrino / PVC": "PVC-FISCALE",
     "Verbale POS": "POS-RIFIUTO",
@@ -2138,9 +2153,9 @@ ARCHIVIO_VERBALI_ALIASES = {
     "POS assente": "POS-ASSENTE",
     "POS non disponibile": "POS-ASSENTE",
     "POS non funzionante": "POS-NON-FUNZIONANTE",
-    "Senza assicurazione": "193-02",
-    "Sosta stallo taxi bus": "158-27",
-    "Sosta stallo taxi / bus": "158-27",
+    "🛡️ Senza assicurazione": "193-02",
+    "🚕 Sosta stallo taxi bus": "158-27",
+    "🚕 Sosta stallo taxi / bus": "158-27",
 }
 
 def build_archivio_verbali_menu():
@@ -2149,37 +2164,57 @@ def build_archivio_verbali_menu():
     for label, code in ARCHIVIO_VERBALI_MAP.items():
         if code in PDF_MODELS:
             kb.row(types.KeyboardButton(label))
-    kb.row(types.KeyboardButton("Indietro"))
+    kb.row(types.KeyboardButton("🔙 Indietro"))
     return kb
 
 
 def build_main_menu():
     kb = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     kb.add(
-        types.KeyboardButton("Inserisci un caso NCC"),
-        types.KeyboardButton("Controlli operativi")
+        types.KeyboardButton("🚨 Caso NCC"),
+        types.KeyboardButton("🛂 Controlli operativi")
     )
     kb.add(
-        types.KeyboardButton("Checklist documentale"),
-        types.KeyboardButton("Documenti da controllare")
+        types.KeyboardButton("✅ Checklist documentale"),
+        types.KeyboardButton("📋 Documenti")
     )
     kb.add(
-        types.KeyboardButton("Verifica targa"),
-        types.KeyboardButton("Norme principali")
+        types.KeyboardButton("🔎 Verifica targa"),
+        types.KeyboardButton("⚖️ Norme principali")
     )
     kb.add(
-        types.KeyboardButton("Controllo uso licenza NCC"),
-        types.KeyboardButton("Controllo stalli RCT"),
-        types.KeyboardButton("Controllo servizio TAXI")
+        types.KeyboardButton("📍 Uso licenza NCC"),
+        types.KeyboardButton("🅿️ Stalli RCT")
     )
     kb.add(
-        types.KeyboardButton("Aggiornamenti CdS / giurisprudenza")
+        types.KeyboardButton("🚕 Servizio TAXI"),
+        types.KeyboardButton("📚 Agg. CdS")
     )
     kb.add(
-        types.KeyboardButton("Porto"),
+        types.KeyboardButton("⚓ Porto"),
         types.KeyboardButton("📄 Verbali")
     )
     return kb
+
+
+MENU_TEXT_ALIASES = {
+    "🚨 Caso NCC": "Inserisci un caso NCC",
+    "🛂 Controlli operativi": "Controlli operativi",
+    "✅ Checklist documentale": "Checklist documentale",
+    "📋 Documenti": "Documenti da controllare",
+    "🔎 Verifica targa": "Verifica targa",
+    "⚖️ Norme principali": "Norme principali",
+    "📍 Uso licenza NCC": "Controllo uso licenza NCC",
+    "🅿️ Stalli RCT": "Controllo stalli RCT",
+    "🚕 Servizio TAXI": "Controllo servizio TAXI",
+    "📚 Agg. CdS": "Aggiornamenti CdS / giurisprudenza",
+    "⚓ Porto": "Porto",
+    "📄 Verbali": "📄 Verbali",
+    "🔙 Indietro": "Indietro",
+}
+
+def normalize_menu_text(text):
+    return MENU_TEXT_ALIASES.get((text or "").strip(), (text or "").strip())
 
 def build_pdf_markup(main_code=None, concurrent_codes=None, procedural_flags=None):
     concurrent_codes = _dedupe_keep_order(concurrent_codes or [])
@@ -2242,8 +2277,8 @@ def build_final_result_markup(payload):
     markup = types.InlineKeyboardMarkup(row_width=2)
 
     markup.add(
-        types.InlineKeyboardButton("ESITO RAPIDO", callback_data="final:quick"),
-        types.InlineKeyboardButton("ATTI ACCESSORI", callback_data="final:accessori"),
+        types.InlineKeyboardButton("⚡ ESITO RAPIDO", callback_data="final:quick"),
+        types.InlineKeyboardButton("🚔 ATTI ACCESSORI", callback_data="final:accessori"),
     )
 
     verbali = payload.get("verbali", [])
@@ -2261,8 +2296,8 @@ def build_final_result_markup(payload):
         markup.add(types.InlineKeyboardButton("VERBALE 5", callback_data="final:v5"))
 
     markup.add(
-        types.InlineKeyboardButton("COMUNICAZIONI", callback_data="final:comunicazioni"),
-        types.InlineKeyboardButton("ARTICOLI", callback_data="final:articoli"),
+        types.InlineKeyboardButton("📨 COMUNICAZIONI", callback_data="final:comunicazioni"),
+        types.InlineKeyboardButton("⚖️ ARTICOLI", callback_data="final:articoli"),
     )
 
     return markup
@@ -2501,7 +2536,7 @@ def build_violation_markup_for_article(article_key):
         "art116": ["116-02", "116-03", "116-04", "116-06"],
         "art3l21": ["085-05", "085-06", "085-07", "085-08"],
         "art11l21": ["085-05", "085-06", "085-07", "085-08"],
-        "art180": ["180-01", "180-DOC", "180-01DOC", "180-03", "180-06", "180-09"],
+        "art180": ["180-01", "180-DOC", "180-01DOC", "180-03", "180-06", "180-09", "180-10"],
         "art126": [],
     }
     codes = [c for c in article_to_codes.get(key, []) if c in VIOLATIONS]
@@ -2524,7 +2559,7 @@ def send_pdf_by_code(chat_id, code, caption=None):
         bot.send_message(chat_id, f"Template non disponibile per il codice: {code}")
         return
     markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton("Apri PDF", url=url))
+    markup.add(types.InlineKeyboardButton("📄 Apri PDF", url=url))
     label = caption
     if not label:
         label = next((name for name, mapped_code in ARCHIVIO_VERBALI_MAP.items() if mapped_code == code), f"Template pronto: {code}")
@@ -2575,6 +2610,7 @@ PDF_MODELS = {
     "180-03": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/180-03_certificato_assicurativo_non_al_seguito.pdf",
     "180-06": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/180-06_autorizzazione_ncc_non_al_seguito.pdf",
     "180-09": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/180-09_kb_cqc_non_al_seguito.pdf",
+    "180-10": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/180-10_inottemperanza_invito_art180_c8_CORRETTO.pdf",
     "193-02": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/193-02_art193_senza_assicurazione.pdf",
     "PVC-FISCALE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/PVC_corrispettivi_gdf.pdf",
     "POS-RIFIUTO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/POS_RIFIUTO_pagamento_elettronico.pdf",
@@ -2674,7 +2710,7 @@ def build_quick_summary(main_code, concurrent_codes=None, procedural_flags=None,
     communications = _build_communications(procedural_flags)
 
     lines = []
-    lines.append("ESITO RAPIDO")
+    lines.append("⚡ ESITO RAPIDO")
     lines.append("")
     lines.append("VERBALI DA FARE")
     lines.append(f"1) {_short_violation_line(main_code)}")
@@ -2683,13 +2719,13 @@ def build_quick_summary(main_code, concurrent_codes=None, procedural_flags=None,
 
     if accessory_actions:
         lines.append("")
-        lines.append("ATTI ACCESSORI")
+        lines.append("🚔 ATTI ACCESSORI")
         for idx, item in enumerate(accessory_actions, start=1):
             lines.append(f"{idx}) {item}")
 
     if communications:
         lines.append("")
-        lines.append("COMUNICAZIONI")
+        lines.append("📨 COMUNICAZIONI")
         for idx, item in enumerate(communications, start=1):
             lines.append(f"{idx}) {item}")
 
@@ -2796,7 +2832,7 @@ def build_final_payload(main_code, concurrent_codes=None, extra_notes=None, proc
     communications = _build_communications(procedural_flags)
 
     quick_lines = []
-    quick_lines.append("ESITO RAPIDO")
+    quick_lines.append("⚡ ESITO RAPIDO")
     quick_lines.append("")
     quick_lines.append(f"Verbali da fare: {len(all_codes)}")
     quick_lines.append(f"Atti accessori: {len(accessory_actions)}")
@@ -2808,13 +2844,13 @@ def build_final_payload(main_code, concurrent_codes=None, extra_notes=None, proc
 
     if accessory_actions:
         quick_lines.append("")
-        quick_lines.append("ATTI ACCESSORI")
+        quick_lines.append("🚔 ATTI ACCESSORI")
         for idx, item in enumerate(accessory_actions, start=1):
             quick_lines.append(f"{idx}) {item}")
 
     if communications:
         quick_lines.append("")
-        quick_lines.append("COMUNICAZIONI")
+        quick_lines.append("📨 COMUNICAZIONI")
         for idx, item in enumerate(communications, start=1):
             quick_lines.append(f"{idx}) {item}")
 
@@ -4154,7 +4190,7 @@ def _finalize_port_common_case(chat_id):
         if procacciamento_porto_text not in procedural_flags.setdefault("verbale_additions", []):
             procedural_flags["verbale_additions"].append(procacciamento_porto_text)
 
-        fixed_package = ["116-06", "180-01", "PVC-FISCALE", "POS-RIFIUTO"]
+        fixed_package = ["116-06", "180-06", "PVC-FISCALE", "POS-RIFIUTO"]
         for code in fixed_package:
             if code not in concurrent:
                 concurrent.append(code)
@@ -4662,7 +4698,7 @@ def decide_violation(answers):
     elif foglio_status == "non_esibito":
         ancillary_findings.append("Foglio di servizio esistente ma non esibito: valutare separatamente la mancata esibizione documentale ex art. 180 CdS.")
         add_verbal("Il conducente non esibiva nell'immediatezza il foglio di servizio/codice identificativo del servizio; valutare autonoma contestazione documentale.")
-        _append_unique(concurrent, "180-01")
+        _append_unique(concurrent, "180-06")
 
     if public_waiting == "si" and booking == "no" and vehicle_authorized == "si":
         violation_type = "art3_11"
@@ -5046,8 +5082,8 @@ def build_control_docs_markup(state):
         buttons.append(types.InlineKeyboardButton(label, callback_data=f"ctrl_doc_toggle:{item['id']}"))
     for i in range(0, len(buttons), 2):
         markup.row(*buttons[i:i+2])
-    markup.row(types.InlineKeyboardButton("CONFERMA DOCUMENTI", callback_data="ctrl_doc_done"))
-    markup.row(types.InlineKeyboardButton("ANNULLA", callback_data="ctrl_doc_cancel"))
+    markup.row(types.InlineKeyboardButton("✅ CONFERMA DOCUMENTI", callback_data="ctrl_doc_done"))
+    markup.row(types.InlineKeyboardButton("❌ ANNULLA", callback_data="ctrl_doc_cancel"))
     return markup
 
 
@@ -5739,7 +5775,7 @@ def approve_command(message):
     except Exception:
         pass
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "Porto")
+@bot.message_handler(func=lambda m: normalize_menu_text(m.text) == "Porto")
 def menu_port_common_cases_button(message):
     if not ensure_authorized(message):
         return
@@ -5928,16 +5964,16 @@ def norme_command(message):
     
     markup = types.InlineKeyboardMarkup(row_width=2)
     markup.row(
-        types.InlineKeyboardButton("Art. 85 CdS", callback_data="article:art85"),
-        types.InlineKeyboardButton("Art. 116 CdS", callback_data="article:art116"),
+        types.InlineKeyboardButton("⚖️ Art. 85 CdS", callback_data="article:art85"),
+        types.InlineKeyboardButton("⚖️ Art. 116 CdS", callback_data="article:art116"),
     )
     markup.row(
-        types.InlineKeyboardButton("Art. 3 L.21/1992", callback_data="article:art3l21"),
-        types.InlineKeyboardButton("Art. 11 L.21/1992", callback_data="article:art11l21"),
+        types.InlineKeyboardButton("📘 Art. 3 L.21/1992", callback_data="article:art3l21"),
+        types.InlineKeyboardButton("📘 Art. 11 L.21/1992", callback_data="article:art11l21"),
     )
     markup.row(
-        types.InlineKeyboardButton("Art. 180 CdS", callback_data="article:art180"),
-        types.InlineKeyboardButton("Art. 126 CdS", callback_data="article:art126"),
+        types.InlineKeyboardButton("📄 Art. 180 CdS", callback_data="article:art180"),
+        types.InlineKeyboardButton("📄 Art. 126 CdS", callback_data="article:art126"),
     )
 
     bot.reply_to(message, text, reply_markup=markup)
@@ -6105,15 +6141,15 @@ def stalli_command(message):
 
 def build_giurisprudenza_check_markup():
     kb = types.InlineKeyboardMarkup(row_width=1)
-    kb.add(types.InlineKeyboardButton("Apri Circolazione Stradale", url=GIURIS_CHANNEL_URL))
-    kb.add(types.InlineKeyboardButton("Ho verificato gli aggiornamenti", callback_data="giuris_checked"))
+    kb.add(types.InlineKeyboardButton("🔗 Apri Circolazione Stradale", url=GIURIS_CHANNEL_URL))
+    kb.add(types.InlineKeyboardButton("✅ Ho verificato gli aggiornamenti", callback_data="giuris_checked"))
     return kb
 
 
 def wrap_final_markup_with_giuris(markup=None):
     kb = types.InlineKeyboardMarkup(row_width=2)
-    kb.add(types.InlineKeyboardButton("Apri Circolazione Stradale", url=GIURIS_CHANNEL_URL))
-    kb.add(types.InlineKeyboardButton("Ho verificato gli aggiornamenti", callback_data="giuris_checked"))
+    kb.add(types.InlineKeyboardButton("🔗 Apri Circolazione Stradale", url=GIURIS_CHANNEL_URL))
+    kb.add(types.InlineKeyboardButton("✅ Ho verificato gli aggiornamenti", callback_data="giuris_checked"))
     if markup and getattr(markup, "keyboard", None):
         for row in markup.keyboard:
             kb.row(*row)
@@ -6133,7 +6169,7 @@ def taxi_command(message):
     )
 
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "Controllo servizio TAXI")
+@bot.message_handler(func=lambda m: normalize_menu_text(m.text) == "Controllo servizio TAXI")
 def menu_taxi_button(message):
     taxi_command(message)
 
@@ -6150,7 +6186,7 @@ def aggiornamenti_command(message):
     )
 
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "Aggiornamenti CdS / giurisprudenza")
+@bot.message_handler(func=lambda m: normalize_menu_text(m.text) == "Aggiornamenti CdS / giurisprudenza")
 def menu_aggiornamenti_button(message):
     aggiornamenti_command(message)
 
@@ -6247,36 +6283,36 @@ def casi_porto_command(message):
         reply_markup=build_port_common_cases_markup()
     )
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "Inserisci un caso NCC")
+@bot.message_handler(func=lambda m: normalize_menu_text(m.text) == "Inserisci un caso NCC")
 def menu_caso_button(message):
     caso_command(message)
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "Checklist documentale")
+@bot.message_handler(func=lambda m: normalize_menu_text(m.text) == "Checklist documentale")
 def menu_controllo_button(message):
     controllo_command(message)
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "Controlli operativi")
+@bot.message_handler(func=lambda m: normalize_menu_text(m.text) == "Controlli operativi")
 def menu_checklist_button(message):
     checklist_command(message)
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "Documenti da controllare")
+@bot.message_handler(func=lambda m: normalize_menu_text(m.text) == "Documenti da controllare")
 def menu_documenti_button(message):
     documenti_command(message)
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "Norme principali")
+@bot.message_handler(func=lambda m: normalize_menu_text(m.text) == "Norme principali")
 def menu_norme_button(message):
     norme_command(message)
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "Controllo uso licenza NCC")
+@bot.message_handler(func=lambda m: normalize_menu_text(m.text) == "Controllo uso licenza NCC")
 def menu_licenza_button(message):
     licenza_command(message)
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "Controllo stalli RCT")
+@bot.message_handler(func=lambda m: normalize_menu_text(m.text) == "Controllo stalli RCT")
 def menu_stalli_button(message):
     stalli_command(message)
 
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "Verifica targa")
+@bot.message_handler(func=lambda m: normalize_menu_text(m.text) == "Verifica targa")
 def menu_targa_button(message):
     if not ensure_authorized(message):
         return
@@ -6759,7 +6795,7 @@ def answer_callback(call):
 
 @bot.message_handler(func=lambda m: True)
 def all_messages(message):
-    text = (message.text or "").strip()
+    text = normalize_menu_text(message.text)
 
     if text == "Aggiornamenti CdS / giurisprudenza":
         if not ensure_authorized(message):
