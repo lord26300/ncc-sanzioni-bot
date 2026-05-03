@@ -2285,7 +2285,19 @@ def build_final_result_markup(payload):
     # Pulsanti verbali dinamici: evita duplicati e supporta anche 6+ verbali.
     # Esempio abusivo totale: 1 principale + 4/5 concorrenti = Verbale 1, 2, 3, 4, 5, 6...
     for i in range(1, min(len(verbali), 10) + 1):
-        markup.add(types.InlineKeyboardButton(f"📄 Verbale {i}", callback_data=f"final:v{i}"))
+        
+        code = None
+        if i == 1:
+            code = payload.get("main_code")
+        else:
+            cc = payload.get("concurrent_codes", [])
+            code = cc[i-2] if len(cc) >= i-1 else None
+        title = get_violation_record(code).get("title", "") if code else ""
+        short = (title[:28] + "…") if len(title) > 28 else title
+        label = f"📄 Verbale {i}"
+        if short:
+            label += f" - {short}"
+        markup.add(types.InlineKeyboardButton(label, callback_data=f"final:v{i}"))
 
     markup.add(
         types.InlineKeyboardButton("📨 COMUNICAZIONI", callback_data="final:comunicazioni"),
@@ -2376,6 +2388,7 @@ def get_question_buttons(question_key):
         'foglio_status': [('PRESENTE', 'presente'), ('ASSENTE', 'assente'), ('IRREGOLARE', 'irregolare'), ('NON ESIBITO', 'non_esibito')],
         'recurrence': [('PRIMA', 'first'), ('2^ QUINQ.', '2_5y'), ('3^ QUINQ.', '3_5y'), ('4+', '4plus_5y')],
         'recurrence_triennio': [('PRIMA', 'first'), ('2^ TRIENNIO', 'second_3y')],
+        'pos_esito': [('RIFIUTATO', 'rifiutato'), ('ASSENTE', 'assente'), ('NON FUNZ.', 'non_funzionante'), ('ACCETTATO', 'accettato'), ('NON RICH.', 'non_richiesto')],
         'control_patente_status': [('VALIDA', 'valida'), ('SCADUTA', 'scaduta'), ('NON IDONEA', 'non_idonea'), ('NON ESIBITA', 'non_esibita')],
         'control_kb_status': [('VALIDO', 'valido'), ('SCADUTO', 'scaduto'), ('NON IDONEO/MAI', 'non_idoneo'), ('NON ESIBITO', 'non_esibito'), ('NON DOVUTO', 'non_dovuto')],
         'control_autorizzazione_status': [('REGOLARE', 'regolare'), ('NON ESIBITA', 'non_esibita'), ('NON AUTORIZZATO', 'non_autorizzato')],
@@ -2605,7 +2618,7 @@ PDF_MODELS = {
     "180-10": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/180-10_inottemperanza_invito_art180_c8_CORRETTO.pdf",
     "193-02": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/193-02_art193_senza_assicurazione.pdf",
     "PVC-FISCALE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/PVC_corrispettivi_gdf.pdf",
-    "POS-RIFIUTO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/POS_RIFIUTO_pagamento_elettronico.pdf",
+    "POS-RIFIUTO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/POS_rifiuto_pagamento_elettronico.pdf",
     "POS-ASSENTE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/POS_ASSENTE_mancata_disponibilita.pdf",
     "POS-NON-FUNZIONANTE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/POS_NON_FUNZIONANTE_dispositivo_non_utilizzabile.pdf",
     "158-27": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/158-27_art158_c2d_c5bis_stalli_taxi_bus.pdf",
@@ -4182,7 +4195,16 @@ def _finalize_port_common_case(chat_id):
         if procacciamento_porto_text not in procedural_flags.setdefault("verbale_additions", []):
             procedural_flags["verbale_additions"].append(procacciamento_porto_text)
 
-        fixed_package = ["116-06", "180-06", "PVC-FISCALE", "POS-RIFIUTO"]
+        pos_code = {
+            "rifiutato": "POS-RIFIUTO",
+            "assente": "POS-ASSENTE",
+            "non_funzionante": "POS-NON-FUNZIONANTE",
+        }.get(answers.get("pos_esito"))
+
+        fixed_package = ["116-06", "180-06", "PVC-FISCALE"]
+        if pos_code:
+            fixed_package.append(pos_code)
+
         for code in fixed_package:
             if code not in concurrent:
                 concurrent.append(code)
@@ -4232,7 +4254,7 @@ def process_port_common_followup(chat_id, text):
 
     pending = state.get("pending_question") or {}
     key = pending.get("key")
-    value = parse_answer_for_key(key, text) if key in {"recurrence_triennio", "recurrence", "kb", "patente_idonea", "incauto_affidamento"} else normalize_answer(text)
+    value = parse_answer_for_key(key, text) if key in {"recurrence_triennio", "recurrence", "kb", "patente_idonea", "incauto_affidamento", "pos_esito"} else normalize_answer(text)
 
     if key == "recurrence_triennio":
         if value not in {"first", "second_3y"}:
@@ -4241,10 +4263,24 @@ def process_port_common_followup(chat_id, text):
         state["answers"]["recurrence_triennio"] = value
 
         if state.get("porto_case_key") == "abusivo_totale":
+            state["pending_question"] = {
+                "key": "pos_esito",
+                "text": (
+                    "Nel caso abusivo totale, qual è l'esito sul pagamento elettronico/POS?\n\n"
+                    "Scegli: rifiutato / assente / non funzionante / accettato / non richiesto"
+                )
+            }
             save_user_states()
-            result, payload = _finalize_port_common_case(chat_id)
-            return result, payload, None
+            return build_article_verification_prompt(state["answers"], "pos_esito", state["pending_question"]["text"]), None, "pos_esito"
 
+        save_user_states()
+        result, payload = _finalize_port_common_case(chat_id)
+        return result, payload, None
+
+    if key == "pos_esito":
+        if value not in {"rifiutato", "assente", "non_funzionante", "accettato", "non_richiesto"}:
+            return "Risposta non valida. Indica: rifiutato / assente / non funzionante / accettato / non richiesto.", None, key
+        state["answers"]["pos_esito"] = value
         save_user_states()
         result, payload = _finalize_port_common_case(chat_id)
         return result, payload, None
@@ -4960,6 +4996,20 @@ def parse_answer_for_key(key, text):
         yn = _extract_yes_no(t)
         if yn is not None:
             return yn
+
+    if key == "pos_esito":
+        nt = _normalize_free_answer(t)
+        if _contains_any(nt, ["rifiutato", "rifiuta", "rifiuto", "no carta", "solo contanti"]):
+            return "rifiutato"
+        if _contains_any(nt, ["assente", "non disponibile", "non dispone", "senza pos", "manca pos", "no pos"]):
+            return "assente"
+        if _contains_any(nt, ["non funzionante", "guasto", "rotto", "non utilizzabile", "fuori servizio"]):
+            return "non_funzionante"
+        if _contains_any(nt, ["accettato", "pagamento accettato", "pagato con carta", "ok pos"]):
+            return "accettato"
+        if _contains_any(nt, ["non richiesto", "non richiesta", "cliente non ha chiesto", "non chiesto"]):
+            return "non_richiesto"
+        return None
 
     if key == "service_to_third":
         if re.search(r"(dubbio|forse|non chiaro|incerto)", _normalize_free_answer(t)):
