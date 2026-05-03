@@ -2319,7 +2319,7 @@ def get_question_buttons(question_key):
         'control_patente_status': [('VALIDA', 'valida'), ('SCADUTA', 'scaduta'), ('NON IDONEA', 'non_idonea'), ('NON ESIBITA', 'non_esibita')],
         'control_kb_status': [('VALIDO', 'valido'), ('SCADUTO', 'scaduto'), ('NON IDONEO/MAI', 'non_idoneo'), ('NON ESIBITO', 'non_esibito'), ('NON DOVUTO', 'non_dovuto')],
         'control_autorizzazione_status': [('REGOLARE', 'regolare'), ('NON ESIBITA', 'non_esibita'), ('NON AUTORIZZATO', 'non_autorizzato')],
-        'control_foglio_status': [('REGOLARE', 'regolare'), ('IRREGOLARE', 'irregolare'), ('ASSENTE', 'assente'), ('NON ESIBITO', 'non_esibito')],
+        'control_foglio_status': [('REGOLARE', 'regolare'), ('INCOMPLETO', 'incompleto'), ('FALSO/FITTIZIO', 'falso'), ('ASSENTE', 'assente'), ('NON ESIBITO', 'non_esibito')],
         'control_patente_missing_mode': [('ESISTE/VALIDA', 'esiste_valida'), ('INESIST./NON VAL.', 'inesistente_non_valida'), ('NON VERIF.', 'non_verificato')],
         'control_kb_missing_mode': [('ESISTE/VALIDO', 'esiste_valido'), ('MANCANTE/NON VAL.', 'mancante_non_valido'), ('NON VERIF.', 'non_verificato')],
         'control_autorizzazione_missing_mode': [('ESISTE/REG.', 'esiste_regolare'), ('ASSENTE/SOSP./REV.', 'assente_sospesa_revocata'), ('NON VERIF.', 'non_verificato')],
@@ -3101,6 +3101,35 @@ def _is_persona_fisica_owner(owner_name):
 
 
 
+def build_license_distance_alert_from_place(comune_licenza_val, control_place="Civitavecchia"):
+    """Crea un alert se il comune della licenza è molto distante dal luogo di controllo.
+    Funzione difensiva: non blocca mai il controllo targa in caso di dati mancanti.
+    """
+    comune = (comune_licenza_val or "").strip()
+    if not comune:
+        return ""
+    try:
+        license_coords = _lookup_place_coords(comune)
+        control_coords = _lookup_place_coords(control_place or "Civitavecchia")
+        if not license_coords or not control_coords:
+            return ""
+        distance = _haversine_km(
+            license_coords["lat"], license_coords["lon"],
+            control_coords["lat"], control_coords["lon"]
+        )
+        if distance >= LICENSE_DISTANCE_ALERT_KM:
+            return (
+                "ALERT DISTANZA LICENZA\n"
+                f"Comune/ente licenza: {comune}\n"
+                f"Distanza stimata dal luogo di controllo ({control_place}): circa {distance} km.\n"
+                "La distanza, da sola, non prova l'illecito, ma è un indice operativo da approfondire "
+                "insieme a prenotazione, foglio di servizio, sede/rimessa e modalità di acquisizione clientela."
+            )
+    except Exception:
+        return ""
+    return ""
+
+
 def lookup_plate_in_registry(plate_text):
     plate = normalize_plate_value(plate_text)
     if not plate:
@@ -3110,7 +3139,7 @@ def lookup_plate_in_registry(plate_text):
         return {
             "ok": False,
             "message": (
-                f"Archivio targhe non trovato: {TARGHE_FILE_PATH}."
+                f"Archivio targhe non trovato: {TARGHE_FILE_PATH}. "
                 "Carica il file Excel nel repository e verifica il percorso in TARGHE_FILE_PATH."
             )
         }
@@ -3118,17 +3147,15 @@ def lookup_plate_in_registry(plate_text):
     try:
         from openpyxl import load_workbook
     except Exception as e:
-        return {
-            "ok": False,
-            "message": f"Libreria openpyxl non disponibile sul server: {e}"
-        }
+        return {"ok": False, "message": f"Libreria openpyxl non disponibile sul server: {e}"}
 
     try:
         workbook = load_workbook(TARGHE_FILE_PATH, data_only=True, read_only=True)
+
         target_sheet_name = TARGHE_SHEET_NAME if TARGHE_SHEET_NAME in workbook.sheetnames else None
         if not target_sheet_name:
             for candidate in workbook.sheetnames:
-                if str(candidate).strip().lower() == 'ncc':
+                if str(candidate).strip().lower() == "ncc":
                     target_sheet_name = candidate
                     break
         sheet = workbook[target_sheet_name] if target_sheet_name else workbook[workbook.sheetnames[0]]
@@ -3140,16 +3167,7 @@ def lookup_plate_in_registry(plate_text):
             return {"ok": False, "message": "Il file Excel targhe è vuoto."}
 
         headers = [normalize_header_value(h) for h in headers_raw]
-
         targa_idx = _find_first_matching_column(headers, {"targa", "plate", "telaio/targa", "veicolo", "mezzo"})
-        uso_idx = _find_first_matching_column(headers, {"uso veicolo", "uso", "uso del veicolo"})
-        intestatario_idx = _find_first_matching_column(headers, {"intestatario", "proprietario", "ragione sociale", "titolare"})
-        residenza_idx = _find_first_matching_column(headers, {"residenza intestatario", "residenza", "indirizzo intestatario", "comune intestatario"})
-        modello_idx = _find_first_matching_column(headers, {"modello", "veicolo modello", "marca modello"})
-        destinazione_idx = _find_first_matching_column(headers, {"destinazione uso veicoli", "destinazione uso", "destinazione"})
-        licenza_idx = _find_first_matching_column(headers, {"licenza autoveicolo", "licenza", "autorizzazione", "licenza ncc"})
-        note_idx = _find_first_matching_column(headers, {"note", "annotazioni", "osservazioni"})
-
         if targa_idx is None:
             return {
                 "ok": False,
@@ -3171,23 +3189,31 @@ def lookup_plate_in_registry(plate_text):
                 "message": f"Il mezzo con targa {plate} non è stato censito."
             }
 
-        def get_value(idx):
-            if idx is None or idx >= len(found_row):
-                return ""
-            value = found_row[idx]
-            if value is None:
-                return ""
-            return str(value).strip()
+        # Dizionario della riga Excel indicizzato per intestazione normalizzata.
+        # IMPORTANTE: non usare variabili non inizializzate tipo 'normalized'.
+        row_data = {}
+        for idx, header in enumerate(headers):
+            if not header:
+                continue
+            value = found_row[idx] if idx < len(found_row) else ""
+            row_data[header] = "" if value is None else str(value).strip()
 
-        uso = get_value(uso_idx).upper()
-        intestatario = get_value(intestatario_idx)
-        residenza = get_value(residenza_idx)
-        modello = get_value(modello_idx)
-        destinazione = get_value(destinazione_idx)
-        licenza = get_value(licenza_idx)
-        note = get_value(note_idx)
-        owner_is_person = _is_persona_fisica_owner(intestatario)
-        uso_proprio_alert = uso == 'PROPRIO'
+        def first_value(*aliases):
+            for alias in aliases:
+                key = normalize_header_value(alias)
+                if key in row_data and row_data[key]:
+                    return row_data[key]
+            return ""
+
+        uso = first_value("uso veicolo", "uso", "uso del veicolo").upper()
+        intestatario = first_value("intestatario", "proprietario", "ragione sociale", "titolare")
+        residenza = first_value("residenza intestatario", "residenza", "indirizzo intestatario", "comune intestatario")
+        modello = first_value("modello", "veicolo modello", "marca modello")
+        destinazione = first_value("destinazione uso veicoli", "destinazione uso", "destinazione")
+        licenza = first_value("licenza autoveicolo", "licenza", "autorizzazione", "licenza ncc")
+        note = first_value("note", "annotazioni", "osservazioni")
+
+        uso_proprio_alert = uso == "PROPRIO"
         sanctionable = False
 
         lines = [
@@ -3208,15 +3234,6 @@ def lookup_plate_in_registry(plate_text):
         if licenza:
             lines.append(f"Licenza/autorizzazione: {licenza}")
 
-        # Dizionario normalizzato riga Excel: evita errore "name 'normalized' is not defined"
-        # e consente di cercare campi opzionali come Comune licenza/ente rilasciante.
-        normalized = {}
-        for idx, header in enumerate(headers):
-            if not header:
-                continue
-            value = found_row[idx] if idx < len(found_row) else ""
-            normalized[header] = "" if value is None else str(value).strip()
-
         lines.append("")
         if uso_proprio_alert:
             lines.append("ESITO OPERATIVO: mezzo censito con ALERT.")
@@ -3230,12 +3247,10 @@ def lookup_plate_in_registry(plate_text):
         if note:
             lines.extend(["", f"Note archivio: {note}"])
 
-        comune_licenza_val = ""
-        for key in ("comune licenza", "comune_licenza", "comune lic.", "licenza", "ente rilasciante", "comune autorizzazione"):
-            if key in normalized:
-                comune_licenza_val = str(normalized.get(key, "") or "").strip()
-                if comune_licenza_val:
-                    break
+        comune_licenza_val = first_value(
+            "comune licenza", "comune_licenza", "comune lic.",
+            "ente rilasciante", "comune autorizzazione", "comune licenza/autorizzazione"
+        )
         distance_alert = build_license_distance_alert_from_place(comune_licenza_val)
         if distance_alert:
             lines.extend(["", distance_alert])
@@ -3252,11 +3267,14 @@ def lookup_plate_in_registry(plate_text):
             "owner": intestatario,
             "owner_residence": residenza,
             "sanctionable": sanctionable,
-            "message": "\n".join(lines)
+            "message": "\n".join(lines),
         }
-    except Exception as e:
-        return {"ok": False, "message": f"Errore lettura archivio targhe: {e}"}
 
+    except Exception as e:
+        return {
+            "ok": False,
+            "message": f"Errore lettura archivio targhe: {type(e).__name__}: {e}",
+        }
 
 def begin_plate_lookup_flow(chat_id):
     user_states[chat_id] = {
@@ -3793,7 +3811,7 @@ def _license_use_next_prompt(state):
     prompts = {
         "vehicle_authorized": "Il veicolo risulta regolarmente autorizzato NCC? (si/no)",
         "booking_shown": "La prenotazione è esibita ed è anteriore al controllo? (si/no)",
-        "service_sheet_status": "Stato del foglio di servizio?\nRispondi: regolare / incompleto / falso / assente / non_esibito",
+        "service_sheet_ok": "Il foglio di servizio è presente e coerente? (si/no)",
         "public_waiting": "Il veicolo stazionava o attendeva clienti su area pubblica/porto/terminal? (si/no)",
         "local_acquisition": "I clienti risultano acquisiti sul posto o tramite intermediari locali? (si/no)",
         "previous_stops": "Risultano già controlli o fermi precedenti sul mezzo/conducente? (si/no)",
@@ -3812,10 +3830,7 @@ def _build_license_use_result(state):
 
     vehicle_authorized = state.get("vehicle_authorized")
     booking_shown = state.get("booking_shown")
-    service_sheet_status = state.get("service_sheet_status", "regolare")
-    service_sheet_ok = service_sheet_status == "regolare"
-    service_sheet_document_issue = service_sheet_status in {"incompleto", "assente", "non_esibito"}
-    service_sheet_false = service_sheet_status == "falso"
+    service_sheet_ok = state.get("service_sheet_ok")
     public_waiting = state.get("public_waiting")
     local_acquisition = state.get("local_acquisition")
     previous_stops = state.get("previous_stops")
@@ -3835,12 +3850,8 @@ def _build_license_use_result(state):
         )
     if not booking_shown:
         alerts.append("Prenotazione non esibita o non anteriore al controllo: elemento probatorio rilevante.")
-    if service_sheet_status == "incompleto":
-        alerts.append("Foglio di servizio incompleto: possibile contestazione documentale ex art. 180 CdS, se mancano elementi essenziali del servizio.")
-    elif service_sheet_status in {"assente", "non_esibito"}:
-        alerts.append("Foglio di servizio assente/non esibito: possibile contestazione documentale ex art. 180 CdS.")
-    elif service_sheet_false:
-        alerts.append("Foglio di servizio falso/fittizio o non riconducibile a prenotazione reale: elemento forte per violazione delle modalità NCC ex art. 85 c.4-bis CdS.")
+    if not service_sheet_ok:
+        alerts.append("Foglio di servizio assente o incoerente: elemento probatorio rilevante.")
     if public_waiting:
         alerts.append("Stazionamento/attesa su area pubblica: elemento forte a supporto dell'uso irregolare.")
     if local_acquisition:
@@ -3855,46 +3866,33 @@ def _build_license_use_result(state):
         score += 1
     if distance_license_residence is not None and distance_license_residence >= LICENSE_DISTANCE_ALERT_KM:
         score += 1
-    for flag in [not booking_shown, service_sheet_document_issue, public_waiting, local_acquisition, previous_stops, porto_presence]:
+    for flag in [not booking_shown, not service_sheet_ok, public_waiting, local_acquisition, previous_stops, porto_presence]:
         if flag:
             score += 1
-    if service_sheet_false:
-        score += 2
 
     main_code = None
-    concurrent_codes = []
     flags = {"notify_comune": True}
     communications = ["Comune / ente rilasciante"]
-    if service_sheet_document_issue:
-        concurrent_codes.append("180-01")
-
-    concrete_art85_issue = (not booking_shown) or service_sheet_false or public_waiting or local_acquisition
-
     if not vehicle_authorized:
         main_code = "085-02"
         flags["notify_prefetto"] = True
         communications.insert(0, "Prefetto")
         verdict = "Il veicolo non risulta regolarmente autorizzato NCC: il caso esce dal controllo uso licenza e ricade nel ramo abusivo totale."
-    elif service_sheet_false or (score >= 3 and concrete_art85_issue):
+    elif score >= 3:
         progression = {0: "085-05", 1: "085-06", 2: "085-07"}
         main_code = progression.get(recidiva_count, "085-08")
         flags["notify_umc"] = True
         verdict = (
-            "Emergono elementi concreti e convergenti di possibile violazione delle modalità NCC "
-            "ex artt. 3 e/o 11 L. 21/1992, da contestare nel ramo art. 85 c.4-bis CdS."
+            "Emergono elementi convergenti di possibile uso irregolare della licenza NCC fuori territorio "
+            "in violazione degli artt. 3 e 11 L. 21/1992."
         )
-    elif service_sheet_document_issue:
+    elif score == 2:
         verdict = (
-            "Il controllo evidenzia una criticità documentale del foglio di servizio: valutare contestazione ex art. 180 CdS. "
-            "Non emergono, da questo solo elemento, presupposti sufficienti per art. 85 c.4-bis se la prenotazione è reale e il servizio non è assimilabile a taxi."
-        )
-    elif score >= 2:
-        verdict = (
-            "Quadro indiziario significativo ma ancora da consolidare. Procedere con segnalazione al Comune rilasciante e approfondire "
-            "prenotazioni, dichiarazioni passeggeri, cruscotto operativo e modalità di acquisizione clientela."
+            "Quadro indiziario significativo ma ancora da consolidare. Approfondire con dichiarazioni passeggeri, "
+            "fotografie, cruscotto operativo e documentazione di prenotazione/foglio di servizio."
         )
     else:
-        verdict = "Non emergono, allo stato, elementi sufficienti per contestare l'uso irregolare della licenza NCC; resta possibile la segnalazione amministrativa al Comune rilasciante."
+        verdict = "Non emergono, allo stato, elementi sufficienti per contestare l'uso irregolare della licenza NCC."
 
     lines = [
         "CONTROLLO USO REGOLARE LICENZA NCC\n",
@@ -3910,7 +3908,7 @@ def _build_license_use_result(state):
     lines.extend([
         f"- Veicolo regolarmente NCC: {_yes_no_text(vehicle_authorized)}",
         f"- Prenotazione esibita e anteriore: {_yes_no_text(booking_shown)}",
-        f"- Stato foglio di servizio: {service_sheet_status.upper()}",
+        f"- Foglio di servizio presente/coerente: {_yes_no_text(service_sheet_ok)}",
         f"- Stazionamento/attesa su area pubblica: {_yes_no_text(public_waiting)}",
         f"- Acquisizione clientela sul posto/intermediari locali: {_yes_no_text(local_acquisition)}",
         f"- Precedenti controlli/fermi: {_yes_no_text(previous_stops)}",
@@ -3920,19 +3918,6 @@ def _build_license_use_result(state):
         f"Esito: {verdict}",
     ])
 
-    if main_code or concurrent_codes or flags.get("notify_comune"):
-        lines.append("")
-        lines.append("ATTI / AZIONI PROPOSTE:")
-        if main_code:
-            lines.append(f"- Verbale principale: {main_code} - {get_violation_record(main_code).get('title', '')}")
-        for code in _dedupe_keep_order(concurrent_codes):
-            lines.append(f"- Verbale/contestazione collegata: {code} - {get_violation_record(code).get('title', '')}")
-        if flags.get("notify_comune"):
-            lines.append("- Comunicazione al Comune / ente rilasciante per valutazioni sul titolo autorizzativo")
-        if flags.get("notify_umc"):
-            lines.append("- Comunicazione/adempimenti UMC se si contesta art. 85 c.4-bis")
-        if flags.get("notify_prefetto"):
-            lines.append("- Trasmissione al Prefetto per art. 85 c.4")
 
     if alerts:
         lines.append("")
@@ -3946,7 +3931,7 @@ def _build_license_use_result(state):
     lines.append("- distanza tra comune licenza, residenza autista e luogo del controllo")
     lines.append("- orario del controllo e modalità di stazionamento")
     lines.append("- prenotazione: data/ora, canale, nominativo, coerenza con il servizio")
-    lines.append("- foglio di servizio: regolare / incompleto / falso / assente / non esibito; indicare esattamente dati mancanti o elementi fittizi")
+    lines.append("- foglio di servizio: presenza, contenuto, eventuali incongruenze")
     lines.append("- modalità di acquisizione dei clienti e dichiarazioni raccolte")
     lines.append("- eventuali precedenti controlli/fermi e dati del cruscotto operativo")
     lines.append("")
@@ -3954,7 +3939,7 @@ def _build_license_use_result(state):
 
     payload = {
         "main_code": main_code,
-        "concurrent_codes": _dedupe_keep_order(concurrent_codes),
+        "concurrent_codes": [],
         "procedural_flags": flags,
     }
     return "\n".join(lines), payload
@@ -4008,14 +3993,14 @@ def process_license_use_flow(chat_id, text):
             return "\n\n".join(prefix + [prompt]), None
         return prompt, None
 
-    if step in {"vehicle_authorized", "booking_shown", "public_waiting", "local_acquisition", "previous_stops", "porto_presence"}:
+    if step in {"vehicle_authorized", "booking_shown", "service_sheet_ok", "public_waiting", "local_acquisition", "previous_stops", "porto_presence"}:
         if lower not in {"si", "sì", "no"}:
             return "Rispondi solo SI o NO.\n\n" + (_license_use_next_prompt(state) or ""), None
         state[step] = lower in {"si", "sì"}
         order = [
             "vehicle_authorized",
             "booking_shown",
-            "service_sheet_status",
+            "service_sheet_ok",
             "public_waiting",
             "local_acquisition",
             "previous_stops",
@@ -4024,30 +4009,6 @@ def process_license_use_flow(chat_id, text):
         ]
         idx = order.index(step)
         state["step"] = order[idx + 1]
-        save_user_states()
-        return _license_use_next_prompt(state), None
-
-    if step == "service_sheet_status":
-        aliases = {
-            "regolare": "regolare",
-            "ok": "regolare",
-            "coerente": "regolare",
-            "incompleto": "incompleto",
-            "irregolare": "incompleto",
-            "compilato male": "incompleto",
-            "falso": "falso",
-            "fittizio": "falso",
-            "copertura": "falso",
-            "assente": "assente",
-            "manca": "assente",
-            "non_esibito": "non_esibito",
-            "non esibito": "non_esibito",
-        }
-        if lower not in aliases:
-            return "Rispondi: regolare / incompleto / falso / assente / non_esibito.\n\n" + (_license_use_next_prompt(state) or ""), None
-        state["service_sheet_status"] = aliases[lower]
-        state["service_sheet_ok"] = aliases[lower] == "regolare"
-        state["step"] = "public_waiting"
         save_user_states()
         return _license_use_next_prompt(state), None
 
@@ -4673,17 +4634,25 @@ def decide_violation(answers):
         ancillary_findings.append("Conducente non iscritto al ruolo/albo: requisito soggettivo mancante da evidenziare nel verbale e da segnalare.")
 
     if foglio_status == "assente":
+        ancillary_findings.append("Foglio di servizio assente/non compilato: contestazione documentale ex art. 180 CdS, salvo ulteriori elementi sostanziali sul servizio.")
+        add_verbal("Il conducente non esibiva/non disponeva nell'immediatezza del foglio di servizio o codice identificativo del servizio richiesto in controllo.")
+        _append_unique(concurrent, "180-01")
+    elif foglio_status == "incompleto":
+        ancillary_findings.append("Foglio di servizio incompleto o privo di elementi essenziali: contestazione documentale ex art. 180 CdS, salvo prova di copertura fittizia del servizio.")
+        add_verbal("Il foglio di servizio esibito risultava incompleto/privo di elementi essenziali e non idoneo, allo stato, a comprovare compiutamente la regolarità documentale del servizio.")
+        _append_unique(concurrent, "180-01")
+    elif foglio_status == "falso":
         violation_type = "art3_11"
         booking = "no"
-        add_verbal("Foglio di servizio assente o non compilato al momento del controllo.")
-        ancillary_findings.append("Foglio di servizio assente/non compilato: integra violazione sostanziale delle modalità di esercizio del servizio.")
+        add_verbal("Dall'esame del foglio di servizio emergevano elementi fittizi, postumi o di copertura, non riconducibili a una prenotazione reale e specifica del servizio NCC.")
+        ancillary_findings.append("Foglio di servizio falso/fittizio/di copertura: possibile violazione sostanziale delle modalità di esercizio del servizio NCC ex art. 85 c.4-bis CdS.")
     elif foglio_status == "irregolare":
-        violation_type = "art3_11"
-        add_verbal("Foglio di servizio irregolare/incompleto rispetto al servizio in corso.")
-        ancillary_findings.append("Foglio di servizio irregolare/incompleto: trattare come violazione sostanziale delle modalità di esercizio del servizio.")
+        ancillary_findings.append("Foglio di servizio indicato come irregolare: se è solo incompleto applicare art. 180; se è fittizio/di copertura qualificare il ramo art. 85 c.4-bis.")
+        add_verbal("Foglio di servizio irregolare: specificare se trattasi di incompletezza documentale oppure di documento fittizio/postumo/di copertura.")
+        _append_unique(concurrent, "180-01")
     elif foglio_status == "non_esibito":
-        ancillary_findings.append("Foglio di servizio esistente ma non esibito: valutare separatamente la mancata esibizione documentale ex art. 180 CdS.")
-        add_verbal("Il conducente non esibiva nell'immediatezza il foglio di servizio/codice identificativo del servizio; valutare autonoma contestazione documentale.")
+        ancillary_findings.append("Foglio di servizio esistente ma non esibito: contestazione documentale ex art. 180 CdS, salvo ulteriori elementi sostanziali sul servizio.")
+        add_verbal("Il conducente non esibiva nell'immediatezza il foglio di servizio/codice identificativo del servizio richiesto in controllo.")
         _append_unique(concurrent, "180-01")
 
     if public_waiting == "si" and booking == "no" and vehicle_authorized == "si":
@@ -4935,8 +4904,12 @@ def _extract_foglio_status(text):
         return "non_esibito"
     if _contains_any(t, ["assente", "manca", "mancante", "senza foglio", "non compilato"]):
         return "assente"
-    if _contains_any(t, ["irregolare", "incompleto", "compilato male", "difforme"]):
-        return "irregolare"
+    if _contains_any(t, ["falso", "fittizio", "copertura", "postumo", "compilato dopo", "prenotazione finta", "non reale"]):
+        return "falso"
+    if _contains_any(t, ["incompleto", "compilato male", "privo", "manca dato", "mancano dati", "difforme"]):
+        return "incompleto"
+    if _contains_any(t, ["irregolare"]):
+        return "incompleto"
     if _contains_any(t, ["presente", "regolare", "esibito", "compilato"]):
         return "presente"
     return None
@@ -4995,7 +4968,7 @@ def parse_answer_for_key(key, text):
         "control_patente_status": {"valida", "scaduta", "non_idonea", "non_esibita"},
         "control_kb_status": {"valido", "scaduto", "non_idoneo", "non_esibito", "non_dovuto"},
         "control_autorizzazione_status": {"regolare", "non_esibita", "non_autorizzato"},
-        "control_foglio_status": {"regolare", "irregolare", "assente", "non_esibito"},
+        "control_foglio_status": {"regolare", "incompleto", "falso", "irregolare", "assente", "non_esibito"},
         "control_patente_missing_mode": {"esiste_valida", "inesistente_non_valida", "non_verificato"},
         "control_kb_missing_mode": {"esiste_valido", "mancante_non_valido", "non_verificato"},
         "control_autorizzazione_missing_mode": {"esiste_regolare", "assente_sospesa_revocata", "non_verificato"},
@@ -5135,9 +5108,9 @@ def build_control_queue(state):
     _queue_control_question(state, "control_revisione_status", "Esito revisione del veicolo?\nScegli: regolare / scaduta / non_verificato")
 
     if "foglio" in selected:
-        _queue_control_question(state, "control_foglio_status", "Foglio di servizio esibito: scegli lo stato corretto.\nScegli: regolare / irregolare / assente / non_esibito")
+        _queue_control_question(state, "control_foglio_status", "Foglio di servizio esibito: scegli lo stato corretto.\nScegli: regolare / incompleto / falso")
     else:
-        _queue_control_question(state, "control_foglio_status", "Foglio di servizio non esibito: scegli il caso corretto.\nScegli: non_esibito / assente / irregolare")
+        _queue_control_question(state, "control_foglio_status", "Foglio di servizio non mostrato: scegli l’esito corretto.\nScegli: non_esibito / assente / regolare")
 
     _queue_control_question(state, "control_owner_type", "Intestatario/proprietario del mezzo: scegli il tipo.\nScegli: persona_fisica / cooperativa_srl / agenzia_viaggi / altro")
     _queue_control_question(state, "control_circulation_use", "Sul libretto / DU quale uso risulta?\nScegli: uso_terzi_ncc / uso_proprio / non_letto")
@@ -5154,9 +5127,13 @@ def describe_control_violation(answers):
         parts.append("il conducente svolgeva il servizio senza CAP/KB/CQC richiesto")
     foglio = answers.get("foglio_status")
     if foglio == "assente":
-        parts.append("il servizio NCC era svolto con foglio di servizio assente o non compilato")
+        parts.append("il foglio di servizio risultava assente o non compilato")
+    elif foglio == "incompleto":
+        parts.append("il foglio di servizio risultava incompleto o privo di elementi essenziali")
+    elif foglio == "falso":
+        parts.append("il foglio di servizio presentava elementi fittizi/di copertura non riconducibili a prenotazione reale")
     elif foglio == "irregolare":
-        parts.append("il servizio NCC era svolto con foglio di servizio irregolare o incompleto")
+        parts.append("il foglio di servizio risultava irregolare e da qualificare tra incompletezza documentale o copertura fittizia")
     elif foglio == "non_esibito":
         parts.append("il foglio di servizio non veniva esibito all'atto del controllo")
     if answers.get("vehicle_authorized") == "no":
@@ -5207,7 +5184,7 @@ def build_article_verification_prompt(answers, key, base_text):
     title = "VERIFICA MIRATA"
     framing = ""
 
-    art85_keys = {"recurrence", "recurrence_triennio", "violation_type", "foglio_status", "booking", "public_waiting", "taxi_commune", "separate_payment"}
+    art85_keys = {"recurrence", "recurrence_triennio", "violation_type", "foglio_status", "control_foglio_status", "booking", "public_waiting", "taxi_commune", "separate_payment"}
     kb_keys = {"kb", "control_kb_status"}
     patente_keys = {"patente_idonea", "control_patente_status"}
     auth_keys = {"vehicle_authorized", "control_autorizzazione_status"}
@@ -5364,9 +5341,25 @@ def _apply_control_answer_to_state(state, key, value):
     elif key == "control_foglio_status":
         if value == "regolare":
             answers["foglio_status"] = "presente"
-        elif value == "irregolare":
-            answers["foglio_status"] = "irregolare"
+        elif value == "incompleto":
+            answers["foglio_status"] = "incompleto"
+            _append_unique_local(concurrent, "180-01")
+            add_note("Foglio di servizio incompleto/privo di dati essenziali: trattare come irregolarità documentale ex art. 180 CdS, salvo elementi di falsità o copertura fittizia.")
+            add_flag("Il foglio di servizio esibito risultava incompleto/privo di elementi essenziali e non idoneo a comprovare compiutamente la regolarità documentale del servizio.")
+        elif value in {"assente", "non_esibito"}:
+            answers["foglio_status"] = value
+            _append_unique_local(concurrent, "180-01")
+            add_note("Foglio di servizio assente/non esibito: contestazione documentale ex art. 180 CdS; valutare art. 85 solo se emergono anche elementi sostanziali sul servizio.")
+        elif value == "falso":
+            answers["foglio_status"] = "falso"
             answers["violation_type"] = "art3_11"
+            answers["booking"] = "no"
+            add_note("Foglio di servizio falso/fittizio/di copertura: non è mera incompletezza documentale; orienta verso violazione sostanziale art. 85 c.4-bis CdS.")
+            add_flag("Dall'esame del foglio di servizio emergevano elementi fittizi/postumi/di copertura, non riconducibili a una prenotazione reale e specifica del servizio NCC.")
+        elif value == "irregolare":
+            answers["foglio_status"] = "incompleto"
+            _append_unique_local(concurrent, "180-01")
+            add_note("Risposta 'irregolare' trattata prudenzialmente come foglio incompleto ex art. 180. Se il documento è fittizio/di copertura selezionare 'falso'.")
         else:
             answers["foglio_status"] = value
 
@@ -5473,7 +5466,7 @@ def control_additional_questions(answers):
             "key": "ruolo_conducenti",
             "text": "Il conducente risultava iscritto al ruolo/albo conducenti quando richiesto?\nRispondi: si / no"
         })
-    if answers.get("foglio_status") in {"assente", "irregolare"} and answers.get("recurrence") is None:
+    if answers.get("foglio_status") in {"falso"} and answers.get("recurrence") is None:
         questions.append({
             "key": "recurrence",
             "text": "Per il ramo art. 85 c.4-bis questa violazione è:\nfirst = prima\n2_5y = seconda nel quinquennio\n3_5y = terza nel quinquennio\n4plus_5y = quarta o successiva\nRispondi con una di queste opzioni."
@@ -5923,7 +5916,7 @@ def help_command(message):
         "• Documenti da controllare = elenco documenti da richiedere o verificare\n"
         "• Norme principali = riferimenti normativi NCC con pulsanti per gli articoli\n"
         "• Verifica targa = ricerca targa nell'archivio NCC\n"
-        "• Controllo uso licenza NCC = verifica guidata su licenza di altro comune e possibili indici di uso stabile fuori territorio e criticità del foglio di servizio\n"
+        "• Controllo uso licenza NCC = verifica guidata su licenza di altro comune e possibili indici di uso stabile fuori territorio\n"
         "• Reset = annulla la procedura in corso\n\n"
         "Puoi usare i pulsanti sotto la chat oppure il menu comandi di Telegram."
     )
