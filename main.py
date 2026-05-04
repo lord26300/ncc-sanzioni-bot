@@ -2036,19 +2036,31 @@ def build_port_common_cases_markup():
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         types.InlineKeyboardButton(
-            "KB presente + mezzo uso proprio",
+            "🚗 Uso proprio + KB",
             callback_data="porto_case:uso_proprio_kb"
         ),
         types.InlineKeyboardButton(
-            "Abusivo totale",
+            "🚨 Abusivo totale",
             callback_data="porto_case:abusivo_totale"
         ),
         types.InlineKeyboardButton(
-            "NCC con licenza/KB ma senza prenotazione",
+            "🚕 NCC senza prenotazione",
             callback_data="porto_case:procacciamento"
         ),
         types.InlineKeyboardButton(
-            "Altro caso porto",
+            "⌛ NCC KB scaduto",
+            callback_data="porto_case:ncc_kb_scaduto"
+        ),
+        types.InlineKeyboardButton(
+            "🪪 NCC KB non al seguito",
+            callback_data="porto_case:ncc_kb_non_al_seguito"
+        ),
+        types.InlineKeyboardButton(
+            "📄 NCC licenza non al seguito",
+            callback_data="porto_case:ncc_licenza_non_al_seguito"
+        ),
+        types.InlineKeyboardButton(
+            "🧭 Altro caso porto",
             callback_data="porto_case:altro"
         )
     )
@@ -2077,11 +2089,12 @@ ARCHIVIO_VERBALI_MAP = {
     "Art 116 C15 C17 3 - Guida senza patente - reiterazione penale": "116-04",
     "Art 116 C16 C18 - Guida senza KB KA CQC": "116-06",
     "Art 158 C2d C5bis - Sosta su stalli taxi/bus": "158-27",
-    "Art 180 - Foglio di servizio/prenotazione non esibito": "180-01",
-    "Art 180 C1 C7 - Patente o carta non al seguito": "180-01DOC",
-    "Art 180 C1 C7 - Certificato assicurativo non al seguito": "180-03",
-    "Art 180 C3 C7 - Autorizzazione NCC non al seguito": "180-06",
-    "Art 180 C5 C7 - KB/CQC non al seguito": "180-09",
+    "📄 Art 180 C3 C7 - Foglio servizio/licenza non al seguito": "180-06",
+    "🪪 Art 180 C1 C7 - Patente o carta non al seguito": "180-01DOC",
+    "🛡️ Art 180 C1 C7 - Certificato assicurativo non al seguito": "180-03",
+    "📑 Art 180 C3 C7 - Autorizzazione/Licenza NCC non al seguito": "180-06",
+    "🪪 Art 180 C5 C7 - KB/CQC non al seguito": "180-09",
+    "⏳ Art 180 C8 - Inottemperanza invito documenti": "180-10",
     "Art 193 C2 - Circolazione senza copertura assicurativa": "193-02",
     "Avviso fermo amministrativo": "AVVISO_FERMO",
     "Comunicazione Comune": "COM_COMUNE",
@@ -2091,8 +2104,10 @@ ARCHIVIO_VERBALI_MAP = {
     "Comunicazione UMC": "COM_UMC",
     "Fermo / sequestro veicolo": "FERMO_116",
     "Sequestro / custodia veicolo": "SEQUESTRO_85",
-    "Verbale POS - rifiuto pagamento elettronico": "POS-RIFIUTO",
-    "PVC corrispettivi GdF": "PVC-FISCALE",
+    "💳 Verbale POS - rifiuto pagamento elettronico": "POS-RIFIUTO",
+    "📵 Verbale POS - dispositivo assente/non disponibile": "POS-ASSENTE",
+    "🛠️ Verbale POS - dispositivo non funzionante": "POS-NON-FUNZIONANTE",
+    "🧾 PVC corrispettivi GdF": "PVC-FISCALE",
 }
 
 ARCHIVIO_VERBALI_ALIASES = {
@@ -2100,8 +2115,8 @@ ARCHIVIO_VERBALI_ALIASES = {
     "NCC abusivo totale recidiva": "085-04",
     "Guida senza KB": "116-06",
     "Guida senza KB / CAP / CQC": "116-06",
-    "Foglio servizio prenotazione": "180-01",
-    "Mancanza foglio servizio / prenotazione": "180-01",
+    "Foglio servizio prenotazione": "180-06",
+    "Mancanza foglio servizio / prenotazione": "180-06",
     "Verbale scontrino PVC": "PVC-FISCALE",
     "Verbale scontrino / PVC": "PVC-FISCALE",
     "Verbale POS": "POS-RIFIUTO",
@@ -2121,15 +2136,34 @@ def build_archivio_verbali_menu():
 
 
 def build_main_menu():
-    """Menu principale compatto: 2 pulsanti per riga, tutti con emoji e testi corti."""
     kb = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    kb.row(types.KeyboardButton("📝 Caso NCC"), types.KeyboardButton("🛠️ Operativi"))
-    kb.row(types.KeyboardButton("✅ Checklist"), types.KeyboardButton("📋 Documenti"))
-    kb.row(types.KeyboardButton("🔎 Targa"), types.KeyboardButton("⚖️ Norme"))
-    kb.row(types.KeyboardButton("🪪 Licenza"), types.KeyboardButton("🅿️ Stalli"))
-    kb.row(types.KeyboardButton("🚖 Taxi"), types.KeyboardButton("📚 Agg. CdS"))
-    kb.row(types.KeyboardButton("⚓ Porto"), types.KeyboardButton("📄 Verbali"))
-    kb.row(types.KeyboardButton("🧭 85/180"))
+    kb.add(
+        types.KeyboardButton("🚨 Caso NCC"),
+        types.KeyboardButton("🛂 Controlli")
+    )
+    kb.add(
+        types.KeyboardButton("✅ Checklist"),
+        types.KeyboardButton("📋 Documenti")
+    )
+    kb.add(
+        types.KeyboardButton("🔎 Targa"),
+        types.KeyboardButton("📚 Norme")
+    )
+    kb.add(
+        types.KeyboardButton("🪪 Uso licenza"),
+        types.KeyboardButton("🅿️ Stalli RCT")
+    )
+    kb.add(
+        types.KeyboardButton("🚕 Taxi"),
+        types.KeyboardButton("📚 Agg. CdS")
+    )
+    kb.add(
+        types.KeyboardButton("⚓ Porto"),
+        types.KeyboardButton("🧭 85/180")
+    )
+    kb.add(
+        types.KeyboardButton("📄 Verbali")
+    )
     return kb
 
 def build_pdf_markup(main_code=None, concurrent_codes=None, procedural_flags=None):
@@ -2198,8 +2232,8 @@ def build_final_result_markup(payload):
     )
 
     verbali = payload.get("verbali", [])
-    for i, _ in enumerate(verbali, start=1):
-        markup.add(types.InlineKeyboardButton(f"📄 Verbale {i}", callback_data=f"final:v{i}"))
+    for idx in range(1, len(verbali) + 1):
+        markup.add(types.InlineKeyboardButton(f"📄 VERBALE {idx}", callback_data=f"final:v{idx}"))
 
     markup.add(
         types.InlineKeyboardButton("COMUNICAZIONI", callback_data="final:comunicazioni"),
@@ -2516,9 +2550,12 @@ PDF_MODELS = {
     "180-03": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/180-03_certificato_assicurativo_non_al_seguito.pdf",
     "180-06": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/180-06_autorizzazione_ncc_non_al_seguito.pdf",
     "180-09": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/180-09_kb_cqc_non_al_seguito.pdf",
+    "180-10": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/180-10_inottemperanza_invito_art180_c8_CORRETTO.pdf",
     "193-02": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/193-02_art193_senza_assicurazione.pdf",
     "PVC-FISCALE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/PVC_corrispettivi_gdf.pdf",
-    "POS-RIFIUTO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/POS_rifiuto_pagamento_elettronico.pdf",
+    "POS-RIFIUTO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/POS_RIFIUTO_pagamento_elettronico.pdf",
+    "POS-ASSENTE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/POS_ASSENTE_mancata_disponibilita.pdf",
+    "POS-NON-FUNZIONANTE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/POS_NON_FUNZIONANTE_dispositivo_non_utilizzabile.pdf",
     "158-27": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/158-27_art158_c2d_c5bis_stalli_taxi_bus.pdf",
     "SEQUESTRO_85": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/VERBALE_SEQUESTRO_CUSTODIA.pdf",
     "FERMO_116": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/VERBALE_FERMO_O_SEQUESTRO.pdf",
@@ -4093,7 +4130,11 @@ def _finalize_port_common_case(chat_id):
         if procacciamento_porto_text not in procedural_flags.setdefault("verbale_additions", []):
             procedural_flags["verbale_additions"].append(procacciamento_porto_text)
 
-        fixed_package = ["116-06", "180-01", "PVC-FISCALE", "POS-RIFIUTO"]
+        # Abusivo totale: NON aggiungere verbali art. 180 per foglio/licenza.
+        # Il mezzo non è NCC: assenza licenza/foglio è assorbita nel 085-02/085-04.
+        concurrent = [c for c in concurrent if c not in {"180-01", "180-06", "180-DOC"}]
+
+        fixed_package = ["116-06", "PVC-FISCALE", "POS-RIFIUTO"]
         for code in fixed_package:
             if code not in concurrent:
                 concurrent.append(code)
@@ -5678,7 +5719,7 @@ def approve_command(message):
     except Exception:
         pass
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "Porto")
+@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Porto", "⚓ Porto"})
 def menu_port_common_cases_button(message):
     if not ensure_authorized(message):
         return
@@ -6072,7 +6113,7 @@ def taxi_command(message):
     )
 
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Controllo servizio TAXI", "🚖 Taxi"})
+@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Controllo servizio TAXI", "🚕 Taxi"})
 def menu_taxi_button(message):
     taxi_command(message)
 
@@ -6089,35 +6130,9 @@ def aggiornamenti_command(message):
     )
 
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "Aggiornamenti CdS / giurisprudenza")
+@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Aggiornamenti CdS / giurisprudenza", "📚 Agg. CdS"})
 def menu_aggiornamenti_button(message):
     aggiornamenti_command(message)
-
-
-
-
-@bot.message_handler(func=lambda m: (m.text or "").strip() in {"🧭 85/180", "85/180", "Art 85 180"})
-def menu_85180_button(message):
-    if not ensure_authorized(message):
-        return
-    text = (
-        "🧭 GUIDA RAPIDA 85 / 180\n\n"
-        "🚫 Abusivo totale:\n"
-        "• mezzo NON NCC → art. 85 c.4\n"
-        "• NO verbale 180 per licenza/foglio, perché non è NCC\n"
-        "• procacciamento = elemento probatorio dentro 85, non verbale autonomo\n\n"
-        "✅ NCC regolare:\n"
-        "• licenza/foglio esistono ma non sono al seguito → 180-06 c.3+c.7\n"
-        "• KB/CQC esiste ma non è al seguito → 180-09 c.5+c.7\n"
-        "• patente/carta non al seguito → 180-01DOC c.1+c.7\n"
-        "• mancata presentazione dopo invito → 180-10 c.8\n\n"
-        "⚠️ Foglio falso/fittizio/di copertura:\n"
-        "• non è 180: valuta art. 85 c.4-bis.\n\n"
-        "💶 Fiscale/POS:\n"
-        "• pagamento senza documento fiscale → PVC\n"
-        "• cliente chiede elettronico e rifiuta/assenza/guasto POS → verbale POS specifico"
-    )
-    bot.reply_to(message, text, reply_markup=build_main_menu())
 
 
 @bot.message_handler(func=lambda m: (m.text or "").strip() == "📄 Verbali")
@@ -6212,15 +6227,7 @@ def casi_porto_command(message):
         reply_markup=build_port_common_cases_markup()
     )
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Porto", "⚓ Porto", "Casi porto", "⚓ Casi porto"})
-def menu_porto_button(message):
-    casi_porto_command(message)
-
-@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Aggiornamenti CdS / giurisprudenza", "📚 Agg. CdS"})
-def menu_aggiornamenti_short_button(message):
-    aggiornamenti_command(message)
-
-@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Inserisci un caso NCC", "📝 Caso NCC"})
+@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Inserisci un caso NCC", "🚨 Caso NCC"})
 def menu_caso_button(message):
     caso_command(message)
 
@@ -6228,7 +6235,7 @@ def menu_caso_button(message):
 def menu_controllo_button(message):
     controllo_command(message)
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Controlli operativi", "🛠️ Operativi"})
+@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Controlli operativi", "🛂 Controlli"})
 def menu_checklist_button(message):
     checklist_command(message)
 
@@ -6236,15 +6243,15 @@ def menu_checklist_button(message):
 def menu_documenti_button(message):
     documenti_command(message)
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Norme principali", "⚖️ Norme"})
+@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Norme principali", "📚 Norme"})
 def menu_norme_button(message):
     norme_command(message)
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Controllo uso licenza NCC", "🪪 Licenza"})
+@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Controllo uso licenza NCC", "🪪 Uso licenza"})
 def menu_licenza_button(message):
     licenza_command(message)
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Controllo stalli RCT", "🅿️ Stalli"})
+@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Controllo stalli RCT", "🅿️ Stalli RCT"})
 def menu_stalli_button(message):
     stalli_command(message)
 
@@ -6287,6 +6294,20 @@ def control_doc_toggle_callback(call):
     bot.edit_message_text(_control_text_from_state(state), chat_id, call.message.message_id, reply_markup=build_control_docs_markup(state))
 
 
+def _send_direct_port_result(chat_id, main_code, concurrent_codes=None, flags=None):
+    concurrent_codes = concurrent_codes or []
+    flags = flags or {}
+    payload = build_final_payload(main_code, concurrent_codes=concurrent_codes, procedural_flags=flags)
+    user_states[chat_id] = {
+        "mode": "porto_direct_result",
+        "last_result_payload": payload,
+        "last_result_main_code": main_code,
+        "last_result_concurrent": concurrent_codes,
+        "last_result_flags": flags,
+    }
+    save_user_states()
+    return payload
+
 @bot.callback_query_handler(func=lambda call: str(call.data).startswith("porto_case:"))
 def porto_case_callback(call):
     chat_id = call.message.chat.id
@@ -6296,6 +6317,30 @@ def porto_case_callback(call):
         bot.answer_callback_query(call.id, "Caso porto selezionato")
     except Exception:
         pass
+
+    direct_cases = {
+        "ncc_kb_scaduto": {
+            "main": "116-06",
+            "concurrent": [],
+            "text": "⌛ Caso porto: NCC con licenza regolare ma KB/CAP/CQC scaduto o non valido.\n\nEsito: verbale 116-06, perché il titolo professionale non è valido per il servizio concretamente svolto."
+        },
+        "ncc_kb_non_al_seguito": {
+            "main": "180-09",
+            "concurrent": [],
+            "text": "🪪 Caso porto: NCC con KB/CAP/CQC dichiarato esistente ma non al seguito.\n\nEsito: verbale 180-09, art. 180 c.5 e c.7. Se il titolo risulta inesistente/scaduto/non valido, valutare 116-06."
+        },
+        "ncc_licenza_non_al_seguito": {
+            "main": "180-06",
+            "concurrent": [],
+            "text": "📄 Caso porto: mezzo uso NCC e conducente con KB, ma licenza/autorizzazione dichiarata esistente e non al seguito.\n\nEsito: verbale 180-06, art. 180 c.3 e c.7. Se il titolo risulta inesistente, sospeso o revocato, non usare 180: valutare art. 85."
+        },
+    }
+
+    if key in direct_cases:
+        info = direct_cases[key]
+        payload = _send_direct_port_result(chat_id, info["main"], info.get("concurrent", []), {})
+        bot.send_message(chat_id, info["text"], reply_markup=build_final_result_markup(payload), disable_web_page_preview=True)
+        return
 
     if key == "altro":
         text = begin_preset_case(chat_id, "porto")
@@ -6552,9 +6597,9 @@ def final_result_callback(call):
     elif action == "articoli":
         text = payload.get("articoli")
 
-    elif re.fullmatch(r"v\d+", action):
+    elif action in {"v1", "v2", "v3", "v4", "v5"}:
         verbali = payload.get("verbali", [])
-        idx = int(action[1:]) - 1
+        idx = {"v1": 0, "v2": 1, "v3": 2, "v4": 3, "v5": 4}[action]
         text = verbali[idx] if len(verbali) > idx else f"Verbale {idx + 1} non disponibile."
 
         if idx == 0:
@@ -6726,11 +6771,31 @@ def answer_callback(call):
 # MESSAGGI GENERICI
 # =========================
 
+@bot.message_handler(func=lambda m: (m.text or "").strip() in {"🧭 85/180", "85/180"})
+def menu_85180_button(message):
+    if not ensure_authorized(message):
+        return
+    bot.reply_to(
+        message,
+        "🧭 GUIDA RAPIDA 85 / 180\n\n"
+        "🚨 ABUSIVO TOTALE\n"
+        "- Mezzo non NCC / non autorizzato: art. 85 c.4.\n"
+        "- Non aggiungere 180 per licenza/foglio: non sono documenti semplicemente non al seguito.\n\n"
+        "🚕 NCC REGOLARE\n"
+        "- Licenza/foglio/autorizzazione esistenti ma non al seguito: art. 180 c.3 e c.7 / 180-06.\n"
+        "- KB/CQC esistente ma non al seguito: art. 180 c.5 e c.7 / 180-09.\n"
+        "- KB/CQC scaduto o inesistente: art. 116 c.16 e c.18 / 116-06.\n\n"
+        "🧾 FISCALE\n"
+        "- Pagamento accertato e niente documento fiscale: PVC.\n"
+        "- Cliente chiede pagamento elettronico e rifiuto/assenza/guasto POS: verbale POS specifico.",
+        disable_web_page_preview=True,
+    )
+
 @bot.message_handler(func=lambda m: True)
 def all_messages(message):
     text = (message.text or "").strip()
 
-    if text == "Aggiornamenti CdS / giurisprudenza":
+    if text in {"Aggiornamenti CdS / giurisprudenza", "📚 Agg. CdS"}:
         if not ensure_authorized(message):
             return
         bot.reply_to(
