@@ -2204,30 +2204,12 @@ def build_archivio_verbali_menu():
 
 def build_main_menu():
     kb = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    kb.add(
-        types.KeyboardButton("Inserisci un caso NCC"),
-        types.KeyboardButton("Controlli operativi")
-    )
-    kb.add(
-        types.KeyboardButton("Checklist documentale"),
-        types.KeyboardButton("Documenti da controllare")
-    )
-    kb.add(
-        types.KeyboardButton("Verifica targa"),
-        types.KeyboardButton("Norme principali")
-    )
-    kb.add(
-        types.KeyboardButton("Controllo uso licenza NCC"),
-        types.KeyboardButton("Controllo stalli RCT"),
-        types.KeyboardButton("Controllo servizio TAXI")
-    )
-    kb.add(
-        types.KeyboardButton("Aggiornamenti CdS / giurisprudenza")
-    )
-    kb.add(
-        types.KeyboardButton("Porto"),
-        types.KeyboardButton("📄 Verbali")
-    )
+    kb.row(types.KeyboardButton("🚨 Caso NCC"), types.KeyboardButton("🛂 Controlli"))
+    kb.row(types.KeyboardButton("✅ Checklist"), types.KeyboardButton("📋 Documenti"))
+    kb.row(types.KeyboardButton("🔎 Targa"), types.KeyboardButton("📚 Norme"))
+    kb.row(types.KeyboardButton("🪪 Licenza"), types.KeyboardButton("🅿️ Stalli"))
+    kb.row(types.KeyboardButton("🚕 Taxi"), types.KeyboardButton("📚 Agg. CdS"))
+    kb.row(types.KeyboardButton("⚓ Porto"), types.KeyboardButton("📄 Verbali"))
     return kb
 
 def build_pdf_markup(main_code=None, concurrent_codes=None, procedural_flags=None):
@@ -5917,7 +5899,7 @@ def approve_command(message):
     except Exception:
         pass
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "Porto")
+@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Porto", "⚓ Porto"})
 def menu_port_common_cases_button(message):
     if not ensure_authorized(message):
         return
@@ -6311,7 +6293,7 @@ def taxi_command(message):
     )
 
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "Controllo servizio TAXI")
+@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Controllo servizio TAXI", "🚕 Taxi"})
 def menu_taxi_button(message):
     taxi_command(message)
 
@@ -6328,7 +6310,7 @@ def aggiornamenti_command(message):
     )
 
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "Aggiornamenti CdS / giurisprudenza")
+@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Aggiornamenti CdS / giurisprudenza", "📚 Agg. CdS"})
 def menu_aggiornamenti_button(message):
     aggiornamenti_command(message)
 
@@ -6425,36 +6407,36 @@ def casi_porto_command(message):
         reply_markup=build_port_common_cases_markup()
     )
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "Inserisci un caso NCC")
+@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Inserisci un caso NCC", "🚨 Caso NCC"})
 def menu_caso_button(message):
     caso_command(message)
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "Checklist documentale")
+@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Checklist documentale", "✅ Checklist"})
 def menu_controllo_button(message):
     controllo_command(message)
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "Controlli operativi")
+@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Controlli operativi", "🛂 Controlli"})
 def menu_checklist_button(message):
     checklist_command(message)
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "Documenti da controllare")
+@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Documenti da controllare", "📋 Documenti"})
 def menu_documenti_button(message):
     documenti_command(message)
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "Norme principali")
+@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Norme principali", "📚 Norme"})
 def menu_norme_button(message):
     norme_command(message)
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "Controllo uso licenza NCC")
+@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Controllo uso licenza NCC", "🪪 Licenza"})
 def menu_licenza_button(message):
     licenza_command(message)
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "Controllo stalli RCT")
+@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Controllo stalli RCT", "🅿️ Stalli"})
 def menu_stalli_button(message):
     stalli_command(message)
 
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() == "Verifica targa")
+@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Verifica targa", "🔎 Targa"})
 def menu_targa_button(message):
     if not ensure_authorized(message):
         return
