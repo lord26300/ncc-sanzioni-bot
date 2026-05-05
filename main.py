@@ -713,9 +713,51 @@ TEMPLATE_ONLY_CODES = {
     }
 }
 
+
+# Template specifici art. 85 c.4-bis: casi concreti NCC irregolare
+SPECIFIC_08505_CASE_LABELS = {
+    "COMPILATO-DOPO": "foglio di servizio compilato al momento del controllo",
+    "FOGLIO-IRREGOLARE": "foglio di servizio irregolare/incompleto",
+    "PRENOTAZIONE-ASSENTE": "assenza di prenotazione documentabile",
+    "PROCACCIAMENTO": "procacciamento/attesa clientela indifferenziata",
+}
+SPECIFIC_08505_LEVEL_LABELS = {
+    "PRIMA": ("1ª violazione nel quinquennio", "€ 178,00", "€ 124,60", "€ 336,00", "da € 178,00 a € 672,00", "Sospensione documento di circolazione per 1 mese"),
+    "SECONDA": ("2ª violazione nel quinquennio", "€ 264,00", "€ 184,80", "€ 505,00", "da € 264,00 a € 1.010,00", "Sospensione documento di circolazione da 1 a 2 mesi"),
+    "TERZA": ("3ª violazione nel quinquennio", "€ 356,00", "€ 249,20", "€ 672,00", "da € 356,00 a € 1.344,00", "Sospensione documento di circolazione da 2 a 4 mesi"),
+    "QUARTA": ("4ª o successiva violazione nel quinquennio", "€ 528,00", "€ 369,60", "€ 1.010,00", "da € 528,00 a € 2.020,00", "Sospensione documento di circolazione da 4 a 8 mesi"),
+}
+def build_specific_08505_record(code):
+    parts = str(code).split("-")
+    if len(parts) < 3 or parts[0] != "08505":
+        return None
+    level = parts[1]
+    case = "-".join(parts[2:])
+    if level not in SPECIFIC_08505_LEVEL_LABELS or case not in SPECIFIC_08505_CASE_LABELS:
+        return None
+    level_label, pmr, reduced, over60, edittale, access = SPECIFIC_08505_LEVEL_LABELS[level]
+    case_label = SPECIFIC_08505_CASE_LABELS[case]
+    return {
+        "title": f"NCC irregolare art. 85 c.4-bis - {case_label} - {level_label}",
+        "article": "CdS art. 85 c. 4-bis + artt. 3 e 11 L. 21/1992",
+        "pmr": pmr,
+        "reduced_30": reduced,
+        "over_60": over60,
+        "edictal": edittale,
+        "accessories": [access],
+        "verbal_text": f"Template specifico per {case_label}, {level_label}.",
+        "notes": ["Usare il PDF specifico caricato in pdf_templates.", "Prevede ritiro/sospensione del documento di circolazione e trasmissione all'UMC."],
+        "fields_to_fill": ["dati conducente/trasgressore", "dati veicolo", "luogo e ora", "elementi di prova", "UMC competente"],
+        "short_ready_text": f"Art. 85 c.4-bis CdS: {case_label}, {level_label}. PMR {pmr}; riduzione 30% {reduced}; oltre 60 giorni {over60}; accessoria: {access}."
+    }
+
+
 def get_violation_record(code):
     if code in VIOLATIONS:
         return VIOLATIONS[code]
+    specific = build_specific_08505_record(code)
+    if specific:
+        return specific
     return TEMPLATE_ONLY_CODES.get(code, {
         "title": f"Template/voce operativa: {code}",
         "article": "Voce operativa",
@@ -2036,160 +2078,47 @@ def build_port_common_cases_markup():
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         types.InlineKeyboardButton(
-            "KB presente + mezzo uso proprio",
+            "🚗 Uso proprio + KB",
             callback_data="porto_case:uso_proprio_kb"
         ),
         types.InlineKeyboardButton(
-            "Abusivo totale",
+            "🚨 Abusivo totale",
             callback_data="porto_case:abusivo_totale"
         ),
         types.InlineKeyboardButton(
-            "NCC con licenza/KB ma senza prenotazione",
+            "🚫 NCC procacciamento",
             callback_data="porto_case:procacciamento"
         ),
         types.InlineKeyboardButton(
-            "Altro caso porto",
+            "❌ NCC senza prenotazione",
+            callback_data="porto_case:prenotazione_assente"
+        ),
+        types.InlineKeyboardButton(
+            "📄 Foglio irregolare",
+            callback_data="porto_case:foglio_irregolare"
+        ),
+        types.InlineKeyboardButton(
+            "⏱ Foglio compilato dopo",
+            callback_data="porto_case:compilato_dopo"
+        ),
+        types.InlineKeyboardButton(
+            "⌛ NCC KB scaduto",
+            callback_data="porto_case:ncc_kb_scaduto"
+        ),
+        types.InlineKeyboardButton(
+            "🪪 NCC KB non al seguito",
+            callback_data="porto_case:ncc_kb_non_al_seguito"
+        ),
+        types.InlineKeyboardButton(
+            "📄 NCC licenza non al seguito",
+            callback_data="porto_case:ncc_licenza_non_al_seguito"
+        ),
+        types.InlineKeyboardButton(
+            "🧭 Altro caso porto",
             callback_data="porto_case:altro"
         )
     )
     return markup
-
-
-def build_fermo_mezzo_markup():
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    items = [
-        ("📄 Foglio NON esibito / non al seguito", "foglio_non_esibito"),
-        ("⚠️ Foglio incompleto / inesatto", "foglio_incompleto"),
-        ("🚫 Foglio falso / fittizio", "foglio_falso"),
-        ("🪪 Licenza NCC non al seguito", "licenza_non_al_seguito"),
-        ("⛔ Licenza NCC assente / inesistente", "licenza_assente"),
-        ("⌛ KB/CQC scaduto o mancante", "kb_mancante_scaduto"),
-        ("🪪 KB/CQC non al seguito", "kb_non_al_seguito"),
-        ("🚨 Abusivo totale", "abusivo_totale"),
-        ("🛡️ Assicurazione assente", "assicurazione_assente"),
-    ]
-    for label, key in items:
-        markup.add(types.InlineKeyboardButton(label, callback_data=f"fermo_case:{key}"))
-    return markup
-
-
-def fermo_mezzo_intro_text():
-    return (
-        "🚔 FERMO / SEQUESTRO MEZZO\n\n"
-        "Scegli il caso concreto: il bot ti indica se scatta fermo/sequestro e ti apre il template giusto.\n\n"
-        "Regola rapida:\n"
-        "• documento esistente ma non esibito → art. 180 → NO fermo;\n"
-        "• foglio incompleto/falso sostanziale → art. 85 c.4-bis → sospensione carta/fermo;\n"
-        "• licenza inesistente o mezzo non NCC → art. 85 c.4 → sequestro/confisca;\n"
-        "• senza KB/CQC valido → art. 116 c.16-18 → fermo 60 giorni."
-    )
-
-
-def guida_85_180_text():
-    return (
-        "🧭 85 / 180 – QUANDO USARLI\n\n"
-        "✅ ART. 180 = documento esiste ma non è al seguito/non viene esibito.\n"
-        "Esempi: licenza NCC esistente non al seguito, foglio non esibito, KB valido non al seguito. Di norma NO fermo.\n\n"
-        "✅ ART. 85 = problema sostanziale del servizio NCC.\n"
-        "Esempi: mezzo non NCC usato come NCC, licenza inesistente, foglio falso/fittizio, prenotazione non reale, procacciamento/utenza indifferenziata. Può comportare fermo o sequestro secondo il caso.\n\n"
-        "Regola pratica: se il documento manca solo in tasca → 180; se manca il diritto/titolo o il servizio è finto/irregolare → 85."
-    )
-
-
-def fermo_case_result(case_key):
-    data = {
-        "foglio_non_esibito": {
-            "text": (
-                "📄 FOGLIO NON ESIBITO / NON AL SEGUITO\n\n"
-                "Norma: art. 180 c.3 e c.7.\n"
-                "Misura: ❌ nessun fermo/sequestro.\n\n"
-                "Usalo quando il foglio/documento esiste ma non viene esibito nell’immediatezza. "
-                "Si invita a presentarlo entro il termine. Se non ottempera: 180-10 art. 180 c.8."
-            ),
-            "pdfs": [("180-06", "📄 Verbale 180-06"), ("180-10", "📄 180-10 se non ottempera")]
-        },
-        "foglio_incompleto": {
-            "text": (
-                "⚠️ FOGLIO INCOMPLETO / INESATTO\n\n"
-                "Se l’irregolarità è sostanziale, usare art. 85 c.4-bis.\n"
-                "Misura: ✅ sospensione documento di circolazione / fermo secondo progressione 085-05/06/07/08.\n\n"
-                "Per far scattare il fermo deve mancare o essere inattendibile un elemento essenziale, ad esempio:\n"
-                "• cliente non identificabile (es. solo ‘cliente’, ‘turisti’, nome generico);\n"
-                "• destinazione troppo generica o non verificabile (es. solo città senza luogo preciso);\n"
-                "• data/ora servizio mancanti o incoerenti;\n"
-                "• origine/destinazione incompatibili col controllo;\n"
-                "• foglio compilato al momento o dopo il controllo;\n"
-                "• prenotazione non reale o non riscontrabile.\n\n"
-                "Errori minori/refusi NON bastano da soli."
-            ),
-            "pdfs": [("085-05", "📄 085-05 prima violazione"), ("FERMO_116", "🚔 Verbale fermo"), ("AVVISO_FERMO", "📌 Avviso fermo")]
-        },
-        "foglio_falso": {
-            "text": (
-                "🚫 FOGLIO FALSO / FITTIZIO / DI COPERTURA\n\n"
-                "Norma: art. 85 c.4-bis, perché il servizio non risulta svolto secondo modalità NCC reali.\n"
-                "Misura: ✅ sospensione documento di circolazione / fermo secondo progressione.\n\n"
-                "Indizi: compilazione ex post, clienti non reali, orari impossibili, dati copiati/ripetitivi, prenotazioni di copertura non riscontrabili."
-            ),
-            "pdfs": [("085-05", "📄 085-05 prima violazione"), ("FERMO_116", "🚔 Verbale fermo"), ("AVVISO_FERMO", "📌 Avviso fermo")]
-        },
-        "licenza_non_al_seguito": {
-            "text": (
-                "🪪 LICENZA NCC NON AL SEGUITO\n\n"
-                "Norma: art. 180 c.3 e c.7.\n"
-                "Misura: ❌ nessun fermo/sequestro.\n\n"
-                "Usalo solo se il mezzo è NCC e il titolo esiste ma non è esibito. Se non viene presentato nei termini: 180-10 c.8."
-            ),
-            "pdfs": [("180-06", "📄 Verbale 180-06"), ("180-10", "📄 180-10 se non ottempera")]
-        },
-        "licenza_assente": {
-            "text": (
-                "⛔ LICENZA NCC ASSENTE / INESISTENTE\n\n"
-                "Norma: art. 85 c.4 se il veicolo viene usato per NCC senza titolo/autorizzazione.\n"
-                "Misura: 🔴 sequestro ai fini della confisca.\n\n"
-                "Non usare art. 180: non è documento non al seguito, ma titolo inesistente/mezzo non autorizzato."
-            ),
-            "pdfs": [("085-02", "📄 Verbale 085-02"), ("SEQUESTRO_85", "🔴 Verbale sequestro")]
-        },
-        "kb_mancante_scaduto": {
-            "text": (
-                "⌛ KB/CQC MANCANTE O SCADUTO\n\n"
-                "Norma: art. 116 c.16 e c.18.\n"
-                "Misura: ✅ fermo veicolo 60 giorni.\n\n"
-                "Nota: CQC persone valida può coprire il requisito professionale; CQC merci non basta per servizio persone/NCC."
-            ),
-            "pdfs": [("116-06", "📄 Verbale 116-06"), ("FERMO_116", "🚔 Verbale fermo"), ("AVVISO_FERMO", "📌 Avviso fermo")]
-        },
-        "kb_non_al_seguito": {
-            "text": (
-                "🪪 KB/CQC NON AL SEGUITO\n\n"
-                "Norma: art. 180 c.5 e c.7, se il titolo esiste ed è valido ma non viene esibito.\n"
-                "Misura: ❌ nessun fermo/sequestro.\n\n"
-                "Se il titolo è inesistente/scaduto: 116-06 con fermo 60 giorni."
-            ),
-            "pdfs": [("180-09", "📄 Verbale 180-09"), ("180-10", "📄 180-10 se non ottempera")]
-        },
-        "abusivo_totale": {
-            "text": (
-                "🚨 ABUSIVO TOTALE\n\n"
-                "Norma principale: art. 85 c.4 per mezzo non NCC/non autorizzato.\n"
-                "Misura: 🔴 sequestro ai fini della confisca.\n\n"
-                "Verbali tipici: 085-02/085-04 + 116-06 se manca KB/CQC valido + PVC/POS se emergono pagamento e violazioni fiscali.\n"
-                "Non aggiungere 180 per foglio/licenza: non è NCC regolare con documento non al seguito."
-            ),
-            "pdfs": [("085-02", "📄 Verbale 085-02"), ("116-06", "📄 Verbale 116-06"), ("SEQUESTRO_85", "🔴 Verbale sequestro"), ("FERMO_116", "🚔 Fermo 116 se concorre")]
-        },
-        "assicurazione_assente": {
-            "text": (
-                "🛡️ ASSICURAZIONE ASSENTE\n\n"
-                "Norma: art. 193 c.2.\n"
-                "Misura: 🔴 sequestro del veicolo ai fini della confisca.\n\n"
-                "Se invece la copertura esiste ma il certificato non è al seguito: art. 180 c.1+c.7, NO sequestro."
-            ),
-            "pdfs": [("193-02", "📄 Verbale 193-02"), ("SEQUESTRO_85", "🔴 Verbale sequestro"), ("180-03", "📄 180-03 se solo certificato non al seguito")]
-        },
-    }
-    return data.get(case_key)
 
 def build_plate_not_found_markup(plate):
     markup = types.InlineKeyboardMarkup()
@@ -2230,6 +2159,22 @@ ARCHIVIO_VERBALI_MAP = {
     "Sequestro / custodia veicolo": "SEQUESTRO_85",
     "Verbale POS - rifiuto pagamento elettronico": "POS-RIFIUTO",
     "PVC corrispettivi GdF": "PVC-FISCALE",
+    "Art 85 C4bis 1ª - NCC irregolare - foglio compilato dopo": "08505-PRIMA-COMPILATO-DOPO",
+    "Art 85 C4bis 1ª - NCC irregolare - foglio irregolare": "08505-PRIMA-FOGLIO-IRREGOLARE",
+    "Art 85 C4bis 1ª - NCC irregolare - prenotazione assente": "08505-PRIMA-PRENOTAZIONE-ASSENTE",
+    "Art 85 C4bis 1ª - NCC irregolare - procacciamento": "08505-PRIMA-PROCACCIAMENTO",
+    "Art 85 C4bis 2ª - NCC irregolare - foglio compilato dopo": "08505-SECONDA-COMPILATO-DOPO",
+    "Art 85 C4bis 2ª - NCC irregolare - foglio irregolare": "08505-SECONDA-FOGLIO-IRREGOLARE",
+    "Art 85 C4bis 2ª - NCC irregolare - prenotazione assente": "08505-SECONDA-PRENOTAZIONE-ASSENTE",
+    "Art 85 C4bis 2ª - NCC irregolare - procacciamento": "08505-SECONDA-PROCACCIAMENTO",
+    "Art 85 C4bis 3ª - NCC irregolare - foglio compilato dopo": "08505-TERZA-COMPILATO-DOPO",
+    "Art 85 C4bis 3ª - NCC irregolare - foglio irregolare": "08505-TERZA-FOGLIO-IRREGOLARE",
+    "Art 85 C4bis 3ª - NCC irregolare - prenotazione assente": "08505-TERZA-PRENOTAZIONE-ASSENTE",
+    "Art 85 C4bis 3ª - NCC irregolare - procacciamento": "08505-TERZA-PROCACCIAMENTO",
+    "Art 85 C4bis 4ª+ - NCC irregolare - foglio compilato dopo": "08505-QUARTA-COMPILATO-DOPO",
+    "Art 85 C4bis 4ª+ - NCC irregolare - foglio irregolare": "08505-QUARTA-FOGLIO-IRREGOLARE",
+    "Art 85 C4bis 4ª+ - NCC irregolare - prenotazione assente": "08505-QUARTA-PRENOTAZIONE-ASSENTE",
+    "Art 85 C4bis 4ª+ - NCC irregolare - procacciamento": "08505-QUARTA-PROCACCIAMENTO",
 }
 
 ARCHIVIO_VERBALI_ALIASES = {
@@ -2260,56 +2205,31 @@ def build_archivio_verbali_menu():
 def build_main_menu():
     kb = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     kb.add(
-        types.KeyboardButton("🚨 Caso NCC"),
-        types.KeyboardButton("🛂 Controlli operativi")
+        types.KeyboardButton("Inserisci un caso NCC"),
+        types.KeyboardButton("Controlli operativi")
     )
     kb.add(
-        types.KeyboardButton("✅ Checklist documentale"),
-        types.KeyboardButton("📋 Documenti")
+        types.KeyboardButton("Checklist documentale"),
+        types.KeyboardButton("Documenti da controllare")
     )
     kb.add(
-        types.KeyboardButton("🔎 Verifica targa"),
-        types.KeyboardButton("⚖️ Norme principali")
+        types.KeyboardButton("Verifica targa"),
+        types.KeyboardButton("Norme principali")
     )
     kb.add(
-        types.KeyboardButton("📍 Uso licenza NCC"),
-        types.KeyboardButton("🅿️ Stalli RCT")
+        types.KeyboardButton("Controllo uso licenza NCC"),
+        types.KeyboardButton("Controllo stalli RCT"),
+        types.KeyboardButton("Controllo servizio TAXI")
     )
     kb.add(
-        types.KeyboardButton("🚕 Servizio TAXI"),
-        types.KeyboardButton("📚 Agg. CdS")
+        types.KeyboardButton("Aggiornamenti CdS / giurisprudenza")
     )
     kb.add(
-        types.KeyboardButton("⚓ Porto"),
-        types.KeyboardButton("🧭 85/180")
-    )
-    kb.add(
-        types.KeyboardButton("🚔 Fermo mezzo"),
+        types.KeyboardButton("Porto"),
         types.KeyboardButton("📄 Verbali")
     )
     return kb
 
-
-MENU_TEXT_ALIASES = {
-    "🚨 Caso NCC": "Inserisci un caso NCC",
-    "🛂 Controlli operativi": "Controlli operativi",
-    "✅ Checklist documentale": "Checklist documentale",
-    "📋 Documenti": "Documenti da controllare",
-    "🔎 Verifica targa": "Verifica targa",
-    "⚖️ Norme principali": "Norme principali",
-    "📍 Uso licenza NCC": "Controllo uso licenza NCC",
-    "🅿️ Stalli RCT": "Controllo stalli RCT",
-    "🚕 Servizio TAXI": "Controllo servizio TAXI",
-    "📚 Agg. CdS": "Aggiornamenti CdS / giurisprudenza",
-    "⚓ Porto": "Porto",
-    "🧭 85/180": "85/180",
-    "🚔 Fermo mezzo": "Fermo mezzo",
-    "📄 Verbali": "📄 Verbali",
-    "🔙 Indietro": "Indietro",
-}
-
-def normalize_menu_text(text):
-    return MENU_TEXT_ALIASES.get((text or "").strip(), (text or "").strip())
 def build_pdf_markup(main_code=None, concurrent_codes=None, procedural_flags=None):
     concurrent_codes = _dedupe_keep_order(concurrent_codes or [])
     procedural_flags = procedural_flags or {}
@@ -2376,8 +2296,18 @@ def build_final_result_markup(payload):
     )
 
     verbali = payload.get("verbali", [])
-    for i, _ in enumerate(verbali, start=1):
-        markup.add(types.InlineKeyboardButton(f"📄 Verbale {i}", callback_data=f"final:v{i}"))
+    if len(verbali) >= 1:
+        markup.add(types.InlineKeyboardButton("VERBALE 1", callback_data="final:v1"))
+    if len(verbali) >= 2:
+        markup.add(types.InlineKeyboardButton("VERBALE 2", callback_data="final:v2"))
+    if len(verbali) >= 3:
+        markup.add(types.InlineKeyboardButton("VERBALE 3", callback_data="final:v3"))
+    if len(verbali) >= 4:
+        markup.add(types.InlineKeyboardButton("VERBALE 4", callback_data="final:v4"))
+    if len(verbali) >= 5:
+        markup.add(types.InlineKeyboardButton("VERBALE 5", callback_data="final:v5"))
+    if len(verbali) >= 5:
+        markup.add(types.InlineKeyboardButton("VERBALE 5", callback_data="final:v5"))
 
     markup.add(
         types.InlineKeyboardButton("COMUNICAZIONI", callback_data="final:comunicazioni"),
@@ -2471,7 +2401,7 @@ def get_question_buttons(question_key):
         'control_patente_status': [('VALIDA', 'valida'), ('SCADUTA', 'scaduta'), ('NON IDONEA', 'non_idonea'), ('NON ESIBITA', 'non_esibita')],
         'control_kb_status': [('VALIDO', 'valido'), ('SCADUTO', 'scaduto'), ('NON IDONEO/MAI', 'non_idoneo'), ('NON ESIBITO', 'non_esibito'), ('NON DOVUTO', 'non_dovuto')],
         'control_autorizzazione_status': [('REGOLARE', 'regolare'), ('NON ESIBITA', 'non_esibita'), ('NON AUTORIZZATO', 'non_autorizzato')],
-        'control_foglio_status': [('REGOLARE', 'regolare'), ('IRREGOLARE', 'irregolare'), ('ASSENTE', 'assente'), ('NON ESIBITO', 'non_esibito')],
+        'control_foglio_status': [('REGOLARE', 'regolare'), ('INCOMPLETO', 'incompleto'), ('FALSO/FITTIZIO', 'falso'), ('ASSENTE', 'assente'), ('NON ESIBITO', 'non_esibito')],
         'control_patente_missing_mode': [('ESISTE/VALIDA', 'esiste_valida'), ('INESIST./NON VAL.', 'inesistente_non_valida'), ('NON VERIF.', 'non_verificato')],
         'control_kb_missing_mode': [('ESISTE/VALIDO', 'esiste_valido'), ('MANCANTE/NON VAL.', 'mancante_non_valido'), ('NON VERIF.', 'non_verificato')],
         'control_autorizzazione_missing_mode': [('ESISTE/REG.', 'esiste_regolare'), ('ASSENTE/SOSP./REV.', 'assente_sospesa_revocata'), ('NON VERIF.', 'non_verificato')],
@@ -2696,7 +2626,7 @@ PDF_MODELS = {
     "180-09": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/180-09_kb_cqc_non_al_seguito.pdf",
     "193-02": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/193-02_art193_senza_assicurazione.pdf",
     "PVC-FISCALE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/PVC_corrispettivi_gdf.pdf",
-    "POS-RIFIUTO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/POS_rifiuto_pagamento_elettronico.pdf",
+    "POS-RIFIUTO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/POS_RIFIUTO_pagamento_elettronico.pdf",
     "158-27": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/158-27_art158_c2d_c5bis_stalli_taxi_bus.pdf",
     "SEQUESTRO_85": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/VERBALE_SEQUESTRO_CUSTODIA.pdf",
     "FERMO_116": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/VERBALE_FERMO_O_SEQUESTRO.pdf",
@@ -2706,10 +2636,29 @@ PDF_MODELS = {
     "COM_COMUNE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/COM_COMUNE.pdf",
     "COM_RENT": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/COM_RENT.pdf",
     "COM_RUOLO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/COM_RUOLO.pdf",
+    "08505-PRIMA-COMPILATO-DOPO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_prima_compilato_dopo.pdf",
+    "08505-PRIMA-FOGLIO-IRREGOLARE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_prima_foglio_irregolare.pdf",
+    "08505-PRIMA-PRENOTAZIONE-ASSENTE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_prima_prenotazione_assente.pdf",
+    "08505-PRIMA-PROCACCIAMENTO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_prima_procacciamento.pdf",
+    "08505-SECONDA-COMPILATO-DOPO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_seconda_compilato_dopo.pdf",
+    "08505-SECONDA-FOGLIO-IRREGOLARE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_seconda_foglio_irregolare.pdf",
+    "08505-SECONDA-PRENOTAZIONE-ASSENTE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_seconda_prenotazione_assente.pdf",
+    "08505-SECONDA-PROCACCIAMENTO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_seconda_procacciamento.pdf",
+    "08505-TERZA-COMPILATO-DOPO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_terza_compilato_dopo.pdf",
+    "08505-TERZA-FOGLIO-IRREGOLARE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_terza_foglio_irregolare.pdf",
+    "08505-TERZA-PRENOTAZIONE-ASSENTE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_terza_prenotazione_assente.pdf",
+    "08505-TERZA-PROCACCIAMENTO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_terza_procacciamento.pdf",
+    "08505-QUARTA-COMPILATO-DOPO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_quarta_compilato_dopo.pdf",
+    "08505-QUARTA-FOGLIO-IRREGOLARE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_quarta_foglio_irregolare.pdf",
+    "08505-QUARTA-PRENOTAZIONE-ASSENTE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_quarta_prenotazione_assente.pdf",
+    "08505-QUARTA-PROCACCIAMENTO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_quarta_procacciamento.pdf",
+    "180-10": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/180-10_inottemperanza_invito_art180_c8_CORRETTO.pdf",
+    "POS-ASSENTE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/POS_ASSENTE_mancata_disponibilita.pdf",
+    "POS-NON-FUNZIONANTE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/POS_NON_FUNZIONANTE_dispositivo_non_utilizzabile.pdf",
 }
 
 def _short_violation_line(code):
-    v = VIOLATIONS.get(code)
+    v = get_violation_record(code)
     if not v:
         return code
     return f"{code} | {v['article']} | {v['title']}"
@@ -2731,7 +2680,7 @@ def _build_accessory_actions(main_code, concurrent_codes=None):
 
     if main_code in {"085-02", "085-04"}:
         add("Sequestro/confisca veicolo")
-    if main_code in {"085-05", "085-06", "085-07", "085-08"}:
+    if main_code in {"085-05", "085-06", "085-07", "085-08"} or str(main_code).startswith("08505-"):
         add("Ritiro/sospensione documento di circolazione")
     if "116-02" in concurrent_codes:
         add("Fermo veicolo 3 mesi")
@@ -3253,6 +3202,35 @@ def _is_persona_fisica_owner(owner_name):
 
 
 
+def build_license_distance_alert_from_place(comune_licenza_val, control_place="Civitavecchia"):
+    """Crea un alert se il comune della licenza è molto distante dal luogo di controllo.
+    Funzione difensiva: non blocca mai il controllo targa in caso di dati mancanti.
+    """
+    comune = (comune_licenza_val or "").strip()
+    if not comune:
+        return ""
+    try:
+        license_coords = _lookup_place_coords(comune)
+        control_coords = _lookup_place_coords(control_place or "Civitavecchia")
+        if not license_coords or not control_coords:
+            return ""
+        distance = _haversine_km(
+            license_coords["lat"], license_coords["lon"],
+            control_coords["lat"], control_coords["lon"]
+        )
+        if distance >= LICENSE_DISTANCE_ALERT_KM:
+            return (
+                "ALERT DISTANZA LICENZA\n"
+                f"Comune/ente licenza: {comune}\n"
+                f"Distanza stimata dal luogo di controllo ({control_place}): circa {distance} km.\n"
+                "La distanza, da sola, non prova l'illecito, ma è un indice operativo da approfondire "
+                "insieme a prenotazione, foglio di servizio, sede/rimessa e modalità di acquisizione clientela."
+            )
+    except Exception:
+        return ""
+    return ""
+
+
 def lookup_plate_in_registry(plate_text):
     plate = normalize_plate_value(plate_text)
     if not plate:
@@ -3262,7 +3240,7 @@ def lookup_plate_in_registry(plate_text):
         return {
             "ok": False,
             "message": (
-                f"Archivio targhe non trovato: {TARGHE_FILE_PATH}."
+                f"Archivio targhe non trovato: {TARGHE_FILE_PATH}. "
                 "Carica il file Excel nel repository e verifica il percorso in TARGHE_FILE_PATH."
             )
         }
@@ -3270,17 +3248,15 @@ def lookup_plate_in_registry(plate_text):
     try:
         from openpyxl import load_workbook
     except Exception as e:
-        return {
-            "ok": False,
-            "message": f"Libreria openpyxl non disponibile sul server: {e}"
-        }
+        return {"ok": False, "message": f"Libreria openpyxl non disponibile sul server: {e}"}
 
     try:
         workbook = load_workbook(TARGHE_FILE_PATH, data_only=True, read_only=True)
+
         target_sheet_name = TARGHE_SHEET_NAME if TARGHE_SHEET_NAME in workbook.sheetnames else None
         if not target_sheet_name:
             for candidate in workbook.sheetnames:
-                if str(candidate).strip().lower() == 'ncc':
+                if str(candidate).strip().lower() == "ncc":
                     target_sheet_name = candidate
                     break
         sheet = workbook[target_sheet_name] if target_sheet_name else workbook[workbook.sheetnames[0]]
@@ -3292,16 +3268,7 @@ def lookup_plate_in_registry(plate_text):
             return {"ok": False, "message": "Il file Excel targhe è vuoto."}
 
         headers = [normalize_header_value(h) for h in headers_raw]
-
         targa_idx = _find_first_matching_column(headers, {"targa", "plate", "telaio/targa", "veicolo", "mezzo"})
-        uso_idx = _find_first_matching_column(headers, {"uso veicolo", "uso", "uso del veicolo"})
-        intestatario_idx = _find_first_matching_column(headers, {"intestatario", "proprietario", "ragione sociale", "titolare"})
-        residenza_idx = _find_first_matching_column(headers, {"residenza intestatario", "residenza", "indirizzo intestatario", "comune intestatario"})
-        modello_idx = _find_first_matching_column(headers, {"modello", "veicolo modello", "marca modello"})
-        destinazione_idx = _find_first_matching_column(headers, {"destinazione uso veicoli", "destinazione uso", "destinazione"})
-        licenza_idx = _find_first_matching_column(headers, {"licenza autoveicolo", "licenza", "autorizzazione", "licenza ncc"})
-        note_idx = _find_first_matching_column(headers, {"note", "annotazioni", "osservazioni"})
-
         if targa_idx is None:
             return {
                 "ok": False,
@@ -3323,23 +3290,31 @@ def lookup_plate_in_registry(plate_text):
                 "message": f"Il mezzo con targa {plate} non è stato censito."
             }
 
-        def get_value(idx):
-            if idx is None or idx >= len(found_row):
-                return ""
-            value = found_row[idx]
-            if value is None:
-                return ""
-            return str(value).strip()
+        # Dizionario della riga Excel indicizzato per intestazione normalizzata.
+        # IMPORTANTE: non usare variabili non inizializzate tipo 'normalized'.
+        row_data = {}
+        for idx, header in enumerate(headers):
+            if not header:
+                continue
+            value = found_row[idx] if idx < len(found_row) else ""
+            row_data[header] = "" if value is None else str(value).strip()
 
-        uso = get_value(uso_idx).upper()
-        intestatario = get_value(intestatario_idx)
-        residenza = get_value(residenza_idx)
-        modello = get_value(modello_idx)
-        destinazione = get_value(destinazione_idx)
-        licenza = get_value(licenza_idx)
-        note = get_value(note_idx)
-        owner_is_person = _is_persona_fisica_owner(intestatario)
-        uso_proprio_alert = uso == 'PROPRIO'
+        def first_value(*aliases):
+            for alias in aliases:
+                key = normalize_header_value(alias)
+                if key in row_data and row_data[key]:
+                    return row_data[key]
+            return ""
+
+        uso = first_value("uso veicolo", "uso", "uso del veicolo").upper()
+        intestatario = first_value("intestatario", "proprietario", "ragione sociale", "titolare")
+        residenza = first_value("residenza intestatario", "residenza", "indirizzo intestatario", "comune intestatario")
+        modello = first_value("modello", "veicolo modello", "marca modello")
+        destinazione = first_value("destinazione uso veicoli", "destinazione uso", "destinazione")
+        licenza = first_value("licenza autoveicolo", "licenza", "autorizzazione", "licenza ncc")
+        note = first_value("note", "annotazioni", "osservazioni")
+
+        uso_proprio_alert = uso == "PROPRIO"
         sanctionable = False
 
         lines = [
@@ -3360,15 +3335,6 @@ def lookup_plate_in_registry(plate_text):
         if licenza:
             lines.append(f"Licenza/autorizzazione: {licenza}")
 
-        # Dizionario normalizzato riga Excel: evita errore "name 'normalized' is not defined"
-        # e consente di cercare campi opzionali come Comune licenza/ente rilasciante.
-        normalized = {}
-        for idx, header in enumerate(headers):
-            if not header:
-                continue
-            value = found_row[idx] if idx < len(found_row) else ""
-            normalized[header] = "" if value is None else str(value).strip()
-
         lines.append("")
         if uso_proprio_alert:
             lines.append("ESITO OPERATIVO: mezzo censito con ALERT.")
@@ -3382,12 +3348,10 @@ def lookup_plate_in_registry(plate_text):
         if note:
             lines.extend(["", f"Note archivio: {note}"])
 
-        comune_licenza_val = ""
-        for key in ("comune licenza", "comune_licenza", "comune lic.", "licenza", "ente rilasciante", "comune autorizzazione"):
-            if key in normalized:
-                comune_licenza_val = str(normalized.get(key, "") or "").strip()
-                if comune_licenza_val:
-                    break
+        comune_licenza_val = first_value(
+            "comune licenza", "comune_licenza", "comune lic.",
+            "ente rilasciante", "comune autorizzazione", "comune licenza/autorizzazione"
+        )
         distance_alert = build_license_distance_alert_from_place(comune_licenza_val)
         if distance_alert:
             lines.extend(["", distance_alert])
@@ -3404,11 +3368,14 @@ def lookup_plate_in_registry(plate_text):
             "owner": intestatario,
             "owner_residence": residenza,
             "sanctionable": sanctionable,
-            "message": "\n".join(lines)
+            "message": "\n".join(lines),
         }
-    except Exception as e:
-        return {"ok": False, "message": f"Errore lettura archivio targhe: {e}"}
 
+    except Exception as e:
+        return {
+            "ok": False,
+            "message": f"Errore lettura archivio targhe: {type(e).__name__}: {e}",
+        }
 
 def begin_plate_lookup_flow(chat_id):
     user_states[chat_id] = {
@@ -4196,6 +4163,27 @@ def format_checklist_from_db():
 
 
 
+
+
+def get_specific_08505_code(level_value, case_key):
+    level_map = {
+        "first": "PRIMA",
+        "2_5y": "SECONDA",
+        "3_5y": "TERZA",
+        "4plus_5y": "QUARTA",
+    }
+    case_map = {
+        "procacciamento": "PROCACCIAMENTO",
+        "prenotazione_assente": "PRENOTAZIONE-ASSENTE",
+        "foglio_irregolare": "FOGLIO-IRREGOLARE",
+        "compilato_dopo": "COMPILATO-DOPO",
+    }
+    level = level_map.get(level_value)
+    case = case_map.get(case_key)
+    if level and case:
+        return f"08505-{level}-{case}"
+    return None
+
 def begin_port_common_case(chat_id, case_key):
     user_states[chat_id] = {
         "mode": "porto_common_followup",
@@ -4231,18 +4219,51 @@ def begin_port_common_case(chat_id, case_key):
             "text": "È la prima violazione oppure la seconda nel triennio?"
         }
 
-    elif case_key == "procacciamento":
+    elif case_key in {"procacciamento", "prenotazione_assente", "foglio_irregolare", "compilato_dopo"}:
+        # NCC regolare ma irregolare: porta al PDF 085-05 specifico in base a caso + progressione.
         state["answers"].update({
             "vehicle_authorized": "si",
             "service_to_third": "si",
-            "booking": "no",
-            "public_waiting": "si",
             "violation_type": "art3_11"
         })
+        if case_key == "procacciamento":
+            state["answers"].update({"booking": "no", "public_waiting": "si"})
+        elif case_key == "prenotazione_assente":
+            state["answers"].update({"booking": "no"})
+        elif case_key == "foglio_irregolare":
+            state["answers"].update({"foglio_status": "irregolare"})
+        elif case_key == "compilato_dopo":
+            state["answers"].update({"foglio_status": "irregolare"})
         q = {
             "key": "recurrence",
             "text": "Indica la progressione della violazione nel quinquennio."
         }
+
+    elif case_key == "ncc_kb_scaduto":
+        state["answers"].update({
+            "vehicle_authorized": "si",
+            "service_to_third": "si",
+            "kb": "no",
+            "kb_status": "scaduto"
+        })
+        # Caso diretto: KB scaduto/non valido = 116-06.
+        main_code = "116-06"
+        payload = build_final_payload(main_code, concurrent_codes=[], extra_notes=["KB/CQC scaduto o non valido: verificare titolo professionale richiesto."], procedural_flags={}, ancillary_findings=[])
+        state["last_result_payload"] = payload
+        save_user_states()
+        return payload.get("quick", "Esito finale non disponibile."), None
+
+    elif case_key == "ncc_kb_non_al_seguito":
+        payload = build_final_payload("180-09", concurrent_codes=[], extra_notes=["Titolo professionale esistente ma non al seguito."], procedural_flags={}, ancillary_findings=[])
+        state["last_result_payload"] = payload
+        save_user_states()
+        return payload.get("quick", "Esito finale non disponibile."), None
+
+    elif case_key == "ncc_licenza_non_al_seguito":
+        payload = build_final_payload("180-06", concurrent_codes=[], extra_notes=["Licenza/autorizzazione NCC esistente ma non al seguito."], procedural_flags={}, ancillary_findings=[])
+        state["last_result_payload"] = payload
+        save_user_states()
+        return payload.get("quick", "Esito finale non disponibile."), None
 
     else:
         return None
@@ -4275,6 +4296,10 @@ def _finalize_port_common_case(chat_id):
         for code in fixed_package:
             if code not in concurrent:
                 concurrent.append(code)
+
+    specific_08505_code = get_specific_08505_code(answers.get("recurrence"), state.get("porto_case_key"))
+    if specific_08505_code:
+        main_code = specific_08505_code
 
     if main_code:
         payload = build_final_payload(
@@ -4768,17 +4793,25 @@ def decide_violation(answers):
         ancillary_findings.append("Conducente non iscritto al ruolo/albo: requisito soggettivo mancante da evidenziare nel verbale e da segnalare.")
 
     if foglio_status == "assente":
+        ancillary_findings.append("Foglio di servizio assente/non compilato: contestazione documentale ex art. 180 CdS, salvo ulteriori elementi sostanziali sul servizio.")
+        add_verbal("Il conducente non esibiva/non disponeva nell'immediatezza del foglio di servizio o codice identificativo del servizio richiesto in controllo.")
+        _append_unique(concurrent, "180-01")
+    elif foglio_status == "incompleto":
+        ancillary_findings.append("Foglio di servizio incompleto o privo di elementi essenziali: contestazione documentale ex art. 180 CdS, salvo prova di copertura fittizia del servizio.")
+        add_verbal("Il foglio di servizio esibito risultava incompleto/privo di elementi essenziali e non idoneo, allo stato, a comprovare compiutamente la regolarità documentale del servizio.")
+        _append_unique(concurrent, "180-01")
+    elif foglio_status == "falso":
         violation_type = "art3_11"
         booking = "no"
-        add_verbal("Foglio di servizio assente o non compilato al momento del controllo.")
-        ancillary_findings.append("Foglio di servizio assente/non compilato: integra violazione sostanziale delle modalità di esercizio del servizio.")
+        add_verbal("Dall'esame del foglio di servizio emergevano elementi fittizi, postumi o di copertura, non riconducibili a una prenotazione reale e specifica del servizio NCC.")
+        ancillary_findings.append("Foglio di servizio falso/fittizio/di copertura: possibile violazione sostanziale delle modalità di esercizio del servizio NCC ex art. 85 c.4-bis CdS.")
     elif foglio_status == "irregolare":
-        violation_type = "art3_11"
-        add_verbal("Foglio di servizio irregolare/incompleto rispetto al servizio in corso.")
-        ancillary_findings.append("Foglio di servizio irregolare/incompleto: trattare come violazione sostanziale delle modalità di esercizio del servizio.")
+        ancillary_findings.append("Foglio di servizio indicato come irregolare: se è solo incompleto applicare art. 180; se è fittizio/di copertura qualificare il ramo art. 85 c.4-bis.")
+        add_verbal("Foglio di servizio irregolare: specificare se trattasi di incompletezza documentale oppure di documento fittizio/postumo/di copertura.")
+        _append_unique(concurrent, "180-01")
     elif foglio_status == "non_esibito":
-        ancillary_findings.append("Foglio di servizio esistente ma non esibito: valutare separatamente la mancata esibizione documentale ex art. 180 CdS.")
-        add_verbal("Il conducente non esibiva nell'immediatezza il foglio di servizio/codice identificativo del servizio; valutare autonoma contestazione documentale.")
+        ancillary_findings.append("Foglio di servizio esistente ma non esibito: contestazione documentale ex art. 180 CdS, salvo ulteriori elementi sostanziali sul servizio.")
+        add_verbal("Il conducente non esibiva nell'immediatezza il foglio di servizio/codice identificativo del servizio richiesto in controllo.")
         _append_unique(concurrent, "180-01")
 
     if public_waiting == "si" and booking == "no" and vehicle_authorized == "si":
@@ -5030,8 +5063,12 @@ def _extract_foglio_status(text):
         return "non_esibito"
     if _contains_any(t, ["assente", "manca", "mancante", "senza foglio", "non compilato"]):
         return "assente"
-    if _contains_any(t, ["irregolare", "incompleto", "compilato male", "difforme"]):
-        return "irregolare"
+    if _contains_any(t, ["falso", "fittizio", "copertura", "postumo", "compilato dopo", "prenotazione finta", "non reale"]):
+        return "falso"
+    if _contains_any(t, ["incompleto", "compilato male", "privo", "manca dato", "mancano dati", "difforme"]):
+        return "incompleto"
+    if _contains_any(t, ["irregolare"]):
+        return "incompleto"
     if _contains_any(t, ["presente", "regolare", "esibito", "compilato"]):
         return "presente"
     return None
@@ -5090,7 +5127,7 @@ def parse_answer_for_key(key, text):
         "control_patente_status": {"valida", "scaduta", "non_idonea", "non_esibita"},
         "control_kb_status": {"valido", "scaduto", "non_idoneo", "non_esibito", "non_dovuto"},
         "control_autorizzazione_status": {"regolare", "non_esibita", "non_autorizzato"},
-        "control_foglio_status": {"regolare", "irregolare", "assente", "non_esibito"},
+        "control_foglio_status": {"regolare", "incompleto", "falso", "irregolare", "assente", "non_esibito"},
         "control_patente_missing_mode": {"esiste_valida", "inesistente_non_valida", "non_verificato"},
         "control_kb_missing_mode": {"esiste_valido", "mancante_non_valido", "non_verificato"},
         "control_autorizzazione_missing_mode": {"esiste_regolare", "assente_sospesa_revocata", "non_verificato"},
@@ -5230,9 +5267,9 @@ def build_control_queue(state):
     _queue_control_question(state, "control_revisione_status", "Esito revisione del veicolo?\nScegli: regolare / scaduta / non_verificato")
 
     if "foglio" in selected:
-        _queue_control_question(state, "control_foglio_status", "Foglio di servizio esibito: scegli lo stato corretto.\nScegli: regolare / irregolare / assente / non_esibito")
+        _queue_control_question(state, "control_foglio_status", "Foglio di servizio esibito: scegli lo stato corretto.\nScegli: regolare / incompleto / falso")
     else:
-        _queue_control_question(state, "control_foglio_status", "Foglio di servizio non esibito: scegli il caso corretto.\nScegli: non_esibito / assente / irregolare")
+        _queue_control_question(state, "control_foglio_status", "Foglio di servizio non mostrato: scegli l’esito corretto.\nScegli: non_esibito / assente / regolare")
 
     _queue_control_question(state, "control_owner_type", "Intestatario/proprietario del mezzo: scegli il tipo.\nScegli: persona_fisica / cooperativa_srl / agenzia_viaggi / altro")
     _queue_control_question(state, "control_circulation_use", "Sul libretto / DU quale uso risulta?\nScegli: uso_terzi_ncc / uso_proprio / non_letto")
@@ -5249,9 +5286,13 @@ def describe_control_violation(answers):
         parts.append("il conducente svolgeva il servizio senza CAP/KB/CQC richiesto")
     foglio = answers.get("foglio_status")
     if foglio == "assente":
-        parts.append("il servizio NCC era svolto con foglio di servizio assente o non compilato")
+        parts.append("il foglio di servizio risultava assente o non compilato")
+    elif foglio == "incompleto":
+        parts.append("il foglio di servizio risultava incompleto o privo di elementi essenziali")
+    elif foglio == "falso":
+        parts.append("il foglio di servizio presentava elementi fittizi/di copertura non riconducibili a prenotazione reale")
     elif foglio == "irregolare":
-        parts.append("il servizio NCC era svolto con foglio di servizio irregolare o incompleto")
+        parts.append("il foglio di servizio risultava irregolare e da qualificare tra incompletezza documentale o copertura fittizia")
     elif foglio == "non_esibito":
         parts.append("il foglio di servizio non veniva esibito all'atto del controllo")
     if answers.get("vehicle_authorized") == "no":
@@ -5302,7 +5343,7 @@ def build_article_verification_prompt(answers, key, base_text):
     title = "VERIFICA MIRATA"
     framing = ""
 
-    art85_keys = {"recurrence", "recurrence_triennio", "violation_type", "foglio_status", "booking", "public_waiting", "taxi_commune", "separate_payment"}
+    art85_keys = {"recurrence", "recurrence_triennio", "violation_type", "foglio_status", "control_foglio_status", "booking", "public_waiting", "taxi_commune", "separate_payment"}
     kb_keys = {"kb", "control_kb_status"}
     patente_keys = {"patente_idonea", "control_patente_status"}
     auth_keys = {"vehicle_authorized", "control_autorizzazione_status"}
@@ -5459,9 +5500,25 @@ def _apply_control_answer_to_state(state, key, value):
     elif key == "control_foglio_status":
         if value == "regolare":
             answers["foglio_status"] = "presente"
-        elif value == "irregolare":
-            answers["foglio_status"] = "irregolare"
+        elif value == "incompleto":
+            answers["foglio_status"] = "incompleto"
+            _append_unique_local(concurrent, "180-01")
+            add_note("Foglio di servizio incompleto/privo di dati essenziali: trattare come irregolarità documentale ex art. 180 CdS, salvo elementi di falsità o copertura fittizia.")
+            add_flag("Il foglio di servizio esibito risultava incompleto/privo di elementi essenziali e non idoneo a comprovare compiutamente la regolarità documentale del servizio.")
+        elif value in {"assente", "non_esibito"}:
+            answers["foglio_status"] = value
+            _append_unique_local(concurrent, "180-01")
+            add_note("Foglio di servizio assente/non esibito: contestazione documentale ex art. 180 CdS; valutare art. 85 solo se emergono anche elementi sostanziali sul servizio.")
+        elif value == "falso":
+            answers["foglio_status"] = "falso"
             answers["violation_type"] = "art3_11"
+            answers["booking"] = "no"
+            add_note("Foglio di servizio falso/fittizio/di copertura: non è mera incompletezza documentale; orienta verso violazione sostanziale art. 85 c.4-bis CdS.")
+            add_flag("Dall'esame del foglio di servizio emergevano elementi fittizi/postumi/di copertura, non riconducibili a una prenotazione reale e specifica del servizio NCC.")
+        elif value == "irregolare":
+            answers["foglio_status"] = "incompleto"
+            _append_unique_local(concurrent, "180-01")
+            add_note("Risposta 'irregolare' trattata prudenzialmente come foglio incompleto ex art. 180. Se il documento è fittizio/di copertura selezionare 'falso'.")
         else:
             answers["foglio_status"] = value
 
@@ -5514,6 +5571,10 @@ def _finalize_control(chat_id):
     for bucket, items in state.get("control_flags", {}).items():
         for item in items:
             _append_unique_local(procedural_flags.setdefault(bucket, []), item)
+
+    specific_08505_code = get_specific_08505_code(answers.get("recurrence"), state.get("porto_case_key"))
+    if specific_08505_code:
+        main_code = specific_08505_code
 
     if main_code:
         payload = build_final_payload(
@@ -5568,7 +5629,7 @@ def control_additional_questions(answers):
             "key": "ruolo_conducenti",
             "text": "Il conducente risultava iscritto al ruolo/albo conducenti quando richiesto?\nRispondi: si / no"
         })
-    if answers.get("foglio_status") in {"assente", "irregolare"} and answers.get("recurrence") is None:
+    if answers.get("foglio_status") in {"falso"} and answers.get("recurrence") is None:
         questions.append({
             "key": "recurrence",
             "text": "Per il ramo art. 85 c.4-bis questa violazione è:\nfirst = prima\n2_5y = seconda nel quinquennio\n3_5y = terza nel quinquennio\n4plus_5y = quarta o successiva\nRispondi con una di queste opzioni."
@@ -6294,40 +6355,6 @@ def back_from_archivio(message):
     if not ensure_authorized(message):
         return
     bot.send_message(message.chat.id, "Menu principale", reply_markup=build_main_menu())
-
-
-
-@bot.message_handler(func=lambda m: normalize_menu_text((m.text or "").strip()) == "Fermo mezzo")
-def fermo_mezzo_button(message):
-    if not ensure_authorized(message):
-        return
-    bot.send_message(message.chat.id, fermo_mezzo_intro_text(), reply_markup=build_fermo_mezzo_markup())
-
-
-@bot.message_handler(func=lambda m: normalize_menu_text((m.text or "").strip()) == "85/180")
-def guida_85_180_button(message):
-    if not ensure_authorized(message):
-        return
-    bot.send_message(message.chat.id, guida_85_180_text())
-
-
-@bot.callback_query_handler(func=lambda call: str(call.data).startswith("fermo_case:"))
-def fermo_case_callback(call):
-    chat_id = call.message.chat.id
-    key = str(call.data).split(":", 1)[1]
-    result = fermo_case_result(key)
-    if not result:
-        try:
-            bot.answer_callback_query(call.id, "Caso non disponibile")
-        except Exception:
-            pass
-        return
-    markup = build_specific_pdf_markup(result.get("pdfs", []))
-    try:
-        bot.answer_callback_query(call.id)
-    except Exception:
-        pass
-    send_long_message(chat_id, result.get("text", "Esito non disponibile."), reply_markup=markup)
 
 
 @bot.message_handler(commands=['reset'])
