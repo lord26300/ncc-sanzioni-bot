@@ -2331,6 +2331,10 @@ def get_question_buttons(question_key):
         'foglio_status': [('PRESENTE', 'presente'), ('ASSENTE', 'assente'), ('IRREGOLARE', 'irregolare'), ('NON ESIBITO', 'non_esibito')],
         'recurrence': [('PRIMA', 'first'), ('2^ QUINQ.', '2_5y'), ('3^ QUINQ.', '3_5y'), ('4+', '4plus_5y')],
         'recurrence_triennio': [('PRIMA', 'first'), ('2^ TRIENNIO', 'second_3y')],
+        'recidiva_count': [('0', '0'), ('1', '1'), ('2', '2'), ('3+', '3+')],
+        'stalli_vehicle_type': [('NCC', 'ncc'), ('TAXI', 'taxi')],
+        'stalli_stall_type': [('STALL. NCC', 'stallo ncc'), ('STALL. TAXI', 'stallo taxi'), ('STALL. BUS', 'stallo bus'), ('FUORI', 'fuori stalli')],
+        'stalli_yesno': [('SI', 'si'), ('NO', 'no')],
         'control_patente_status': [('VALIDA', 'valida'), ('SCADUTA', 'scaduta'), ('NON IDONEA', 'non_idonea'), ('NON ESIBITA', 'non_esibita')],
         'control_kb_status': [('VALIDO', 'valido'), ('SCADUTO', 'scaduto'), ('NON IDONEO/MAI', 'non_idoneo'), ('NON ESIBITO', 'non_esibito'), ('NON DOVUTO', 'non_dovuto')],
         'control_autorizzazione_status': [('REGOLARE', 'regolare'), ('NON ESIBITA', 'non_esibita'), ('NON AUTORIZZATO', 'non_autorizzato')],
@@ -2394,6 +2398,40 @@ def build_combined_markup(article_keys=None, question_key=None, force_ctrl_answe
     return markup
 
 
+
+
+def build_license_use_step_markup(state):
+    """Pulsanti rapidi per il controllo uso licenza NCC."""
+    state = state or {}
+    step = state.get("step")
+    if step in {"vehicle_authorized", "booking_shown", "service_sheet_ok", "public_waiting", "local_acquisition", "previous_stops", "porto_presence"}:
+        return build_combined_markup(question_key=step)
+    if step == "recidiva_count":
+        return build_combined_markup(question_key="recidiva_count")
+    return None
+
+
+def build_stalli_step_markup(state):
+    """Pulsanti rapidi per il controllo stalli RCT."""
+    state = state or {}
+    step = state.get("step")
+    if step == "vehicle_type":
+        return build_combined_markup(question_key="stalli_vehicle_type")
+    if step == "stall_type":
+        return build_combined_markup(question_key="stalli_stall_type")
+    if step in {"booked_client", "customer_acquisition", "hindrance"}:
+        return build_combined_markup(question_key="stalli_yesno")
+    return None
+
+
+def _reply_markup_for_active_state(state):
+    state = state or {}
+    mode = state.get("mode")
+    if mode == "license_use_check":
+        return build_license_use_step_markup(state)
+    if mode == "stalli_check":
+        return build_stalli_step_markup(state)
+    return None
 
 def infer_article_keys_from_text(text):
     if not text:
@@ -6088,12 +6126,14 @@ def licenza_command(message):
     if not ensure_authorized(message):
         return
     begin_license_use_flow(message.chat.id)
+    state = get_state(message.chat.id) or {}
     bot.reply_to(
         message,
         "Controllo uso regolare licenza NCC.\n\n"
         "Questa procedura aiuta a verificare se una licenza di altro comune appare usata in modo stabile fuori territorio.\n"
         "La distanza elevata non basta da sola, ma fa scattare un alert operativo da rafforzare con altri elementi.\n\n"
-        + _license_use_next_prompt(get_state(message.chat.id) or {}),
+        + _license_use_next_prompt(state),
+        reply_markup=build_license_use_step_markup(state),
     )
 
 
@@ -6102,9 +6142,11 @@ def stalli_command(message):
     if not ensure_authorized(message):
         return
     begin_stalli_flow(message.chat.id)
+    state = get_state(message.chat.id) or {}
     bot.reply_to(
         message,
-        "Controllo stalli RCT.\n\nQuesta procedura distingue la semplice violazione di sosta/stallo dalla possibile violazione sostanziale del servizio.\n\n" + _stalli_next_prompt(get_state(message.chat.id) or {}),
+        "Controllo stalli RCT.\n\nQuesta procedura distingue la semplice violazione di sosta/stallo dalla possibile violazione sostanziale del servizio.\n\n" + _stalli_next_prompt(state),
+        reply_markup=build_stalli_step_markup(state),
     )
 
 
@@ -6758,6 +6800,44 @@ def answer_callback(call):
             )
             return
 
+        if state.get("mode") == "license_use_check":
+            response, payload = process_license_use_flow(chat_id, value)
+            try:
+                bot.answer_callback_query(call.id, "Risposta acquisita")
+            except Exception:
+                pass
+            if payload:
+                markup = build_final_result_markup(payload)
+                if not markup:
+                    state_after = get_state(chat_id) or {}
+                    main_code = state_after.get("last_result_main_code")
+                    concurrent_codes = state_after.get("last_result_concurrent", [])
+                    flags = state_after.get("last_result_flags", {})
+                    markup = build_pdf_markup(main_code, concurrent_codes, flags) or build_article_markup(get_article_keys_for_result(main_code, concurrent_codes))
+                send_long_message(chat_id, response, reply_markup=wrap_final_markup_with_giuris(markup), disable_web_page_preview=True)
+                return
+            send_long_message(chat_id, response, reply_markup=build_license_use_step_markup(get_state(chat_id) or {}), disable_web_page_preview=True)
+            return
+
+        if state.get("mode") == "stalli_check":
+            response, payload = process_stalli_flow(chat_id, value)
+            try:
+                bot.answer_callback_query(call.id, "Risposta acquisita")
+            except Exception:
+                pass
+            if payload:
+                markup = build_final_result_markup(payload)
+                if not markup:
+                    state_after = get_state(chat_id) or {}
+                    main_code = state_after.get("last_result_main_code")
+                    concurrent_codes = state_after.get("last_result_concurrent", [])
+                    flags = state_after.get("last_result_flags", {})
+                    markup = build_pdf_markup(main_code, concurrent_codes, flags) or build_article_markup(get_article_keys_for_result(main_code, concurrent_codes))
+                send_long_message(chat_id, response, reply_markup=wrap_final_markup_with_giuris(markup), disable_web_page_preview=True)
+                return
+            send_long_message(chat_id, response, reply_markup=build_stalli_step_markup(get_state(chat_id) or {}), disable_web_page_preview=True)
+            return
+
         try:
             bot.answer_callback_query(call.id, "Nessuna domanda attiva")
         except Exception:
@@ -6771,6 +6851,48 @@ def answer_callback(call):
         bot.send_message(chat_id, f"Errore interno nel flusso risposte: {e}")
 
 # =========================
+# HANDLER MENU PRINCIPALE CON EMOJI
+# =========================
+
+@bot.message_handler(func=lambda m: normalize_menu_text((m.text or "").strip()) in {
+    "Inserisci un caso NCC",
+    "Controlli operativi",
+    "Checklist documentale",
+    "Documenti da controllare",
+    "Verifica targa",
+    "Norme principali",
+    "Controllo uso licenza NCC",
+    "Controllo stalli RCT",
+    "Controllo servizio TAXI",
+    "Aggiornamenti CdS / giurisprudenza",
+    "Porto",
+})
+def main_menu_button_router(message):
+    text = normalize_menu_text((message.text or "").strip())
+    if text == "Inserisci un caso NCC":
+        return caso_command(message)
+    if text == "Controlli operativi":
+        return checklist_command(message)
+    if text == "Checklist documentale":
+        return controllo_command(message)
+    if text == "Documenti da controllare":
+        return documenti_command(message)
+    if text == "Verifica targa":
+        return menu_targa_button(message)
+    if text == "Norme principali":
+        return norme_command(message)
+    if text == "Controllo uso licenza NCC":
+        return licenza_command(message)
+    if text == "Controllo stalli RCT":
+        return stalli_command(message)
+    if text == "Controllo servizio TAXI":
+        return taxi_command(message)
+    if normalize_menu_text(text) == "Aggiornamenti CdS / giurisprudenza":
+        return aggiornamenti_command(message)
+    if text == "Porto":
+        return casi_porto_command(message)
+
+# =========================
 # MESSAGGI GENERICI
 # =========================
 
@@ -6778,7 +6900,7 @@ def answer_callback(call):
 def all_messages(message):
     text = (message.text or "").strip()
 
-    if text == "Aggiornamenti CdS / giurisprudenza":
+    if normalize_menu_text(text) == "Aggiornamenti CdS / giurisprudenza":
         if not ensure_authorized(message):
             return
         bot.reply_to(
@@ -6921,7 +7043,7 @@ def all_messages(message):
                 )
             send_long_message(chat_id, response, reply_markup=wrap_final_markup_with_giuris(markup), disable_web_page_preview=True)
             return
-        bot.reply_to(message, response)
+        bot.reply_to(message, response, reply_markup=build_license_use_step_markup(get_state(chat_id) or {}))
         return
 
     if mode == "stalli_check":
@@ -6938,7 +7060,7 @@ def all_messages(message):
                 )
             send_long_message(chat_id, response, reply_markup=wrap_final_markup_with_giuris(markup), disable_web_page_preview=True)
             return
-        bot.reply_to(message, response)
+        bot.reply_to(message, response, reply_markup=build_stalli_step_markup(get_state(chat_id) or {}))
         return
 
     if mode == "external_consent":
