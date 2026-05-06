@@ -684,71 +684,6 @@ VIOLATIONS["158-27"] = {
 }
 
 
-# Voci specifiche per template PDF separati
-VIOLATIONS["126-01"] = {
-    "title": "Guida con KB/CAP/CQC scaduto",
-    "article": "CdS art. 126 c. 11",
-    "pmr": "€ 158,00",
-    "reduced_30": "€ 110,60",
-    "over_60": "€ 319,00",
-    "edictal": "da € 158,00 a € 638,00",
-    "accessories": ["Ritiro del documento scaduto"],
-    "verbal_text": "Circolava con titolo professionale KB/CAP/CQC scaduto di validità alla data del controllo.",
-    "notes": ["Usare quando il titolo esiste ma è scaduto; non usare 116-06 e non usare 180-09."],
-    "fields_to_fill": ["tipo titolo scaduto", "data scadenza", "UMC competente", "luogo indicato per proseguire"],
-    "short_ready_text": "Art. 126 c.11: KB/CAP/CQC scaduto. PMR € 158,00; riduzione 30% € 110,60; oltre 60 giorni € 319,00. Accessoria: ritiro documento."
-}
-
-for _code, _stallo in {
-    "158-27-TAXI": "stallo riservato al servizio taxi",
-    "158-27-BUS": "stallo riservato agli autobus",
-    "158-27-NCC": "stallo riservato al servizio NCC",
-}.items():
-    VIOLATIONS[_code] = {
-        "title": f"Sosta in {_stallo} nel terminal crociere RCT",
-        "article": "CdS art. 158 c. 2 lett. d) e c. 5-bis",
-        "pmr": "€ 165,00",
-        "reduced_30": "€ 115,50",
-        "over_60": "€ 330,00",
-        "edictal": "da € 165,00 a € 660,00",
-        "accessories": ["Rimozione veicolo", "2 punti"],
-        "verbal_text": f"Sostava il veicolo in area/stallo riservato ({_stallo}) in violazione della segnaletica verticale/orizzontale e della disciplina interna RCT.",
-        "notes": ["Usare per il veicolo che occupa uno stallo non destinato al proprio servizio."],
-        "fields_to_fill": ["ubicazione precisa", "segnaletica presente", "eventuale intralcio", "eventuale segnalazione RCT"],
-        "short_ready_text": f"Sosta in {_stallo}. Art. 158 c.2 lett. d) e c.5-bis: PMR € 165,00; riduzione 30% € 115,50; oltre 60 giorni € 330,00. Accessorie: rimozione e 2 punti."
-    }
-
-# Varianti 116 con PDF separati: usano gli stessi importi/accessori della voce base, ma aprono il template specifico.
-for _base, _suffixes in {
-    "116-02": ["MAI", "REVOCATA", "NON_RINNOVATA", "NON_VALIDA"],
-    "116-03": ["MAI", "REVOCATA", "NON_RINNOVATA", "NON_VALIDA"],
-    "116-04": ["MAI", "REVOCATA", "NON_RINNOVATA", "NON_VALIDA"],
-}.items():
-    for _suffix in _suffixes:
-        _new_code = f"{_base}-{_suffix}"
-        _rec = dict(VIOLATIONS[_base])
-        _label = {
-            "MAI": "mai conseguita",
-            "REVOCATA": "patente revocata",
-            "NON_RINNOVATA": "non più valida/non rinnovata per perdita requisiti",
-            "NON_VALIDA": "non valida per il veicolo condotto",
-        }[_suffix]
-        _rec["title"] = f"{_rec['title']} - {_label}"
-        VIOLATIONS[_new_code] = _rec
-
-# Varianti 085-05 specifiche già caricate come PDF
-for _lvl, _base_code in {"PRIMA": "085-05", "SECONDA": "085-06", "TERZA": "085-07", "QUARTA": "085-08"}.items():
-    for _cas, _label in {
-        "PROCACCIAMENTO": "procacciamento",
-        "PRENOTAZIONE_ASSENTE": "prenotazione assente",
-        "FOGLIO_IRREGOLARE": "foglio irregolare",
-        "COMPILATO_DOPO": "foglio compilato dopo",
-    }.items():
-        _code = f"08505_{_lvl}_{_cas}"
-        _rec = dict(VIOLATIONS[_base_code])
-        _rec["title"] = f"{_rec['title']} - {_label}"
-        VIOLATIONS[_code] = _rec
-
 TEMPLATE_ONLY_CODES = {
     "PVC-FISCALE": {
         "title": "Verbale scontrino / PVC fiscale",
@@ -2100,17 +2035,22 @@ def build_article_markup(article_keys=None):
 def build_port_common_cases_markup():
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
-        types.InlineKeyboardButton("🚫 Abusivo totale", callback_data="porto_case:abusivo_totale"),
-        types.InlineKeyboardButton("🚐 Uso proprio + KB", callback_data="porto_case:uso_proprio_kb"),
-        types.InlineKeyboardButton("🚫 Procacciamento NCC", callback_data="porto_case:85_procacciamento"),
-        types.InlineKeyboardButton("❌ Prenotazione assente", callback_data="porto_case:85_prenotazione_assente"),
-        types.InlineKeyboardButton("📄 Foglio irregolare", callback_data="porto_case:85_foglio_irregolare"),
-        types.InlineKeyboardButton("⏱ Foglio compilato dopo", callback_data="porto_case:85_compilato_dopo"),
-        types.InlineKeyboardButton("⌛ KB/CQC scaduto", callback_data="porto_case:kb_scaduto"),
-        types.InlineKeyboardButton("🪪 KB/CQC non al seguito", callback_data="porto_case:kb_non_al_seguito"),
-        types.InlineKeyboardButton("📄 Licenza non al seguito", callback_data="porto_case:licenza_non_al_seguito"),
-        types.InlineKeyboardButton("🚧 Controllo stalli RCT", callback_data="porto_case:stalli_rct"),
-        types.InlineKeyboardButton("🧭 Altro caso porto", callback_data="porto_case:altro")
+        types.InlineKeyboardButton(
+            "KB presente + mezzo uso proprio",
+            callback_data="porto_case:uso_proprio_kb"
+        ),
+        types.InlineKeyboardButton(
+            "Abusivo totale",
+            callback_data="porto_case:abusivo_totale"
+        ),
+        types.InlineKeyboardButton(
+            "NCC con licenza/KB ma senza prenotazione",
+            callback_data="porto_case:procacciamento"
+        ),
+        types.InlineKeyboardButton(
+            "Altro caso porto",
+            callback_data="porto_case:altro"
+        )
     )
     return markup
 
@@ -2135,23 +2075,8 @@ ARCHIVIO_VERBALI_MAP = {
     "Art 116 C15 C17 1 - Guida senza patente o categoria diversa - 1° violazione": "116-02",
     "Art 116 C15 C17 2 - Guida senza patente - recidiva biennale": "116-03",
     "Art 116 C15 C17 3 - Guida senza patente - reiterazione penale": "116-04",
-    "Art 116 C15 C17 1 - Mai conseguita": "116-02-MAI",
-    "Art 116 C15 C17 1 - Patente revocata": "116-02-REVOCATA",
-    "Art 116 C15 C17 1 - Non rinnovata/perdita requisiti": "116-02-NON_RINNOVATA",
-    "Art 116 C15 C17 1 - Non valida per veicolo": "116-02-NON_VALIDA",
-    "Art 116 C15 C17 2 - Recidiva mai conseguita": "116-03-MAI",
-    "Art 116 C15 C17 2 - Recidiva patente revocata": "116-03-REVOCATA",
-    "Art 116 C15 C17 2 - Recidiva non più valida": "116-03-NON_RINNOVATA",
-    "Art 116 C15 C17 2 - Recidiva non valida veicolo": "116-03-NON_VALIDA",
-    "Art 116 C15 C17 3 - Penale mai conseguita": "116-04-MAI",
-    "Art 116 C15 C17 3 - Penale patente revocata": "116-04-REVOCATA",
-    "Art 116 C15 C17 3 - Penale non più valida": "116-04-NON_RINNOVATA",
-    "Art 116 C15 C17 3 - Penale non valida veicolo": "116-04-NON_VALIDA",
     "Art 116 C16 C18 - Guida senza KB KA CQC": "116-06",
-    "Art 126 C11 - KB/CQC/CAP scaduto": "126-01",
-    "Art 158 C2d C5bis - Stallo TAXI": "158-27-TAXI",
-    "Art 158 C2d C5bis - Stallo BUS": "158-27-BUS",
-    "Art 158 C2d C5bis - Stallo NCC": "158-27-NCC",
+    "Art 158 C2d C5bis - Sosta su stalli taxi/bus": "158-27",
     "Art 180 - Foglio di servizio/prenotazione non esibito": "180-01",
     "Art 180 C1 C7 - Patente o carta non al seguito": "180-01DOC",
     "Art 180 C1 C7 - Certificato assicurativo non al seguito": "180-03",
@@ -2183,9 +2108,6 @@ ARCHIVIO_VERBALI_ALIASES = {
     "Senza assicurazione": "193-02",
     "Sosta stallo taxi bus": "158-27",
     "Sosta stallo taxi / bus": "158-27",
-    "Sosta stallo taxi": "158-27-TAXI",
-    "Sosta stallo bus": "158-27-BUS",
-    "Sosta stallo ncc": "158-27-NCC",
 }
 
 def build_archivio_verbali_menu():
@@ -2201,27 +2123,27 @@ def build_archivio_verbali_menu():
 def build_main_menu():
     kb = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     kb.add(
-        types.KeyboardButton("📝 Caso NCC"),
-        types.KeyboardButton("🛠️ Operativi")
+        types.KeyboardButton("Inserisci un caso NCC"),
+        types.KeyboardButton("Controlli operativi")
     )
     kb.add(
-        types.KeyboardButton("✅ Checklist"),
-        types.KeyboardButton("📋 Documenti")
+        types.KeyboardButton("Checklist documentale"),
+        types.KeyboardButton("Documenti da controllare")
     )
     kb.add(
-        types.KeyboardButton("🔎 Targa"),
-        types.KeyboardButton("⚖️ Norme")
+        types.KeyboardButton("Verifica targa"),
+        types.KeyboardButton("Norme principali")
     )
     kb.add(
-        types.KeyboardButton("🪪 Uso licenza"),
-        types.KeyboardButton("🚧 Stalli RCT")
+        types.KeyboardButton("Controllo uso licenza NCC"),
+        types.KeyboardButton("Controllo stalli RCT"),
+        types.KeyboardButton("Controllo servizio TAXI")
     )
     kb.add(
-        types.KeyboardButton("🚖 Taxi"),
-        types.KeyboardButton("📚 Agg. CdS")
+        types.KeyboardButton("Aggiornamenti CdS / giurisprudenza")
     )
     kb.add(
-        types.KeyboardButton("⚓ Porto"),
+        types.KeyboardButton("Porto"),
         types.KeyboardButton("📄 Verbali")
     )
     return kb
@@ -2291,19 +2213,9 @@ def build_final_result_markup(payload):
         types.InlineKeyboardButton("ATTI ACCESSORI", callback_data="final:accessori"),
     )
 
-    verbali = payload.get("verbali", [])
-    if len(verbali) >= 1:
-        markup.add(types.InlineKeyboardButton("VERBALE 1", callback_data="final:v1"))
-    if len(verbali) >= 2:
-        markup.add(types.InlineKeyboardButton("VERBALE 2", callback_data="final:v2"))
-    if len(verbali) >= 3:
-        markup.add(types.InlineKeyboardButton("VERBALE 3", callback_data="final:v3"))
-    if len(verbali) >= 4:
-        markup.add(types.InlineKeyboardButton("VERBALE 4", callback_data="final:v4"))
-    if len(verbali) >= 5:
-        markup.add(types.InlineKeyboardButton("VERBALE 5", callback_data="final:v5"))
-    if len(verbali) >= 5:
-        markup.add(types.InlineKeyboardButton("VERBALE 5", callback_data="final:v5"))
+    verbali = payload.get("verbali", []) or []
+    for idx in range(1, len(verbali) + 1):
+        markup.add(types.InlineKeyboardButton(f"VERBALE {idx}", callback_data=f"final:v{idx}"))
 
     markup.add(
         types.InlineKeyboardButton("COMUNICAZIONI", callback_data="final:comunicazioni"),
@@ -2632,47 +2544,6 @@ PDF_MODELS = {
     "COM_COMUNE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/COM_COMUNE.pdf",
     "COM_RENT": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/COM_RENT.pdf",
     "COM_RUOLO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/COM_RUOLO.pdf",
-
-    # Template specifici caricati nel repository
-    "126-01": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/126-01_art126_c11_kb_cqc_scaduto.pdf",
-
-    "POS-ASSENTE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/POS_ASSENTE_mancata_disponibilita.pdf",
-    "POS-NON-FUNZIONANTE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/POS_NON_FUNZIONANTE_dispositivo_non_utilizzabile.pdf",
-    "POS-RIFIUTO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/POS_RIFIUTO_pagamento_elettronico-1.pdf",
-
-    "158-27-TAXI": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/158-27_art158_c2d_c5bis_stallo_taxi.pdf",
-    "158-27-BUS": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/158-27_art158_c2d_c5bis_stallo_bus.pdf",
-    "158-27-NCC": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/158-27_art158_c2d_c5bis_stallo_ncc.pdf",
-
-    "116-02-MAI": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/116-02_art116_c15_c17_prima_violazione_mai_conseguita.pdf",
-    "116-02-REVOCATA": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/116-02_art116_c15_c17_prima_violazione_patente_revocata.pdf",
-    "116-02-NON_RINNOVATA": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/116-02_art116_c15_c17_prima_violazione_non_rinnovata.pdf",
-    "116-02-NON_VALIDA": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/116-02_art116_c15_c17_prima_violazione_non_valida.pdf",
-    "116-03-MAI": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/116-03_art116_c15_c17_recidiva_biennale_mai_conseguita.pdf",
-    "116-03-REVOCATA": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/116-03_art116_c15_c17_recidiva_biennale_patente_revocata.pdf",
-    "116-03-NON_RINNOVATA": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/116-03_art116_c15_c17_recidiva_biennale_non_piu_valida.pdf",
-    "116-03-NON_VALIDA": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/116-03_art116_c15_c17_recidiva_biennale_non_valida.pdf",
-    "116-04-MAI": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/116-04_art116_c15_c17_reiterazione_penale_mai_conseguita.pdf",
-    "116-04-REVOCATA": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/116-04_art116_c15_c17_reiterazione_penale_patente_revocata.pdf",
-    "116-04-NON_RINNOVATA": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/116-04_art116_c15_c17_reiterazione_penale_non_piu_valida.pdf",
-    "116-04-NON_VALIDA": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/116-04_art116_c15_c17_reiterazione_penale_non_valida.pdf",
-
-    "08505_PRIMA_COMPILATO_DOPO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_prima_compilato_dopo.pdf",
-    "08505_PRIMA_FOGLIO_IRREGOLARE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_prima_foglio_irregolare.pdf",
-    "08505_PRIMA_PRENOTAZIONE_ASSENTE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_prima_prenotazione_assente.pdf",
-    "08505_PRIMA_PROCACCIAMENTO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_prima_procacciamento.pdf",
-    "08505_SECONDA_COMPILATO_DOPO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_seconda_compilato_dopo.pdf",
-    "08505_SECONDA_FOGLIO_IRREGOLARE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_seconda_foglio_irregolare.pdf",
-    "08505_SECONDA_PRENOTAZIONE_ASSENTE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_seconda_prenotazione_assente.pdf",
-    "08505_SECONDA_PROCACCIAMENTO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_seconda_procacciamento.pdf",
-    "08505_TERZA_COMPILATO_DOPO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_terza_compilato_dopo.pdf",
-    "08505_TERZA_FOGLIO_IRREGOLARE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_terza_foglio_irregolare.pdf",
-    "08505_TERZA_PRENOTAZIONE_ASSENTE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_terza_prenotazione_assente.pdf",
-    "08505_TERZA_PROCACCIAMENTO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_terza_procacciamento.pdf",
-    "08505_QUARTA_COMPILATO_DOPO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_quarta_compilato_dopo.pdf",
-    "08505_QUARTA_FOGLIO_IRREGOLARE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_quarta_foglio_irregolare.pdf",
-    "08505_QUARTA_PRENOTAZIONE_ASSENTE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_quarta_prenotazione_assente.pdf",
-    "08505_QUARTA_PROCACCIAMENTO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_quarta_procacciamento.pdf",
 }
 
 def _short_violation_line(code):
@@ -2706,10 +2577,6 @@ def _build_accessory_actions(main_code, concurrent_codes=None):
         add("Sequestro/confisca veicolo")
     if "116-06" in concurrent_codes:
         add("Fermo veicolo 60 giorni")
-    if main_code in {"126-01"} or "126-01" in concurrent_codes:
-        add("Ritiro titolo professionale scaduto")
-    if main_code in {"158-27", "158-27-TAXI", "158-27-BUS", "158-27-NCC"}:
-        add("Rimozione veicolo e 2 punti")
 
     return actions
 
@@ -3441,16 +3308,12 @@ def _build_stalli_result(state):
     if regular_stall:
         verdict = "Non emerge violazione stalli: il veicolo risulta nello stallo coerente con il servizio indicato."
     else:
-        stall_code_map = {
-            "STALLO TAXI": "158-27-TAXI",
-            "STALLO BUS": "158-27-BUS",
-            "STALLO NCC": "158-27-NCC",
-        }
-        main_code = stall_code_map.get(stall_type, "158-27")
         if vehicle_type == "NCC" and customer_acquisition:
-            verdict = "NCC in stallo/area non consentita con elementi di attesa generica o acquisizione clientela: contestare lo stallo e valutare anche il ramo sostanziale art. 85 c.4-bis."
+            main_code = "085-05"
+            verdict = "NCC in stallo/area non consentita con elementi di attesa generica o acquisizione clientela: valutare la violazione dell’art. 85, comma 4-bis, CdS."
         else:
-            verdict = "Violazione di sosta nello stallo non destinato al servizio del veicolo nel terminal: art. 158, comma 2, lettera d), e comma 5-bis, CdS, con segnalazione RCT."
+            main_code = "158-27"
+            verdict = "Violazione di sosta nello spazio riservato a taxi o autobus nel terminal: valutare l’art. 158, comma 2, lettera d), e comma 5-bis, CdS, con segnalazione RCT."
 
     lines = [
         "CONTROLLO STALLI RCT\n",
@@ -4182,41 +4045,6 @@ def begin_port_common_case(chat_id, case_key):
 
     state = user_states[chat_id]
 
-    # Casi diretti porto: escono subito col verbale corretto.
-    if case_key in {"kb_scaduto", "kb_non_al_seguito", "licenza_non_al_seguito"}:
-        code_map = {
-            "kb_scaduto": "126-01",
-            "kb_non_al_seguito": "180-09",
-            "licenza_non_al_seguito": "180-06",
-        }
-        state["direct_codes"] = [code_map[case_key]]
-        state["pending_question"] = None
-        save_user_states()
-        return "ESITO RAPIDO", None
-
-    # Casi specifici 085 c.4-bis: domanda solo la progressione nel quinquennio
-    # e poi apre uno dei 16 template PDF specifici caricati.
-    if case_key.startswith("85_"):
-        specific = case_key.replace("85_", "", 1)
-        state["answers"].update({
-            "vehicle_authorized": "si",
-            "service_to_third": "si",
-            "violation_type": "art3_11",
-            "specific_085_case": specific,
-        })
-        if specific == "procacciamento":
-            state["answers"].update({"booking": "no", "public_waiting": "si"})
-        elif specific == "prenotazione_assente":
-            state["answers"].update({"booking": "no"})
-        elif specific == "foglio_irregolare":
-            state["answers"].update({"foglio_status": "irregolare"})
-        elif specific == "compilato_dopo":
-            state["answers"].update({"foglio_status": "irregolare"})
-        q = {"key": "recurrence", "text": "Indica la progressione della violazione nel quinquennio."}
-        state["pending_question"] = q
-        save_user_states()
-        return build_recurrence_prompt(state["answers"], q["key"]), q["key"]
-
     if case_key == "uso_proprio_kb":
         state["answers"].update({
             "vehicle_authorized": "no",
@@ -4247,22 +4075,12 @@ def begin_port_common_case(chat_id, case_key):
             "service_to_third": "si",
             "booking": "no",
             "public_waiting": "si",
-            "violation_type": "art3_11",
-            "specific_085_case": "procacciamento"
+            "violation_type": "art3_11"
         })
         q = {
             "key": "recurrence",
             "text": "Indica la progressione della violazione nel quinquennio."
         }
-
-    elif case_key == "stalli_rct":
-        user_states[chat_id] = {
-            "mode": "stalli_check",
-            "step": "vehicle_type",
-            "control_place": "Terminal crociere / RCT",
-        }
-        save_user_states()
-        return _stalli_next_prompt(user_states[chat_id]), None
 
     else:
         return None
@@ -4271,27 +4089,12 @@ def begin_port_common_case(chat_id, case_key):
     save_user_states()
     return build_recurrence_prompt(state["answers"], q["key"]), q["key"]
 
+
 def _finalize_port_common_case(chat_id):
     state = user_states.get(chat_id, {})
     answers = state.get("answers", {})
 
     main_code, concurrent, notes, procedural_flags, ancillary_findings = decide_violation(answers)
-
-    # Ramo 085 c.4-bis specifico: porta al template PDF specifico caricato
-    # invece del verbale generico 085-05/06/07/08.
-    if answers.get("specific_085_case"):
-        level_map = {"first": "PRIMA", "2_5y": "SECONDA", "3_5y": "TERZA", "4plus_5y": "QUARTA"}
-        case_map = {
-            "procacciamento": "PROCACCIAMENTO",
-            "prenotazione_assente": "PRENOTAZIONE_ASSENTE",
-            "foglio_irregolare": "FOGLIO_IRREGOLARE",
-            "compilato_dopo": "COMPILATO_DOPO",
-        }
-        lvl = level_map.get(answers.get("recurrence"), "PRIMA")
-        cas = case_map.get(answers.get("specific_085_case"))
-        if cas:
-            main_code = f"08505_{lvl}_{cas}"
-            concurrent = [c for c in concurrent if c not in {"085-05", "085-06", "085-07", "085-08"}]
 
     if state.get("porto_case_key") == "abusivo_totale" and main_code in {"085-02", "085-04"}:
         # Abusivo totale: il procacciamento non è un verbale autonomo.
@@ -4306,16 +4109,7 @@ def _finalize_port_common_case(chat_id):
         if procacciamento_porto_text not in procedural_flags.setdefault("verbale_additions", []):
             procedural_flags["verbale_additions"].append(procacciamento_porto_text)
 
-        pos_code = {
-            "rifiutato": "POS-RIFIUTO",
-            "assente": "POS-ASSENTE",
-            "non_funzionante": "POS-NON-FUNZIONANTE",
-        }.get(answers.get("pos_esito"))
-
-        # Abusivo totale: niente 180 per foglio/licenza, perché il mezzo non è NCC.
-        fixed_package = ["116-06", "PVC-FISCALE"]
-        if pos_code:
-            fixed_package.append(pos_code)
+        fixed_package = ["116-06", "180-01", "PVC-FISCALE", "POS-RIFIUTO"]
         for code in fixed_package:
             if code not in concurrent:
                 concurrent.append(code)
@@ -4365,7 +4159,7 @@ def process_port_common_followup(chat_id, text):
 
     pending = state.get("pending_question") or {}
     key = pending.get("key")
-    value = parse_answer_for_key(key, text) if key in {"recurrence_triennio", "recurrence", "kb", "patente_idonea", "incauto_affidamento", "pos_esito"} else normalize_answer(text)
+    value = parse_answer_for_key(key, text) if key in {"recurrence_triennio", "recurrence", "kb", "patente_idonea", "incauto_affidamento"} else normalize_answer(text)
 
     if key == "recurrence_triennio":
         if value not in {"first", "second_3y"}:
@@ -5900,7 +5694,7 @@ def approve_command(message):
     except Exception:
         pass
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Porto", "⚓ Porto"})
+@bot.message_handler(func=lambda m: (m.text or "").strip() == "Porto")
 def menu_port_common_cases_button(message):
     if not ensure_authorized(message):
         return
@@ -6294,7 +6088,7 @@ def taxi_command(message):
     )
 
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Controllo servizio TAXI", "🚖 Taxi"})
+@bot.message_handler(func=lambda m: (m.text or "").strip() == "Controllo servizio TAXI")
 def menu_taxi_button(message):
     taxi_command(message)
 
@@ -6311,7 +6105,7 @@ def aggiornamenti_command(message):
     )
 
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Aggiornamenti CdS / giurisprudenza", "📚 Agg. CdS"})
+@bot.message_handler(func=lambda m: (m.text or "").strip() == "Aggiornamenti CdS / giurisprudenza")
 def menu_aggiornamenti_button(message):
     aggiornamenti_command(message)
 
@@ -6408,36 +6202,36 @@ def casi_porto_command(message):
         reply_markup=build_port_common_cases_markup()
     )
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Inserisci un caso NCC", "📝 Caso NCC"})
+@bot.message_handler(func=lambda m: (m.text or "").strip() == "Inserisci un caso NCC")
 def menu_caso_button(message):
     caso_command(message)
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Checklist documentale", "✅ Checklist"})
+@bot.message_handler(func=lambda m: (m.text or "").strip() == "Checklist documentale")
 def menu_controllo_button(message):
     controllo_command(message)
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Controlli operativi", "🛠️ Operativi"})
+@bot.message_handler(func=lambda m: (m.text or "").strip() == "Controlli operativi")
 def menu_checklist_button(message):
     checklist_command(message)
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Documenti da controllare", "📋 Documenti"})
+@bot.message_handler(func=lambda m: (m.text or "").strip() == "Documenti da controllare")
 def menu_documenti_button(message):
     documenti_command(message)
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Norme principali", "⚖️ Norme"})
+@bot.message_handler(func=lambda m: (m.text or "").strip() == "Norme principali")
 def menu_norme_button(message):
     norme_command(message)
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Controllo uso licenza NCC", "🪪 Uso licenza"})
+@bot.message_handler(func=lambda m: (m.text or "").strip() == "Controllo uso licenza NCC")
 def menu_licenza_button(message):
     licenza_command(message)
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Controllo stalli RCT", "🚧 Stalli RCT"})
+@bot.message_handler(func=lambda m: (m.text or "").strip() == "Controllo stalli RCT")
 def menu_stalli_button(message):
     stalli_command(message)
 
 
-@bot.message_handler(func=lambda m: (m.text or "").strip() in {"Verifica targa", "🔎 Targa"})
+@bot.message_handler(func=lambda m: (m.text or "").strip() == "Verifica targa")
 def menu_targa_button(message):
     if not ensure_authorized(message):
         return
@@ -6496,19 +6290,6 @@ def porto_case_callback(call):
         return
 
     prompt, question_key = started
-    state = get_state(chat_id) or {}
-    if state.get("direct_codes"):
-        codes = state.get("direct_codes") or []
-        payload = build_final_payload(codes[0], concurrent_codes=codes[1:])
-        state["last_result_payload"] = payload
-        state["last_result_main_code"] = codes[0]
-        state["last_result_concurrent"] = codes[1:]
-        state["last_result_flags"] = {}
-        save_user_states()
-        markup = build_final_result_markup(payload) or build_pdf_markup(codes[0], codes[1:], {})
-        send_long_message(chat_id, payload.get("quick", "Esito rapido"), reply_markup=markup, disable_web_page_preview=True)
-        return
-
     markup = build_combined_markup(question_key=question_key, force_ctrl_answer=False)
     bot.send_message(chat_id, prompt, reply_markup=markup)
 
@@ -6753,9 +6534,9 @@ def final_result_callback(call):
     elif action == "articoli":
         text = payload.get("articoli")
 
-    elif action in {"v1", "v2", "v3", "v4", "v5"}:
+    elif action.startswith("v") and action[1:].isdigit():
         verbali = payload.get("verbali", [])
-        idx = {"v1": 0, "v2": 1, "v3": 2, "v4": 3, "v5": 4}[action]
+        idx = int(action[1:]) - 1
         text = verbali[idx] if len(verbali) > idx else f"Verbale {idx + 1} non disponibile."
 
         if idx == 0:
@@ -6931,7 +6712,7 @@ def answer_callback(call):
 def all_messages(message):
     text = (message.text or "").strip()
 
-    if text in {"Aggiornamenti CdS / giurisprudenza", "📚 Agg. CdS"}:
+    if text == "Aggiornamenti CdS / giurisprudenza":
         if not ensure_authorized(message):
             return
         bot.reply_to(
@@ -7101,6 +6882,359 @@ def all_messages(message):
 
     bot.reply_to(message, "Usa /caso per descrivere il fatto oppure /reset per annullare la procedura.")
 
+
+# =========================
+# OVERRIDE ARCHIVIO/PDF - SOLO TEMPLATE ATTUALMENTE IN USO
+# =========================
+
+# Rimuove dal pulsante "Verbali" i template vecchi/generici rinominati o sostituiti.
+# I codici VIOLATIONS generici restano disponibili solo come base logica interna,
+# ma non compaiono più in archivio se non hanno un PDF attuale associato.
+OLD_REPLACED_TEMPLATE_CODES = {
+    "085-05", "085-06", "085-07", "085-08",
+    "116-02", "116-03", "116-04",
+    "158-27",
+    "180-DOC",
+}
+for _old_code in OLD_REPLACED_TEMPLATE_CODES:
+    PDF_MODELS.pop(_old_code, None)
+
+PDF_MODELS.update({
+    # 085 c.4-bis specifici
+    "08505-PRIMA-COMPILATO-DOPO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_prima_compilato_dopo.pdf",
+    "08505-PRIMA-FOGLIO-IRREGOLARE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_prima_foglio_irregolare.pdf",
+    "08505-PRIMA-PRENOTAZIONE-ASSENTE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_prima_prenotazione_assente.pdf",
+    "08505-PRIMA-PROCACCIAMENTO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_prima_procacciamento.pdf",
+    "08505-SECONDA-COMPILATO-DOPO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_seconda_compilato_dopo.pdf",
+    "08505-SECONDA-FOGLIO-IRREGOLARE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_seconda_foglio_irregolare.pdf",
+    "08505-SECONDA-PRENOTAZIONE-ASSENTE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_seconda_prenotazione_assente.pdf",
+    "08505-SECONDA-PROCACCIAMENTO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_seconda_procacciamento.pdf",
+    "08505-TERZA-COMPILATO-DOPO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_terza_compilato_dopo.pdf",
+    "08505-TERZA-FOGLIO-IRREGOLARE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_terza_foglio_irregolare.pdf",
+    "08505-TERZA-PRENOTAZIONE-ASSENTE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_terza_prenotazione_assente.pdf",
+    "08505-TERZA-PROCACCIAMENTO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_terza_procacciamento.pdf",
+    "08505-QUARTA-COMPILATO-DOPO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_quarta_compilato_dopo.pdf",
+    "08505-QUARTA-FOGLIO-IRREGOLARE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_quarta_foglio_irregolare.pdf",
+    "08505-QUARTA-PRENOTAZIONE-ASSENTE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_quarta_prenotazione_assente.pdf",
+    "08505-QUARTA-PROCACCIAMENTO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_quarta_procacciamento.pdf",
+
+    # 116 c.15/c.17 specifici
+    "116-02-MAI-CONSEGUITA": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/116-02_art116_c15_c17_prima_violazione_mai_conseguita.pdf",
+    "116-02-REVOCATA": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/116-02_art116_c15_c17_prima_violazione_patente_revocata.pdf",
+    "116-02-NON-RINNOVATA": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/116-02_art116_c15_c17_prima_violazione_non_rinnovata.pdf",
+    "116-02-NON-VALIDA": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/116-02_art116_c15_c17_prima_violazione_non_valida.pdf",
+    "116-03-MAI-CONSEGUITA": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/116-03_art116_c15_c17_recidiva_biennale_mai_conseguita.pdf",
+    "116-03-REVOCATA": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/116-03_art116_c15_c17_recidiva_biennale_patente_revocata.pdf",
+    "116-03-NON-PIU-VALIDA": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/116-03_art116_c15_c17_recidiva_biennale_non_piu_valida.pdf",
+    "116-03-NON-VALIDA": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/116-03_art116_c15_c17_recidiva_biennale_non_valida.pdf",
+    "116-04-MAI-CONSEGUITA": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/116-04_art116_c15_c17_reiterazione_penale_mai_conseguita.pdf",
+    "116-04-REVOCATA": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/116-04_art116_c15_c17_reiterazione_penale_patente_revocata.pdf",
+    "116-04-NON-PIU-VALIDA": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/116-04_art116_c15_c17_reiterazione_penale_non_piu_valida.pdf",
+    "116-04-NON-VALIDA": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/116-04_art116_c15_c17_reiterazione_penale_non_valida.pdf",
+
+    # 126 e 158 definitivi
+    "126-01": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/126-01_art126_c11_kb_cqc_scaduto.pdf",
+    "158-27-TAXI": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/158-27_art158_c2d_c5bis_stallo_taxi.pdf",
+    "158-27-BUS": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/158-27_art158_c2d_c5bis_stallo_bus.pdf",
+    "158-27-NCC": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/158-27_art158_c2d_c5bis_stallo_ncc.pdf",
+
+    # POS definitivi
+    "POS-RIFIUTO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/POS_RIFIUTO_pagamento_elettronico-1.pdf",
+    "POS-ASSENTE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/POS_ASSENTE_mancata_disponibilita.pdf",
+    "POS-NON-FUNZIONANTE": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/POS_NON_FUNZIONANTE_dispositivo_non_utilizzabile.pdf",
+    "180-10": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/180-10_inottemperanza_invito_art180_c8.pdf",
+})
+
+# Voci sintetiche per i template specifici, così nei risultati non appare solo il codice.
+def _clone_violation(base_code, title_suffix, article=None):
+    base = dict(VIOLATIONS.get(base_code, {}))
+    if not base:
+        base = {
+            "title": title_suffix,
+            "article": article or "Voce operativa",
+            "pmr": "N/D", "reduced_30": "N/D", "over_60": "N/D", "edictal": "N/D",
+            "accessories": [], "verbal_text": title_suffix, "notes": [], "fields_to_fill": [], "short_ready_text": title_suffix,
+        }
+    base["title"] = title_suffix
+    if article:
+        base["article"] = article
+    base["short_ready_text"] = f"Template specifico: {title_suffix}."
+    return base
+
+for _code, _label in {
+    "08505-PRIMA-COMPILATO-DOPO": "Art. 85 c.4-bis - 1ª - foglio compilato dopo",
+    "08505-PRIMA-FOGLIO-IRREGOLARE": "Art. 85 c.4-bis - 1ª - foglio irregolare",
+    "08505-PRIMA-PRENOTAZIONE-ASSENTE": "Art. 85 c.4-bis - 1ª - prenotazione assente",
+    "08505-PRIMA-PROCACCIAMENTO": "Art. 85 c.4-bis - 1ª - procacciamento",
+    "08505-SECONDA-COMPILATO-DOPO": "Art. 85 c.4-bis - 2ª - foglio compilato dopo",
+    "08505-SECONDA-FOGLIO-IRREGOLARE": "Art. 85 c.4-bis - 2ª - foglio irregolare",
+    "08505-SECONDA-PRENOTAZIONE-ASSENTE": "Art. 85 c.4-bis - 2ª - prenotazione assente",
+    "08505-SECONDA-PROCACCIAMENTO": "Art. 85 c.4-bis - 2ª - procacciamento",
+    "08505-TERZA-COMPILATO-DOPO": "Art. 85 c.4-bis - 3ª - foglio compilato dopo",
+    "08505-TERZA-FOGLIO-IRREGOLARE": "Art. 85 c.4-bis - 3ª - foglio irregolare",
+    "08505-TERZA-PRENOTAZIONE-ASSENTE": "Art. 85 c.4-bis - 3ª - prenotazione assente",
+    "08505-TERZA-PROCACCIAMENTO": "Art. 85 c.4-bis - 3ª - procacciamento",
+    "08505-QUARTA-COMPILATO-DOPO": "Art. 85 c.4-bis - 4ª+ - foglio compilato dopo",
+    "08505-QUARTA-FOGLIO-IRREGOLARE": "Art. 85 c.4-bis - 4ª+ - foglio irregolare",
+    "08505-QUARTA-PRENOTAZIONE-ASSENTE": "Art. 85 c.4-bis - 4ª+ - prenotazione assente",
+    "08505-QUARTA-PROCACCIAMENTO": "Art. 85 c.4-bis - 4ª+ - procacciamento",
+}.items():
+    _base = "085-05" if "PRIMA" in _code else "085-06" if "SECONDA" in _code else "085-07" if "TERZA" in _code else "085-08"
+    VIOLATIONS[_code] = _clone_violation(_base, _label, "CdS art. 85 c.4-bis + L.21/1992")
+
+for _code, _label, _base in [
+    ("116-02-MAI-CONSEGUITA", "Art. 116 c.15/c.17 - 1ª - patente mai conseguita", "116-02"),
+    ("116-02-REVOCATA", "Art. 116 c.15/c.17 - 1ª - patente revocata", "116-02"),
+    ("116-02-NON-RINNOVATA", "Art. 116 c.15/c.17 - 1ª - patente non rinnovata/perdita requisiti", "116-02"),
+    ("116-02-NON-VALIDA", "Art. 116 c.15/c.17 - 1ª - patente non valida per veicolo", "116-02"),
+    ("116-03-MAI-CONSEGUITA", "Art. 116 c.15/c.17 - recidiva - patente mai conseguita", "116-03"),
+    ("116-03-REVOCATA", "Art. 116 c.15/c.17 - recidiva - patente revocata", "116-03"),
+    ("116-03-NON-PIU-VALIDA", "Art. 116 c.15/c.17 - recidiva - patente non più valida", "116-03"),
+    ("116-03-NON-VALIDA", "Art. 116 c.15/c.17 - recidiva - patente non valida per veicolo", "116-03"),
+    ("116-04-MAI-CONSEGUITA", "Art. 116 c.15/c.17 - penale - patente mai conseguita", "116-04"),
+    ("116-04-REVOCATA", "Art. 116 c.15/c.17 - penale - patente revocata", "116-04"),
+    ("116-04-NON-PIU-VALIDA", "Art. 116 c.15/c.17 - penale - patente non più valida", "116-04"),
+    ("116-04-NON-VALIDA", "Art. 116 c.15/c.17 - penale - patente non valida per veicolo", "116-04"),
+]:
+    VIOLATIONS[_code] = _clone_violation(_base, _label, "CdS art. 116 c.15 e c.17")
+
+for _code, _label in {
+    "158-27-TAXI": "Art. 158 c.2 lett. d) e c.5-bis - stallo TAXI",
+    "158-27-BUS": "Art. 158 c.2 lett. d) e c.5-bis - stallo BUS",
+    "158-27-NCC": "Art. 158 c.2 lett. d) e c.5-bis - stallo NCC",
+}.items():
+    VIOLATIONS[_code] = _clone_violation("158-27", _label, "CdS art. 158 c.2 lett. d) e c.5-bis")
+
+# Archivio pulito: mostra solo PDF effettivamente attuali e utili al bot.
+ARCHIVIO_VERBALI_MAP = {
+    "Art 85 C4 - 1ª violazione - NCC abusivo / veicolo non autorizzato": "085-02",
+    "Art 85 C4 - 2ª nel triennio - NCC abusivo / veicolo non autorizzato": "085-04",
+    "Art 85 C4ter - Prescrizioni RCT / altre prescrizioni NCC": "085-09",
+
+    "Art 85 C4bis 1ª - Procacciamento": "08505-PRIMA-PROCACCIAMENTO",
+    "Art 85 C4bis 1ª - Prenotazione assente": "08505-PRIMA-PRENOTAZIONE-ASSENTE",
+    "Art 85 C4bis 1ª - Foglio irregolare": "08505-PRIMA-FOGLIO-IRREGOLARE",
+    "Art 85 C4bis 1ª - Foglio compilato dopo": "08505-PRIMA-COMPILATO-DOPO",
+    "Art 85 C4bis 2ª - Procacciamento": "08505-SECONDA-PROCACCIAMENTO",
+    "Art 85 C4bis 2ª - Prenotazione assente": "08505-SECONDA-PRENOTAZIONE-ASSENTE",
+    "Art 85 C4bis 2ª - Foglio irregolare": "08505-SECONDA-FOGLIO-IRREGOLARE",
+    "Art 85 C4bis 2ª - Foglio compilato dopo": "08505-SECONDA-COMPILATO-DOPO",
+    "Art 85 C4bis 3ª - Procacciamento": "08505-TERZA-PROCACCIAMENTO",
+    "Art 85 C4bis 3ª - Prenotazione assente": "08505-TERZA-PRENOTAZIONE-ASSENTE",
+    "Art 85 C4bis 3ª - Foglio irregolare": "08505-TERZA-FOGLIO-IRREGOLARE",
+    "Art 85 C4bis 3ª - Foglio compilato dopo": "08505-TERZA-COMPILATO-DOPO",
+    "Art 85 C4bis 4ª+ - Procacciamento": "08505-QUARTA-PROCACCIAMENTO",
+    "Art 85 C4bis 4ª+ - Prenotazione assente": "08505-QUARTA-PRENOTAZIONE-ASSENTE",
+    "Art 85 C4bis 4ª+ - Foglio irregolare": "08505-QUARTA-FOGLIO-IRREGOLARE",
+    "Art 85 C4bis 4ª+ - Foglio compilato dopo": "08505-QUARTA-COMPILATO-DOPO",
+
+    "Art 116 C15/C17 1ª - Patente mai conseguita": "116-02-MAI-CONSEGUITA",
+    "Art 116 C15/C17 1ª - Patente revocata": "116-02-REVOCATA",
+    "Art 116 C15/C17 1ª - Patente non rinnovata/perdita requisiti": "116-02-NON-RINNOVATA",
+    "Art 116 C15/C17 1ª - Patente non valida per veicolo": "116-02-NON-VALIDA",
+    "Art 116 C15/C17 recidiva - Patente mai conseguita": "116-03-MAI-CONSEGUITA",
+    "Art 116 C15/C17 recidiva - Patente revocata": "116-03-REVOCATA",
+    "Art 116 C15/C17 recidiva - Patente non più valida": "116-03-NON-PIU-VALIDA",
+    "Art 116 C15/C17 recidiva - Patente non valida per veicolo": "116-03-NON-VALIDA",
+    "Art 116 C15/C17 penale - Patente mai conseguita": "116-04-MAI-CONSEGUITA",
+    "Art 116 C15/C17 penale - Patente revocata": "116-04-REVOCATA",
+    "Art 116 C15/C17 penale - Patente non più valida": "116-04-NON-PIU-VALIDA",
+    "Art 116 C15/C17 penale - Patente non valida per veicolo": "116-04-NON-VALIDA",
+    "Art 116 C16/C18 - Guida senza KB/KA/CQC": "116-06",
+    "Art 126 C11 - KB/CAP/CQC scaduto": "126-01",
+
+    "Art 158 C2d/C5bis - Stallo TAXI": "158-27-TAXI",
+    "Art 158 C2d/C5bis - Stallo BUS": "158-27-BUS",
+    "Art 158 C2d/C5bis - Stallo NCC": "158-27-NCC",
+
+    "Art 180 C1/C7 - Patente o carta non al seguito": "180-01DOC",
+    "Art 180 C1/C7 - Certificato assicurativo non al seguito": "180-03",
+    "Art 180 C3/C7 - Autorizzazione NCC non al seguito": "180-06",
+    "Art 180 C5/C7 - KB/CQC non al seguito": "180-09",
+    "Art 180 C8 - Inottemperanza invito documenti": "180-10",
+    "Art 193 C2 - Senza assicurazione": "193-02",
+
+    "PVC corrispettivi GdF": "PVC-FISCALE",
+    "POS - Rifiuto pagamento elettronico": "POS-RIFIUTO",
+    "POS - Assenza disponibilità": "POS-ASSENTE",
+    "POS - Dispositivo non funzionante": "POS-NON-FUNZIONANTE",
+
+    "Avviso fermo amministrativo": "AVVISO_FERMO",
+    "Comunicazione Comune": "COM_COMUNE",
+    "Comunicazione Prefetto": "COM_PREFETTO",
+    "Comunicazione RENT": "COM_RENT",
+    "Comunicazione Ruolo conducenti": "COM_RUOLO",
+    "Comunicazione UMC": "COM_UMC",
+    "Fermo / sequestro veicolo": "FERMO_116",
+    "Sequestro / custodia veicolo": "SEQUESTRO_85",
+}
+
+ARCHIVIO_VERBALI_ALIASES = {
+    "08505-PRIMA-COMPILATO": "08505-PRIMA-COMPILATO-DOPO",
+    "08505-PRIMA-FOGLIO": "08505-PRIMA-FOGLIO-IRREGOLARE",
+    "08505-PRIMA-PRENOTAZIONE": "08505-PRIMA-PRENOTAZIONE-ASSENTE",
+    "08505-SECONDA-COMPILATO": "08505-SECONDA-COMPILATO-DOPO",
+    "08505-SECONDA-FOGLIO": "08505-SECONDA-FOGLIO-IRREGOLARE",
+    "08505-SECONDA-PRENOTAZIONE": "08505-SECONDA-PRENOTAZIONE-ASSENTE",
+    "08505-TERZA-COMPILATO": "08505-TERZA-COMPILATO-DOPO",
+    "08505-TERZA-FOGLIO": "08505-TERZA-FOGLIO-IRREGOLARE",
+    "08505-TERZA-PRENOTAZIONE": "08505-TERZA-PRENOTAZIONE-ASSENTE",
+    "08505-QUARTA-COMPILATO": "08505-QUARTA-COMPILATO-DOPO",
+    "08505-QUARTA-FOGLIO": "08505-QUARTA-FOGLIO-IRREGOLARE",
+    "08505-QUARTA-PRENOTAZIONE": "08505-QUARTA-PRENOTAZIONE-ASSENTE",
+    "116-02-MAI": "116-02-MAI-CONSEGUITA",
+    "116-03-MAI": "116-03-MAI-CONSEGUITA",
+    "116-04-MAI": "116-04-MAI-CONSEGUITA",
+    "116-02-NON_RINNOVATA": "116-02-NON-RINNOVATA",
+    "116-02-NON_VALIDA": "116-02-NON-VALIDA",
+    "116-03-NON_RINNOVATA": "116-03-NON-PIU-VALIDA",
+    "116-03-NON_VALIDA": "116-03-NON-VALIDA",
+    "116-04-NON_RINNOVATA": "116-04-NON-PIU-VALIDA",
+    "116-04-NON_VALIDA": "116-04-NON-VALIDA",
+}
+
+# Menu principale compatto con emoji.
+def build_main_menu():
+    kb = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    kb.add(types.KeyboardButton("📝 Caso NCC"), types.KeyboardButton("✅ Operativi"))
+    kb.add(types.KeyboardButton("📋 Checklist"), types.KeyboardButton("📁 Documenti"))
+    kb.add(types.KeyboardButton("🔎 Targa"), types.KeyboardButton("⚖️ Norme"))
+    kb.add(types.KeyboardButton("🧾 Licenza NCC"), types.KeyboardButton("🚧 Stalli RCT"))
+    kb.add(types.KeyboardButton("🚖 TAXI"), types.KeyboardButton("📚 Agg. CdS"))
+    kb.add(types.KeyboardButton("⚓ Porto"), types.KeyboardButton("📄 Verbali"))
+    return kb
+
+# Normalizzazione extra per i nuovi pulsanti con emoji.
+def normalize_menu_text(text):
+    t = (text or "").strip()
+    repl = {
+        "📝 Caso NCC": "Inserisci un caso NCC",
+        "✅ Operativi": "Controlli operativi",
+        "📋 Checklist": "Checklist documentale",
+        "📁 Documenti": "Documenti da controllare",
+        "🔎 Targa": "Verifica targa",
+        "⚖️ Norme": "Norme principali",
+        "🧾 Licenza NCC": "Controllo uso licenza NCC",
+        "🚧 Stalli RCT": "Controllo stalli RCT",
+        "🚖 TAXI": "Controllo servizio TAXI",
+        "📚 Agg. CdS": "Aggiornamenti CdS / giurisprudenza",
+        "⚓ Porto": "Porto",
+    }
+    return repl.get(t, t)
+
+# Articoli collegati anche ai codici specifici.
+def get_article_keys_for_result(main_code, concurrent_codes=None):
+    concurrent_codes = concurrent_codes or []
+    article_keys = []
+    def add(k):
+        if k and k not in article_keys:
+            article_keys.append(k)
+    def one(code):
+        if not code:
+            return
+        if str(code).startswith("08505-"):
+            add("art85"); add("art3l21"); add("art11l21"); return
+        if str(code).startswith("116-"):
+            add("art116"); return
+        if str(code).startswith("158-27"):
+            add("art158"); return
+        if str(code).startswith("180-"):
+            add("art180"); return
+        if code in {"085-02", "085-04", "085-09"}:
+            add("art85")
+        elif code == "116-06":
+            add("art116")
+        elif code == "126-01" or code == "CDS_126_11":
+            add("art126")
+        elif code == "193-02":
+            add("art193")
+    one(main_code)
+    for c in concurrent_codes:
+        one(c)
+    return article_keys
+
+# Se nel flusso stalli si occupa uno stallo specifico, apre il PDF specifico e non più quello generico.
+def _build_stalli_result(state):
+    vehicle_type = state.get("vehicle_type")
+    stall_type = state.get("stall_type")
+    booked_client = state.get("booked_client")
+    customer_acquisition = state.get("customer_acquisition")
+    hindrance = state.get("hindrance")
+
+    regular_stall = (vehicle_type == "NCC" and stall_type == "STALLO NCC") or (vehicle_type == "TAXI" and stall_type == "STALLO TAXI")
+    alerts = ["Nel terminal crociere gli stalli assegnati sono vincolanti e vanno rispettati secondo segnaletica e regolamentazione interna RCT."]
+    if stall_type == "FUORI STALLI":
+        alerts.append("Veicolo fuori dagli stalli assegnati: descrivere posizione, segnaletica e regolamento RCT.")
+
+    main_code = None
+    verdict = ""
+    if regular_stall:
+        verdict = "Non emerge violazione stalli: il veicolo risulta nello stallo coerente con il servizio indicato."
+    else:
+        if vehicle_type == "NCC" and customer_acquisition:
+            main_code = "08505-PRIMA-PROCACCIAMENTO"
+            verdict = "NCC fuori dallo stallo coerente con elementi di attesa generica/acquisizione clientela: valutare art. 85 c.4-bis. Se non ci sono precedenti, usare il template 1ª procacciamento; in caso di precedenti, scegliere il livello corretto dal ramo 085 c.4-bis."
+        else:
+            if stall_type == "STALLO TAXI":
+                main_code = "158-27-TAXI"
+                verdict = "Violazione di sosta nello stallo TAXI: art. 158 c.2 lett. d) e c.5-bis."
+            elif stall_type == "STALLO BUS":
+                main_code = "158-27-BUS"
+                verdict = "Violazione di sosta nello stallo BUS: art. 158 c.2 lett. d) e c.5-bis."
+            elif stall_type == "STALLO NCC":
+                main_code = "158-27-NCC"
+                verdict = "Violazione di sosta nello stallo NCC: art. 158 c.2 lett. d) e c.5-bis."
+            else:
+                main_code = "158-27-NCC" if vehicle_type == "TAXI" else "158-27-TAXI"
+                verdict = "Veicolo fuori dagli stalli assegnati: usare il template 158 più coerente con lo stallo/area occupata e descrivere bene la posizione."
+
+    lines = [
+        "CONTROLLO STALLI RCT\n",
+        f"- Tipo veicolo: {vehicle_type}",
+        f"- Posizione rilevata: {stall_type}",
+        f"- Cliente già prenotato / chiamata già acquisita: {_yes_no_text(booked_client)}",
+        f"- Attesa generica / acquisizione clientela sul posto: {_yes_no_text(customer_acquisition)}",
+        f"- Intralcio / bordo marciapiede / interferenza terminal: {_yes_no_text(hindrance)}",
+        "",
+        f"Esito: {verdict}",
+        "",
+        "COSA VERBALIZZARE:",
+        "- stallo o area effettivamente occupata",
+        "- tipo di stallo previsto dalla segnaletica interna",
+        "- presenza di cliente prenotato o, al contrario, attesa generica",
+        "- eventuale intralcio, bordo marciapiede, interferenza con bus/taxi/NCC",
+        "- eventuale segnalazione a RCT per la disciplina interna del terminal",
+    ]
+    if alerts:
+        lines.append("")
+        lines.append("ALERT OPERATIVI:")
+        for item in alerts:
+            lines.append(f"- {item}")
+
+    payload = build_quick_payload_from_codes(main_code, []) if main_code else {
+        "quick": verdict,
+        "accessori": "Nessuna sanzione accessoria indicata.",
+        "verbali": [],
+        "comunicazioni": "Nessuna comunicazione automatica suggerita.",
+        "articoli": "Nessun articolo ulteriore selezionato.",
+    }
+    payload["main_code"] = main_code
+    payload["concurrent_codes"] = []
+    payload["procedural_flags"] = {"segnalazioni": []}
+    payload["quick"] = "\n".join(lines)
+    return "\n".join(lines), payload
+
+# Archivio più sicuro: mostra solo codici con PDF effettivamente mappato.
+def build_archivio_verbali_menu():
+    kb = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1, one_time_keyboard=False)
+    for label, code in ARCHIVIO_VERBALI_MAP.items():
+        mapped = ARCHIVIO_VERBALI_ALIASES.get(code, code)
+        if mapped in PDF_MODELS:
+            kb.row(types.KeyboardButton(label))
+    kb.row(types.KeyboardButton("Indietro"))
+    return kb
+
+
 # =========================
 # AVVIO BOT
 # =========================
@@ -7146,5 +7280,3 @@ if __name__ == "__main__":
     threading.Thread(target=run_bot, daemon=True).start()
     port = int(os.getenv("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
-
-
