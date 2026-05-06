@@ -648,28 +648,6 @@ VIOLATIONS["180-09"] = {
 }
 
 
-
-VIOLATIONS["126-11"] = {
-    "title": "Guida con CAP/KB/CQC scaduto di validità",
-    "article": "CdS art. 126 c. 11",
-    "pmr": "€ 158,00",
-    "reduced_30": "€ 110,60",
-    "over_60": "€ 319,00",
-    "edictal": "da € 158,00 a € 638,00",
-    "accessories": ["Ritiro del CAP/KB/CQC scaduto"],
-    "verbal_text": (
-        "Circolava alla guida del veicolo sopra indicato esercitando attività per la quale è richiesto il possesso "
-        "del certificato di abilitazione professionale / carta di qualificazione conducente, con titolo professionale "
-        "scaduto di validità. Il titolo viene ritirato e trasmesso all'UMC competente."
-    ),
-    "notes": [
-        "Usare quando il KB/CAP/CQC esiste ma è scaduto: non usare 116-06, che riguarda assenza/mancanza sostanziale del titolo.",
-        "Se il titolo è semplicemente non al seguito ma valido, usare 180-09."
-    ],
-    "fields_to_fill": ["tipo titolo scaduto", "data scadenza", "UMC competente"],
-    "short_ready_text": "Art. 126 c.11: guida con CAP/KB/CQC scaduto. PMR € 158,00; riduzione 30% € 110,60; oltre 60 giorni € 319,00; accessoria: ritiro del titolo scaduto."
-}
-
 VIOLATIONS["158-27"] = {
     "title": "Sosta negli spazi riservati a taxi o autobus nel terminal crociere",
     "article": "CdS art. 158 c. 2 lett. d) e c. 5-bis",
@@ -2056,17 +2034,24 @@ def build_article_markup(article_keys=None):
 
 def build_port_common_cases_markup():
     markup = types.InlineKeyboardMarkup(row_width=1)
-    buttons = [
-        ("🚫 Abusivo totale", "porto_case:abusivo_totale"),
-        ("🚖 NCC irregolare 85", "porto_case:procacciamento"),
-        ("⌛ NCC KB scaduto", "porto_case:kb_scaduto"),
-        ("🪪 NCC KB non al seguito", "porto_case:kb_non_al_seguito"),
-        ("📄 NCC licenza non al seguito", "porto_case:licenza_non_al_seguito"),
-        ("🚗 KB ok + uso proprio", "porto_case:uso_proprio_kb"),
-        ("🧭 Altro caso porto", "porto_case:altro"),
-    ]
-    for label, cb in buttons:
-        markup.add(types.InlineKeyboardButton(label, callback_data=cb))
+    markup.add(
+        types.InlineKeyboardButton(
+            "KB presente + mezzo uso proprio",
+            callback_data="porto_case:uso_proprio_kb"
+        ),
+        types.InlineKeyboardButton(
+            "Abusivo totale",
+            callback_data="porto_case:abusivo_totale"
+        ),
+        types.InlineKeyboardButton(
+            "NCC con licenza/KB ma senza prenotazione",
+            callback_data="porto_case:procacciamento"
+        ),
+        types.InlineKeyboardButton(
+            "Altro caso porto",
+            callback_data="porto_case:altro"
+        )
+    )
     return markup
 
 def build_plate_not_found_markup(plate):
@@ -2466,8 +2451,6 @@ def normalize_violation_code(code):
         "11603": "116-03",
         "11604": "116-04",
         "11606": "116-06",
-        "12611": "126-11",
-        "CDS12611": "126-11",
         "18001": "180-01",
         "180DOC": "180-DOC",
         "18001DOC": "180-01DOC",
@@ -2486,7 +2469,7 @@ def build_violation_markup_for_article(article_key):
         "art3l21": ["085-05", "085-06", "085-07", "085-08"],
         "art11l21": ["085-05", "085-06", "085-07", "085-08"],
         "art180": ["180-01", "180-DOC", "180-01DOC", "180-03", "180-06", "180-09"],
-        "art126": ["126-11"],
+        "art126": [],
     }
     codes = [c for c in article_to_codes.get(key, []) if c in VIOLATIONS]
     if not codes:
@@ -2553,7 +2536,6 @@ PDF_MODELS = {
     "116-03": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/116-03_art116_c15_c17_recidiva_biennale.pdf",
     "116-04": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/116-04_art116_c15_c17_reiterazione_penale.pdf",
     "116-06": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/116-06_art116_senza_kb_cqc.pdf",
-    "126-11": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/126-11_kb_cqc_scaduto.pdf",
     "180-01": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/180-01_foglio_di_servizio_non_esibito.pdf",
     "180-DOC": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/180-01DOC_patente_o_carta_non_al_seguito.pdf",
     "180-01DOC": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/180-01DOC_patente_o_carta_non_al_seguito.pdf",
@@ -2599,15 +2581,12 @@ def _build_accessory_actions(main_code, concurrent_codes=None):
         add("Sequestro/confisca veicolo")
     if main_code in {"085-05", "085-06", "085-07", "085-08"}:
         add("Ritiro/sospensione documento di circolazione")
-    all_codes_for_accessories = set(concurrent_codes or []) | {main_code}
-    if "116-02" in all_codes_for_accessories:
+    if "116-02" in concurrent_codes:
         add("Fermo veicolo 3 mesi")
-    if "116-03" in all_codes_for_accessories or "116-04" in all_codes_for_accessories:
+    if "116-03" in concurrent_codes or "116-04" in concurrent_codes:
         add("Sequestro/confisca veicolo")
-    if "116-06" in all_codes_for_accessories:
+    if "116-06" in concurrent_codes:
         add("Fermo veicolo 60 giorni")
-    if "126-11" in all_codes_for_accessories or "CDS_126_11" in all_codes_for_accessories:
-        add("Ritiro CAP/KB/CQC scaduto")
 
     return actions
 
@@ -4076,6 +4055,41 @@ def begin_port_common_case(chat_id, case_key):
 
     state = user_states[chat_id]
 
+    # Casi diretti porto: escono subito col verbale corretto.
+    if case_key in {"kb_scaduto", "kb_non_al_seguito", "licenza_non_al_seguito"}:
+        code_map = {
+            "kb_scaduto": "126-01",
+            "kb_non_al_seguito": "180-09",
+            "licenza_non_al_seguito": "180-06",
+        }
+        state["direct_codes"] = [code_map[case_key]]
+        state["pending_question"] = None
+        save_user_states()
+        return "ESITO RAPIDO", None
+
+    # Casi specifici 085 c.4-bis: domanda solo la progressione nel quinquennio
+    # e poi apre uno dei 16 template PDF specifici caricati.
+    if case_key.startswith("85_"):
+        specific = case_key.replace("85_", "", 1)
+        state["answers"].update({
+            "vehicle_authorized": "si",
+            "service_to_third": "si",
+            "violation_type": "art3_11",
+            "specific_085_case": specific,
+        })
+        if specific == "procacciamento":
+            state["answers"].update({"booking": "no", "public_waiting": "si"})
+        elif specific == "prenotazione_assente":
+            state["answers"].update({"booking": "no"})
+        elif specific == "foglio_irregolare":
+            state["answers"].update({"foglio_status": "irregolare"})
+        elif specific == "compilato_dopo":
+            state["answers"].update({"foglio_status": "irregolare"})
+        q = {"key": "recurrence", "text": "Indica la progressione della violazione nel quinquennio."}
+        state["pending_question"] = q
+        save_user_states()
+        return build_recurrence_prompt(state["answers"], q["key"]), q["key"]
+
     if case_key == "uso_proprio_kb":
         state["answers"].update({
             "vehicle_authorized": "no",
@@ -4106,27 +4120,13 @@ def begin_port_common_case(chat_id, case_key):
             "service_to_third": "si",
             "booking": "no",
             "public_waiting": "si",
-            "violation_type": "art3_11"
+            "violation_type": "art3_11",
+            "specific_085_case": "procacciamento"
         })
         q = {
             "key": "recurrence",
             "text": "Indica la progressione della violazione nel quinquennio."
         }
-
-    elif case_key in {"kb_scaduto", "kb_non_al_seguito", "licenza_non_al_seguito"}:
-        direct_map = {
-            "kb_scaduto": "126-11",
-            "kb_non_al_seguito": "180-09",
-            "licenza_non_al_seguito": "180-06",
-        }
-        main_code = direct_map[case_key]
-        payload = build_final_payload(main_code, concurrent_codes=[], procedural_flags={}, ancillary_findings=[])
-        state["last_result_payload"] = payload
-        state["last_result_main_code"] = main_code
-        state["last_result_concurrent"] = []
-        state["last_result_flags"] = {}
-        save_user_states()
-        return payload.get("quick", "Esito finale non disponibile."), None
 
     else:
         return None
@@ -4135,12 +4135,27 @@ def begin_port_common_case(chat_id, case_key):
     save_user_states()
     return build_recurrence_prompt(state["answers"], q["key"]), q["key"]
 
-
 def _finalize_port_common_case(chat_id):
     state = user_states.get(chat_id, {})
     answers = state.get("answers", {})
 
     main_code, concurrent, notes, procedural_flags, ancillary_findings = decide_violation(answers)
+
+    # Ramo 085 c.4-bis specifico: porta al template PDF specifico caricato
+    # invece del verbale generico 085-05/06/07/08.
+    if answers.get("specific_085_case"):
+        level_map = {"first": "PRIMA", "2_5y": "SECONDA", "3_5y": "TERZA", "4plus_5y": "QUARTA"}
+        case_map = {
+            "procacciamento": "PROCACCIAMENTO",
+            "prenotazione_assente": "PRENOTAZIONE_ASSENTE",
+            "foglio_irregolare": "FOGLIO_IRREGOLARE",
+            "compilato_dopo": "COMPILATO_DOPO",
+        }
+        lvl = level_map.get(answers.get("recurrence"), "PRIMA")
+        cas = case_map.get(answers.get("specific_085_case"))
+        if cas:
+            main_code = f"08505_{lvl}_{cas}"
+            concurrent = [c for c in concurrent if c not in {"085-05", "085-06", "085-07", "085-08"}]
 
     if state.get("porto_case_key") == "abusivo_totale" and main_code in {"085-02", "085-04"}:
         # Abusivo totale: il procacciamento non è un verbale autonomo.
@@ -4155,7 +4170,16 @@ def _finalize_port_common_case(chat_id):
         if procacciamento_porto_text not in procedural_flags.setdefault("verbale_additions", []):
             procedural_flags["verbale_additions"].append(procacciamento_porto_text)
 
-        fixed_package = ["116-06", "PVC-FISCALE", "POS-RIFIUTO"]
+        pos_code = {
+            "rifiutato": "POS-RIFIUTO",
+            "assente": "POS-ASSENTE",
+            "non_funzionante": "POS-NON-FUNZIONANTE",
+        }.get(answers.get("pos_esito"))
+
+        # Abusivo totale: niente 180 per foglio/licenza, perché il mezzo non è NCC.
+        fixed_package = ["116-06", "PVC-FISCALE"]
+        if pos_code:
+            fixed_package.append(pos_code)
         for code in fixed_package:
             if code not in concurrent:
                 concurrent.append(code)
@@ -4205,7 +4229,7 @@ def process_port_common_followup(chat_id, text):
 
     pending = state.get("pending_question") or {}
     key = pending.get("key")
-    value = parse_answer_for_key(key, text) if key in {"recurrence_triennio", "recurrence", "kb", "patente_idonea", "incauto_affidamento"} else normalize_answer(text)
+    value = parse_answer_for_key(key, text) if key in {"recurrence_triennio", "recurrence", "kb", "patente_idonea", "incauto_affidamento", "pos_esito"} else normalize_answer(text)
 
     if key == "recurrence_triennio":
         if value not in {"first", "second_3y"}:
@@ -5248,7 +5272,7 @@ def _apply_control_answer_to_state(state, key, value):
             answers["patente_idonea"] = "si"
         elif value == "scaduta":
             answers["patente_idonea"] = "si"
-            _append_unique_local(concurrent, "126-11")
+            _append_unique_local(concurrent, "CDS_126_11")
             add_flag("Circolava alla guida del predetto veicolo con patente scaduta di validità; indicare la data di scadenza. La patente è ritirata e sarà inviata alla Prefettura-UTG competente.")
         elif value == "non_esibita":
             state.setdefault("control_queue", []).insert(0, {
@@ -5263,7 +5287,7 @@ def _apply_control_answer_to_state(state, key, value):
             answers["kb"] = "si"
         elif value == "scaduto":
             answers["kb"] = "si"
-            _append_unique_local(concurrent, "126-11")
+            _append_unique_local(concurrent, "CDS_126_11")
             add_flag("Circolava alla guida del predetto veicolo con CAP/KB/CQC scaduto di validità; indicare la data di scadenza. Il titolo è ritirato e sarà inviato all'UMC competente.")
         elif value == "non_esibito":
             state.setdefault("control_queue", []).insert(0, {
@@ -6336,6 +6360,19 @@ def porto_case_callback(call):
         return
 
     prompt, question_key = started
+    state = get_state(chat_id) or {}
+    if state.get("direct_codes"):
+        codes = state.get("direct_codes") or []
+        payload = build_final_payload(codes[0], concurrent_codes=codes[1:])
+        state["last_result_payload"] = payload
+        state["last_result_main_code"] = codes[0]
+        state["last_result_concurrent"] = codes[1:]
+        state["last_result_flags"] = {}
+        save_user_states()
+        markup = build_final_result_markup(payload) or build_pdf_markup(codes[0], codes[1:], {})
+        send_long_message(chat_id, payload.get("quick", "Esito rapido"), reply_markup=markup, disable_web_page_preview=True)
+        return
+
     markup = build_combined_markup(question_key=question_key, force_ctrl_answer=False)
     bot.send_message(chat_id, prompt, reply_markup=markup)
 
@@ -6580,9 +6617,9 @@ def final_result_callback(call):
     elif action == "articoli":
         text = payload.get("articoli")
 
-    elif re.fullmatch(r"v\d+", action or ""):
+    elif action in {"v1", "v2", "v3", "v4", "v5"}:
         verbali = payload.get("verbali", [])
-        idx = int(action[1:]) - 1
+        idx = {"v1": 0, "v2": 1, "v3": 2, "v4": 3, "v5": 4}[action]
         text = verbali[idx] if len(verbali) > idx else f"Verbale {idx + 1} non disponibile."
 
         if idx == 0:
