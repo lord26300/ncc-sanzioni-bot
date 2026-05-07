@@ -1976,6 +1976,22 @@ def get_article_keys_for_result(main_code=None, concurrent_codes=None):
         '085-07': 'art85',
         '085-08': 'art85',
         '085-09': 'art85',
+        '08505-PRIMA-PROCACCIAMENTO': 'art85',
+        '08505-PRIMA-PRENOTAZIONE': 'art85',
+        '08505-PRIMA-FOGLIO': 'art85',
+        '08505-PRIMA-COMPILATO': 'art85',
+        '08505-SECONDA-PROCACCIAMENTO': 'art85',
+        '08505-SECONDA-PRENOTAZIONE': 'art85',
+        '08505-SECONDA-FOGLIO': 'art85',
+        '08505-SECONDA-COMPILATO': 'art85',
+        '08505-TERZA-PROCACCIAMENTO': 'art85',
+        '08505-TERZA-PRENOTAZIONE': 'art85',
+        '08505-TERZA-FOGLIO': 'art85',
+        '08505-TERZA-COMPILATO': 'art85',
+        '08505-QUARTA-PROCACCIAMENTO': 'art85',
+        '08505-QUARTA-PRENOTAZIONE': 'art85',
+        '08505-QUARTA-FOGLIO': 'art85',
+        '08505-QUARTA-COMPILATO': 'art85',
         '116-01': 'art116',
         '116-02': 'art116',
         '116-03': 'art116',
@@ -1983,6 +1999,9 @@ def get_article_keys_for_result(main_code=None, concurrent_codes=None):
         '116-05': 'art116',
         '116-06': 'art116',
         '180-01': 'art180',
+        '180-01-C7': 'art180',
+        '180-01-C8': 'art180',
+        '180-10': 'art180',
         '180-DOC': 'art180',
         '180-01DOC': 'art180',
         '180-03': 'art180',
@@ -1995,7 +2014,7 @@ def get_article_keys_for_result(main_code=None, concurrent_codes=None):
 
     add(code_to_article.get(main_code))
 
-    if main_code in {'085-05', '085-06', '085-07', '085-08'}:
+    if main_code in {'085-05', '085-06', '085-07', '085-08'} or str(main_code).startswith('08505-'):
         add('art3l21')
         add('art11l21')
 
@@ -2099,12 +2118,13 @@ ARCHIVIO_VERBALI_MAP = {
     "🚕 Art 158 C2d/C5bis - Stallo TAXI": "158-27-TAXI",
     "🚌 Art 158 C2d/C5bis - Stallo BUS": "158-27-BUS",
     "🚐 Art 158 C2d/C5bis - Stallo NCC": "158-27-NCC",
-    "📄 Art 180 C3/C7 - Foglio servizio/licenza non al seguito": "180-06",
+    "📄 Art 180 C3/C7 - Foglio servizio non esibito (invito)": "180-01-C7",
     "🪪 Art 180 C1/C7 - Patente o carta non al seguito": "180-01DOC",
     "🛡️ Art 180 C1/C7 - Certificato assicurativo non al seguito": "180-03",
     "📑 Art 180 C3/C7 - Autorizzazione/Licenza NCC non al seguito": "180-06",
     "🪪 Art 180 C5/C7 - KB/CQC non al seguito": "180-09",
-    "⏳ Art 180 C8 - Inottemperanza invito documenti": "180-10",
+    "⏳ Art 180 C8 - Inottemperanza invito foglio servizio": "180-01-C8",
+    "⏳ Art 180 C8 - Inottemperanza invito documenti generico": "180-10",
     "🛡️ Art 193 C2 - Senza assicurazione": "193-02",
     "💳 POS - Rifiuto pagamento elettronico": "POS-RIFIUTO",
     "📵 POS - Dispositivo assente/non disponibile": "POS-ASSENTE",
@@ -2125,8 +2145,10 @@ ARCHIVIO_VERBALI_ALIASES = {
     "NCC abusivo totale recidiva": "085-04",
     "Guida senza KB": "116-06",
     "Guida senza KB / CAP / CQC": "116-06",
-    "Foglio servizio prenotazione": "180-06",
-    "Mancanza foglio servizio / prenotazione": "180-06",
+    "Foglio servizio non esibito": "180-01-C7",
+    "Foglio servizio 15 giorni non al seguito": "180-01-C7",
+    "Inottemperanza invito foglio servizio": "180-01-C8",
+    "Mancanza foglio servizio / prenotazione": "08505-PRIMA-PRENOTAZIONE",
     "Verbale scontrino PVC": "PVC-FISCALE",
     "Verbale scontrino / PVC": "PVC-FISCALE",
     "Verbale POS": "POS-RIFIUTO",
@@ -2294,7 +2316,7 @@ def build_quick_payload_from_codes(main_code, concurrent_codes=None, extra_artic
         comunicazioni.append("- Valutare immediatamente il PVC fiscale e la contestazione sul POS se il pagamento del corrispettivo è stato accertato.")
     if main_code in {"085-04"}:
         comunicazioni.append("- Comunicazione al Prefetto entro 5 giorni per i presupposti della revoca.")
-    if main_code in {"085-05", "085-06", "085-07", "085-08"}:
+    if main_code in {"085-05", "085-06", "085-07", "085-08"} or str(main_code).startswith("08505-"):
         comunicazioni.append("- Trasmissione documento ritirato all'UMC competente.")
     if "116-02" in concurrent_codes:
         comunicazioni.append("- Applicare fermo del veicolo per 3 mesi; se il fermo non è applicabile, valutare la sospensione dell'eventuale patente posseduta.")
@@ -2504,7 +2526,12 @@ def normalize_violation_code(code):
         "11603": "116-03",
         "11604": "116-04",
         "11606": "116-06",
-        "18001": "180-01",
+        "18001": "180-01-C7",
+        "18001C7": "180-01-C7",
+        "180C7": "180-01-C7",
+        "18001C8": "180-01-C8",
+        "180C8": "180-01-C8",
+        "18010": "180-10",
         "180DOC": "180-DOC",
         "18001DOC": "180-01DOC",
         "18003": "180-03",
@@ -2523,7 +2550,7 @@ def build_violation_markup_for_article(article_key):
         "art116": ["116-02", "116-03", "116-04", "116-06"],
         "art3l21": ["085-05", "085-06", "085-07", "085-08"],
         "art11l21": ["085-05", "085-06", "085-07", "085-08"],
-        "art180": ["180-01", "180-DOC", "180-01DOC", "180-03", "180-06", "180-09"],
+        "art180": ["180-01-C7", "180-01-C8", "180-10", "180-DOC", "180-01DOC", "180-03", "180-06", "180-09"],
         "art126": ["126-01"],
     }
     codes = [c for c in article_to_codes.get(key, []) if c in VIOLATIONS]
@@ -2651,6 +2678,79 @@ for _alias_code, _base_code in PDF_MODEL_ALIASES.items():
     if _base_code in PDF_MODELS:
         PDF_MODELS.setdefault(_alias_code, PDF_MODELS[_base_code])
 
+
+# =========================
+# PATCH PDF TEMPLATE 85 / 180 C7-C8
+# =========================
+PDF_BASE_URL = "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/"
+
+def _pdf_url(filename):
+    return PDF_BASE_URL + filename
+
+# Template reali presenti nella cartella pdf_templates di GitHub.
+# Questi override evitano che il bot punti ai vecchi nomi generici/non più esistenti.
+PDF_MODELS.update({
+    # Art. 85 comma 4
+    "085-02": _pdf_url("085-02_art85_c4_prima_violazione.pdf"),
+    "085-04": _pdf_url("085-02_art85_c4_seconda_nel_triennio.pdf"),
+
+    # Art. 85 comma 4-bis - prima violazione
+    "08505-PRIMA-PROCACCIAMENTO": _pdf_url("085-05_art85_c4b_prima_procacciamento.pdf"),
+    "08505-PRIMA-PRENOTAZIONE": _pdf_url("085-05_art85_c4b_prima_prenotazione_assente.pdf"),
+    "08505-PRIMA-FOGLIO": _pdf_url("085-05_art85_c4b_prima_foglio_irregolare.pdf"),
+    "08505-PRIMA-COMPILATO": _pdf_url("085-05_art85_c4b_prima_compilato_dopo.pdf"),
+
+    # Art. 85 comma 4-bis - seconda violazione
+    "08505-SECONDA-PROCACCIAMENTO": _pdf_url("085-05_art85_c4b_seconda_procacciamento.pdf"),
+    "08505-SECONDA-PRENOTAZIONE": _pdf_url("085-05_art85_c4b_seconda_prenotazione_assente.pdf"),
+    "08505-SECONDA-FOGLIO": _pdf_url("085-05_art85_c4b_seconda_foglio_irregolare.pdf"),
+    "08505-SECONDA-COMPILATO": _pdf_url("085-05_art85_c4b_seconda_compilato_dopo.pdf"),
+
+    # Art. 85 comma 4-bis - terza violazione
+    "08505-TERZA-PROCACCIAMENTO": _pdf_url("085-05_art85_c4b_terza_procacciamento.pdf"),
+    "08505-TERZA-PRENOTAZIONE": _pdf_url("085-05_art85_c4b_terza_prenotazione_assente.pdf"),
+    "08505-TERZA-FOGLIO": _pdf_url("085-05_art85_c4b_terza_foglio_irregolare.pdf"),
+    "08505-TERZA-COMPILATO": _pdf_url("085-05_art85_c4b_terza_compilato_dopo.pdf"),
+
+    # Art. 85 comma 4-bis - quarta o successiva
+    "08505-QUARTA-PROCACCIAMENTO": _pdf_url("085-05_art85_c4b_quarta_procacciamento.pdf"),
+    "08505-QUARTA-PRENOTAZIONE": _pdf_url("085-05_art85_c4b_quarta_prenotazione_assente.pdf"),
+    "08505-QUARTA-FOGLIO": _pdf_url("085-05_art85_c4b_quarta_foglio_irregolare.pdf"),
+    "08505-QUARTA-COMPILATO": _pdf_url("085-05_art85_c4b_quarta_compilato_dopo.pdf"),
+
+    # Art. 85 comma 4-ter - area/RCT
+    "085-09-STALLO": _pdf_url("085-09_art85_c4ter_stallo_non_autorizzato.pdf"),
+    "085-09-USO-AREA-RCT": _pdf_url("085-09_art85_c4ter_uso_improprio_area_rct.pdf"),
+    "085-09-ACCESSO-AREA-RCT": _pdf_url("085-09_art85_c4ter_accesso_non_autorizzato_area_rct.pdf"),
+    "085-09-MANCATO-RISPETTO": _pdf_url("085-09_art85_c4ter_mancato_rispetto_disposizioni_rct.pdf"),
+    "085-09-SOSTA-PROLUNGATA": _pdf_url("085-09_art85_c4ter_sosta_prolungata_non_consentita.pdf"),
+
+    # Art. 180 - foglio di servizio
+    "180-01": _pdf_url("180-01_c7_foglio_di_servizio_non_esibito.pdf"),
+    "180-01-C7": _pdf_url("180-01_c7_foglio_di_servizio_non_esibito.pdf"),
+    "180-01-C8": _pdf_url("180-01_c8_foglio_di_servizio_non_esibito.pdf"),
+    "180-10": _pdf_url("180-10_inottemperanza_invito_art180_c8.pdf"),
+})
+
+# Il codice generico 085-05/06/07/08 viene mantenuto, ma viene fatto puntare
+# al caso più comune del flusso guidato: prenotazione assente per progressione.
+PDF_MODELS["085-05"] = PDF_MODELS["08505-PRIMA-PRENOTAZIONE"]
+PDF_MODELS["085-06"] = PDF_MODELS["08505-SECONDA-PRENOTAZIONE"]
+PDF_MODELS["085-07"] = PDF_MODELS["08505-TERZA-PRENOTAZIONE"]
+PDF_MODELS["085-08"] = PDF_MODELS["08505-QUARTA-PRENOTAZIONE"]
+
+# Alias dei template specifici 85 verso record base, utile per articoli/sanzioni.
+PDF_MODEL_ALIASES.update({
+    "180-01-C7": "180-01",
+    "180-01-C8": "180-01",
+    "180-10": "180-01",
+    "085-09-STALLO": "085-09",
+    "085-09-USO-AREA-RCT": "085-09",
+    "085-09-ACCESSO-AREA-RCT": "085-09",
+    "085-09-MANCATO-RISPETTO": "085-09",
+    "085-09-SOSTA-PROLUNGATA": "085-09",
+})
+
 # Record descrittivi per template specifici.
 def _clone_violation_record(base_code, title_suffix):
     base = dict(VIOLATIONS.get(base_code, {}))
@@ -2676,6 +2776,37 @@ for _code, _base, _suffix in [
     VIOLATIONS.setdefault(_code, _clone_violation_record(_base, _suffix))
 
 VIOLATIONS.setdefault("126-01", {"title": "Guida con KB/CAP/CQC scaduto", "article": "CdS art. 126 c. 11", "pmr": "€ 158,00", "reduced_30": "€ 110,60", "over_60": "€ 319,00", "edictal": "da € 158,00 a € 638,00", "accessories": ["Ritiro documento scaduto"], "verbal_text": "Circolava con titolo professionale scaduto di validità.", "notes": [], "fields_to_fill": ["titolo scaduto", "data scadenza", "UMC competente"], "short_ready_text": "Art. 126 c.11: PMR € 158, riduzione € 110,60; ritiro documento scaduto."})
+
+
+VIOLATIONS.setdefault("180-01-C7", {
+    "title": "Foglio di servizio non esibito nell'immediatezza - invito ex art. 180 c.7",
+    "article": "CdS art. 180 c. 3 e c. 7",
+    "pmr": "€ 42,00",
+    "reduced_30": "€ 29,40",
+    "over_60": "€ 86,50",
+    "edictal": "da € 42,00 a € 173,00",
+    "accessories": ["Nessuna"],
+    "verbal_text": "Il conducente non esibiva nell'immediatezza il foglio di servizio relativo alla corsa in atto o la documentazione richiesta, pur dichiarandone l'esistenza. Viene invitato a presentarsi entro 30 giorni presso un Ufficio di Polizia per l'esibizione, con avvertenza che l'inosservanza comporterà l'applicazione dell'art. 180 comma 8 CdS.",
+    "notes": ["Usare quando il documento esiste ma non è esibito nell'immediatezza; per foglio assente/non compilato valutare art. 85."],
+    "fields_to_fill": ["documento richiesto", "ufficio di presentazione", "termine"],
+    "short_ready_text": "Art. 180 c.3 e c.7: PMR € 42,00; riduzione 30% € 29,40; oltre 60 giorni € 86,50. Invito a esibire entro 30 giorni. Accessorie: nessuna."
+})
+
+VIOLATIONS.setdefault("180-01-C8", {
+    "title": "Inottemperanza all'invito a esibire foglio di servizio",
+    "article": "CdS art. 180 c. 8",
+    "pmr": "€ 430,00",
+    "reduced_30": "€ 301,00",
+    "over_60": "€ 865,50",
+    "edictal": "da € 430,00 a € 1.731,00",
+    "accessories": ["Nessuna"],
+    "verbal_text": "Il trasgressore, precedentemente invitato ai sensi dell'art. 180 comma 7 del Codice della Strada ad esibire la documentazione richiesta, non ottemperava a quanto richiesto entro il termine assegnato. Per quanto sopra si contesta la violazione di cui all'art. 180 comma 8 CdS.",
+    "notes": ["Usare solo dopo invito regolarmente notificato e termine decorso."],
+    "fields_to_fill": ["data invito", "documentazione richiesta", "termine assegnato"],
+    "short_ready_text": "Art. 180 c.8: PMR € 430,00; riduzione 30% € 301,00; oltre 60 giorni € 865,50; edittale da € 430,00 a € 1.731,00. Accessorie: nessuna."
+})
+
+VIOLATIONS.setdefault("180-10", VIOLATIONS["180-01-C8"])
 
 def _short_violation_line(code):
     v = VIOLATIONS.get(code)
@@ -4220,11 +4351,36 @@ def begin_port_common_case(chat_id, case_key):
     return build_recurrence_prompt(state["answers"], q["key"]), q["key"]
 
 
+
+def _specific_85_c4bis_code(case_key, recurrence):
+    """Restituisce il codice PDF specifico art. 85 c.4-bis in base al ramo porto e alla progressione."""
+    case_suffix = {
+        "procacciamento": "PROCACCIAMENTO",
+        "prenotazione_assente": "PRENOTAZIONE",
+        "foglio_irregolare": "FOGLIO",
+        "compilato_dopo": "COMPILATO",
+    }.get(case_key)
+    rec_prefix = {
+        "first": "PRIMA",
+        "2_5y": "SECONDA",
+        "3_5y": "TERZA",
+        "4plus_5y": "QUARTA",
+    }.get(recurrence or "first", "PRIMA")
+    if not case_suffix:
+        return None
+    return f"08505-{rec_prefix}-{case_suffix}"
+
 def _finalize_port_common_case(chat_id):
     state = user_states.get(chat_id, {})
     answers = state.get("answers", {})
 
     main_code, concurrent, notes, procedural_flags, ancillary_findings = decide_violation(answers)
+
+    # Nei rami Porto art. 85 c.4-bis il verbale non deve aprire il PDF generico,
+    # ma quello specifico: procacciamento / prenotazione assente / foglio irregolare / compilato dopo.
+    specific_85 = _specific_85_c4bis_code(state.get("porto_case_key"), answers.get("recurrence"))
+    if specific_85 and main_code in {"085-05", "085-06", "085-07", "085-08"}:
+        main_code = specific_85
 
     if state.get("porto_case_key") == "abusivo_totale" and main_code in {"085-02", "085-04"}:
         # Abusivo totale: il procacciamento non è un verbale autonomo.
@@ -4747,7 +4903,7 @@ def decide_violation(answers):
     elif foglio_status == "non_esibito":
         ancillary_findings.append("Foglio di servizio esistente ma non esibito: valutare separatamente la mancata esibizione documentale ex art. 180 CdS.")
         add_verbal("Il conducente non esibiva nell'immediatezza il foglio di servizio/codice identificativo del servizio; valutare autonoma contestazione documentale.")
-        _append_unique(concurrent, "180-01")
+        _append_unique(concurrent, "180-01-C7")
 
     if public_waiting == "si" and booking == "no" and vehicle_authorized == "si":
         violation_type = "art3_11"
