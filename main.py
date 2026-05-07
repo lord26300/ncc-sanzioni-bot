@@ -2510,6 +2510,8 @@ def normalize_violation_code(code):
         "18003": "180-03",
         "18006": "180-06",
         "18009": "180-09",
+        "12601": "126-01",
+        "CDS12611": "126-01",
     }
     return aliases.get(compact)
 
@@ -2522,7 +2524,7 @@ def build_violation_markup_for_article(article_key):
         "art3l21": ["085-05", "085-06", "085-07", "085-08"],
         "art11l21": ["085-05", "085-06", "085-07", "085-08"],
         "art180": ["180-01", "180-DOC", "180-01DOC", "180-03", "180-06", "180-09"],
-        "art126": [],
+        "art126": ["126-01"],
     }
     codes = [c for c in article_to_codes.get(key, []) if c in VIOLATIONS]
     if not codes:
@@ -2589,6 +2591,7 @@ PDF_MODELS = {
     "116-03": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/116-03_art116_c15_c17_recidiva_biennale.pdf",
     "116-04": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/116-04_art116_c15_c17_reiterazione_penale.pdf",
     "116-06": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/116-06_art116_senza_kb_cqc.pdf",
+    "126-01": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/126-01_art126_c11_kb_cqc_scaduto.pdf",
     "180-01": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/180-01_foglio_di_servizio_non_esibito.pdf",
     "180-DOC": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/180-01DOC_patente_o_carta_non_al_seguito.pdf",
     "180-01DOC": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/180-01DOC_patente_o_carta_non_al_seguito.pdf",
@@ -2608,6 +2611,45 @@ PDF_MODELS = {
     "COM_RENT": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/COM_RENT.pdf",
     "COM_RUOLO": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/COM_RUOLO.pdf",
 }
+
+# Alias PDF: i codici specifici usano il PDF base se non hanno un file dedicato.
+# Evita pulsanti Archivio mancanti e "Template non disponibile" per varianti operative.
+PDF_MODEL_ALIASES = {
+    "08505-PRIMA-PROCACCIAMENTO": "085-05",
+    "08505-PRIMA-PRENOTAZIONE": "085-05",
+    "08505-PRIMA-FOGLIO": "085-05",
+    "08505-PRIMA-COMPILATO": "085-05",
+    "08505-SECONDA-PROCACCIAMENTO": "085-06",
+    "08505-SECONDA-PRENOTAZIONE": "085-06",
+    "08505-SECONDA-FOGLIO": "085-06",
+    "08505-SECONDA-COMPILATO": "085-06",
+    "08505-TERZA-PROCACCIAMENTO": "085-07",
+    "08505-TERZA-PRENOTAZIONE": "085-07",
+    "08505-TERZA-FOGLIO": "085-07",
+    "08505-TERZA-COMPILATO": "085-07",
+    "08505-QUARTA-PROCACCIAMENTO": "085-08",
+    "08505-QUARTA-PRENOTAZIONE": "085-08",
+    "08505-QUARTA-FOGLIO": "085-08",
+    "08505-QUARTA-COMPILATO": "085-08",
+    "116-02-MAI": "116-02",
+    "116-02-REVOCATA": "116-02",
+    "116-02-NON_RINNOVATA": "116-02",
+    "116-02-NON_VALIDA": "116-02",
+    "116-03-MAI": "116-03",
+    "116-03-REVOCATA": "116-03",
+    "116-03-NON_RINNOVATA": "116-03",
+    "116-03-NON_VALIDA": "116-03",
+    "116-04-MAI": "116-04",
+    "116-04-REVOCATA": "116-04",
+    "116-04-NON_RINNOVATA": "116-04",
+    "116-04-NON_VALIDA": "116-04",
+    "158-27-TAXI": "158-27",
+    "158-27-BUS": "158-27",
+    "158-27-NCC": "158-27",
+}
+for _alias_code, _base_code in PDF_MODEL_ALIASES.items():
+    if _base_code in PDF_MODELS:
+        PDF_MODELS.setdefault(_alias_code, PDF_MODELS[_base_code])
 
 # Record descrittivi per template specifici.
 def _clone_violation_record(base_code, title_suffix):
@@ -5290,7 +5332,7 @@ def _apply_control_answer_to_state(state, key, value):
             answers["patente_idonea"] = "si"
         elif value == "scaduta":
             answers["patente_idonea"] = "si"
-            _append_unique_local(concurrent, "CDS_126_11")
+            _append_unique_local(concurrent, "126-01")
             add_flag("Circolava alla guida del predetto veicolo con patente scaduta di validità; indicare la data di scadenza. La patente è ritirata e sarà inviata alla Prefettura-UTG competente.")
         elif value == "non_esibita":
             state.setdefault("control_queue", []).insert(0, {
@@ -5305,7 +5347,7 @@ def _apply_control_answer_to_state(state, key, value):
             answers["kb"] = "si"
         elif value == "scaduto":
             answers["kb"] = "si"
-            _append_unique_local(concurrent, "CDS_126_11")
+            _append_unique_local(concurrent, "126-01")
             add_flag("Circolava alla guida del predetto veicolo con CAP/KB/CQC scaduto di validità; indicare la data di scadenza. Il titolo è ritirato e sarà inviato all'UMC competente.")
         elif value == "non_esibito":
             state.setdefault("control_queue", []).insert(0, {
