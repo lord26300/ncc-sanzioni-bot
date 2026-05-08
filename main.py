@@ -562,6 +562,51 @@ VIOLATIONS["180-01"] = {
 }
 
 
+
+VIOLATIONS["180-01-C7"] = {
+    "title": "Foglio di servizio non esibito - invito all'esibizione",
+    "article": "CdS art. 180 c. 3 e c. 7",
+    "pmr": "€ 42,00",
+    "reduced_30": "€ 29,40",
+    "over_60": "€ 86,50",
+    "edictal": "da € 42,00 a € 173,00",
+    "accessories": ["Nessuna"],
+    "verbal_text": (
+        "Il conducente del veicolo adibito a servizio di noleggio con conducente, all'atto del controllo, "
+        "non esibiva nell'immediatezza il foglio di servizio relativo alla corsa in atto, richiesto dagli operanti, "
+        "pur dichiarandone l'esistenza. Il trasgressore è invitato a presentarsi entro 30 giorni presso un Ufficio di Polizia "
+        "per esibire il documento richiesto, con avvertenza che l'inosservanza comporterà l'applicazione della sanzione "
+        "prevista dall'art. 180 c. 8 CdS."
+    ),
+    "notes": [
+        "Usare quando il foglio esiste ma non viene esibito nell'immediatezza.",
+        "Se il foglio non esiste o risulta compilato dopo, valutare il ramo sostanziale art. 85 c.4-bis."
+    ],
+    "fields_to_fill": ["documento richiesto", "ufficio di polizia presso cui esibire", "termine assegnato"],
+    "short_ready_text": "Art. 180 c.3 e c.7: PMR € 42,00; riduzione 30% € 29,40; oltre 60 giorni € 86,50. Nessuna sanzione accessoria. Invito a esibire il foglio di servizio entro il termine assegnato."
+}
+
+VIOLATIONS["180-01-C8"] = {
+    "title": "Inottemperanza all'invito di esibire i fogli di servizio",
+    "article": "CdS art. 180 c. 8",
+    "pmr": "Verificare prontuario aggiornato",
+    "reduced_30": "Verificare ammissibilità e importo aggiornato",
+    "over_60": "Verificare prontuario aggiornato",
+    "edictal": "da € 430,00 a € 1.731,00 circa, importi da aggiornare secondo prontuario vigente",
+    "accessories": ["Nessuna"],
+    "verbal_text": (
+        "Il trasgressore, precedentemente invitato ai sensi dell'art. 180 c.7 CdS ad esibire la documentazione richiesta "
+        "relativa ai fogli di servizio, non ottemperava a quanto richiesto entro il termine assegnato. "
+        "Per quanto sopra si contesta la violazione di cui all'art. 180 c.8 CdS."
+    ),
+    "notes": [
+        "Usare solo dopo precedente invito ex art. 180 c.7 regolarmente notificato/comunicato.",
+        "Indicare data dell'invito, termine assegnato e documentazione richiesta."
+    ],
+    "fields_to_fill": ["data invito", "termine assegnato", "documentazione richiesta", "esito mancata presentazione"],
+    "short_ready_text": "Art. 180 c.8: inottemperanza all'invito di esibizione. Nessuna sanzione accessoria. Indicare sempre gli estremi dell'invito ex c.7."
+}
+
 VIOLATIONS["180-DOC"] = {
     "title": "Mancata esibizione di documento obbligatorio a bordo",
     "article": "CdS art. 180 (da definire in base al documento)",
@@ -2739,6 +2784,10 @@ PDF_MODELS["085-06"] = PDF_MODELS["08505-SECONDA-PRENOTAZIONE"]
 PDF_MODELS["085-07"] = PDF_MODELS["08505-TERZA-PRENOTAZIONE"]
 PDF_MODELS["085-08"] = PDF_MODELS["08505-QUARTA-PRENOTAZIONE"]
 
+# Alias aggiuntivi per percorso checklist documentale art. 180 c.7 / c.8
+PDF_MODELS.setdefault("180-C7", PDF_MODELS.get("180-01-C7"))
+PDF_MODELS.setdefault("180-C8", PDF_MODELS.get("180-01-C8"))
+
 # Alias dei template specifici 85 verso record base, utile per articoli/sanzioni.
 PDF_MODEL_ALIASES.update({
     "180-01-C7": "180-01",
@@ -4400,6 +4449,13 @@ def _finalize_port_common_case(chat_id):
             if code not in concurrent:
                 concurrent.append(code)
 
+    # Se dalla checklist emergono solo violazioni documentali/concorrenti
+    # (es. 180 c.7, 180 c.8, 180-03, 180-06, 180-09, 193-02),
+    # promuovi la prima a verbale principale per mostrare sempre il pulsante PDF.
+    if not main_code and concurrent:
+        main_code = concurrent[0]
+        concurrent = concurrent[1:]
+
     if main_code:
         payload = build_final_payload(
             main_code,
@@ -4901,9 +4957,13 @@ def decide_violation(answers):
         add_verbal("Foglio di servizio irregolare/incompleto rispetto al servizio in corso.")
         ancillary_findings.append("Foglio di servizio irregolare/incompleto: trattare come violazione sostanziale delle modalità di esercizio del servizio.")
     elif foglio_status == "non_esibito":
-        ancillary_findings.append("Foglio di servizio esistente ma non esibito: valutare separatamente la mancata esibizione documentale ex art. 180 CdS.")
-        add_verbal("Il conducente non esibiva nell'immediatezza il foglio di servizio/codice identificativo del servizio; valutare autonoma contestazione documentale.")
+        ancillary_findings.append("Foglio di servizio esistente ma non esibito: contestazione documentale ex art. 180 commi 3 e 7 CdS, con invito all'esibizione.")
+        add_verbal("Il conducente non esibiva nell'immediatezza il foglio di servizio relativo alla corsa in atto, pur dichiarandone l'esistenza; procedere con art. 180 c.3 e c.7 CdS.")
         _append_unique(concurrent, "180-01-C7")
+    elif foglio_status == "non_presentato_dopo_invito":
+        ancillary_findings.append("Inottemperanza all'invito ex art. 180 c.7 CdS: contestare l'art. 180 c.8 CdS.")
+        add_verbal("Il trasgressore, già invitato ad esibire la documentazione richiesta, non ottemperava entro il termine assegnato; procedere con art. 180 c.8 CdS.")
+        _append_unique(concurrent, "180-01-C8")
 
     if public_waiting == "si" and booking == "no" and vehicle_authorized == "si":
         violation_type = "art3_11"
@@ -5031,7 +5091,7 @@ def missing_questions(answers):
     if foglio_status is None:
         questions.append({
             "key": "foglio_status",
-            "text": "Situazione foglio di servizio?\nRispondi con una sola opzione: presente / assente / irregolare / non_esibito"
+            "text": "Situazione foglio di servizio?\nRispondi con una sola opzione: presente / assente / irregolare / non_esibito / non_presentato_dopo_invito"
         })
 
     if answers.get("rent_registered") is None:
@@ -5214,7 +5274,7 @@ def parse_answer_for_key(key, text):
         "control_patente_status": {"valida", "scaduta", "non_idonea", "non_esibita"},
         "control_kb_status": {"valido", "scaduto", "non_idoneo", "non_esibito", "non_dovuto"},
         "control_autorizzazione_status": {"regolare", "non_esibita", "non_autorizzato"},
-        "control_foglio_status": {"regolare", "irregolare", "assente", "non_esibito"},
+        "control_foglio_status": {"regolare", "irregolare", "assente", "non_esibito", "non_presentato_dopo_invito"},
         "control_patente_missing_mode": {"esiste_valida", "inesistente_non_valida", "non_verificato"},
         "control_kb_missing_mode": {"esiste_valido", "mancante_non_valido", "non_verificato"},
         "control_autorizzazione_missing_mode": {"esiste_regolare", "assente_sospesa_revocata", "non_verificato"},
@@ -5354,9 +5414,9 @@ def build_control_queue(state):
     _queue_control_question(state, "control_revisione_status", "Esito revisione del veicolo?\nScegli: regolare / scaduta / non_verificato")
 
     if "foglio" in selected:
-        _queue_control_question(state, "control_foglio_status", "Foglio di servizio esibito: scegli lo stato corretto.\nScegli: regolare / irregolare / assente / non_esibito")
+        _queue_control_question(state, "control_foglio_status", "Foglio di servizio esibito: scegli lo stato corretto.\nScegli: regolare / irregolare / assente / non_esibito / non_presentato_dopo_invito")
     else:
-        _queue_control_question(state, "control_foglio_status", "Foglio di servizio non esibito: scegli il caso corretto.\nScegli: non_esibito / assente / irregolare")
+        _queue_control_question(state, "control_foglio_status", "Foglio di servizio non esibito: scegli il caso corretto.\nScegli: non_esibito / assente / irregolare / non_presentato_dopo_invito")
 
     _queue_control_question(state, "control_owner_type", "Intestatario/proprietario del mezzo: scegli il tipo.\nScegli: persona_fisica / cooperativa_srl / agenzia_viaggi / altro")
     _queue_control_question(state, "control_circulation_use", "Sul libretto / DU quale uso risulta?\nScegli: uso_terzi_ncc / uso_proprio / non_letto")
@@ -5638,6 +5698,13 @@ def _finalize_control(chat_id):
     for bucket, items in state.get("control_flags", {}).items():
         for item in items:
             _append_unique_local(procedural_flags.setdefault(bucket, []), item)
+
+    # Se dalla checklist emergono solo violazioni documentali/concorrenti
+    # (es. 180 c.7, 180 c.8, 180-03, 180-06, 180-09, 193-02),
+    # promuovi la prima a verbale principale per mostrare sempre il pulsante PDF.
+    if not main_code and concurrent:
+        main_code = concurrent[0]
+        concurrent = concurrent[1:]
 
     if main_code:
         payload = build_final_payload(
