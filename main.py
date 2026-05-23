@@ -414,7 +414,7 @@ VIOLATIONS = {
         ],
         "verbal_text": (
             "Circolava alla guida del predetto veicolo senza essere munito della patente di guida prescritta "
-            "perché mai conseguita, revocata, non rinnovata per mancanza dei prescritti requisiti, ovvero "
+            "perché mai conseguita, revocata, ovvero "
             "non valida per il veicolo condotto e non riconducibile ai casi dell'art. 116, comma 15-bis, CdS. "
             "Il veicolo, con trattenimento del documento di circolazione, è sottoposto a fermo amministrativo "
             "come da separato verbale."
@@ -489,7 +489,7 @@ VIOLATIONS = {
         ],
         "verbal_text": (
             "Circolava alla guida del predetto veicolo senza essere munito della prescritta patente di guida "
-            "perché mai conseguita, revocata, non rinnovata per mancanza dei prescritti requisiti oppure non "
+            "perché mai conseguita, revocata oppure non "
             "valida per il veicolo condotto e non riconducibile ai casi dell'art. 116, comma 15-bis, CdS. "
             "Si dà atto che il conducente si trova in condizioni di reiterazione dell'illecito; si procede "
             "pertanto con informativa all'Autorità Giudiziaria e con sequestro amministrativo del veicolo "
@@ -915,7 +915,7 @@ NCC_DB = {
         "116-02": {
             "norma": "CdS art. 116 c. 15 e 17",
             "titolo": "Guida senza patente / prima violazione amministrativa",
-            "quando_usarla": "Mai conseguita, revocata, non rinnovata per mancanza requisiti o categoria non rientrante nel 15-bis.",
+            "quando_usarla": "Mai conseguita, revocata o categoria non rientrante nel 15-bis.",
             "cluster": "conducente"
         },
         "116-03": {
@@ -2148,15 +2148,12 @@ ARCHIVIO_VERBALI_MAP = {
     "⚓ Art 85 C4ter - Stallo/area RCT": "085-09",
     "🚗 Art 116 C15/C17 - Mai conseguita 1ª": "116-02-MAI",
     "🚗 Art 116 C15/C17 - Revocata 1ª": "116-02-REVOCATA",
-    "🚗 Art 116 C15/C17 - Non rinnovata 1ª": "116-02-NON_RINNOVATA",
     "🚗 Art 116 C15/C17 - Non valida 1ª": "116-02-NON_VALIDA",
     "🔁 Art 116 C15/C17 - Mai conseguita recidiva": "116-03-MAI",
     "🔁 Art 116 C15/C17 - Revocata recidiva": "116-03-REVOCATA",
-    "🔁 Art 116 C15/C17 - Non rinnovata recidiva": "116-03-NON_RINNOVATA",
     "🔁 Art 116 C15/C17 - Non valida recidiva": "116-03-NON_VALIDA",
     "⚖️ Art 116 C15/C17 - Mai conseguita penale": "116-04-MAI",
     "⚖️ Art 116 C15/C17 - Revocata penale": "116-04-REVOCATA",
-    "⚖️ Art 116 C15/C17 - Non rinnovata penale": "116-04-NON_RINNOVATA",
     "⚖️ Art 116 C15/C17 - Non valida penale": "116-04-NON_VALIDA",
     "🪪 Art 116 C16/C18 - Guida senza KB/KA/CQC": "116-06",
     "⌛ Art 126 C11 - KB/CQC scaduto": "126-01",
@@ -2654,17 +2651,17 @@ def send_long_message(chat_id, text, reply_markup=None, disable_web_page_preview
 PDF_MODELS = {
     "085-02": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-02_art85_c4_prima_violazione.pdf",
     "085-04": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-02_art85_c4_seconda_nel_triennio.pdf",
-    "085-05": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4bis_prima_nel_quinquennio.pdf",
-    "085-06": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4bis_seconda_nel_quinquennio.pdf",
-    "085-07": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4bis_terza_nel_quinquennio.pdf",
-    "085-08": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4bis_quarta_o_successiva_nel_quinquennio.pdf",
-    "085-09": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-09_art85_c4ter_altre_prescrizioni.pdf",
-    "116-02": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/116-02_art116_c15_c17_prima_violazione.pdf",
-    "116-03": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/116-03_art116_c15_c17_recidiva_biennale.pdf",
-    "116-04": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/116-04_art116_c15_c17_reiterazione_penale.pdf",
+    "085-05": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_prima_prenotazione_assente.pdf",
+    "085-06": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_seconda_prenotazione_assente.pdf",
+    "085-07": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_terza_prenotazione_assente.pdf",
+    "085-08": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-05_art85_c4b_quarta_prenotazione_assente.pdf",
+    "085-09": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/085-09_art85_c4ter_uso_improprio_area_rct.pdf",
+    "116-02": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/116-02_art116_c15_c17_prima_violazione_mai_conseguita.pdf",
+    "116-03": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/116-03_art116_c15_c17_recidiva_biennale_mai_conseguita.pdf",
+    "116-04": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/116-04_art116_c15_c17_reiterazione_penale_mai_conseguita.pdf",
     "116-06": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/116-06_art116_senza_kb_cqc.pdf",
     "126-01": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/126-01_art126_c11_kb_cqc_scaduto.pdf",
-    "180-01": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/180-01_foglio_di_servizio_non_esibito.pdf",
+    "180-01": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/180-01_c7_foglio_di_servizio_non_esibito.pdf",
     "180-DOC": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/180-01DOC_patente_o_carta_non_al_seguito.pdf",
     "180-01DOC": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/180-01DOC_patente_o_carta_non_al_seguito.pdf",
     "180-03": "https://raw.githubusercontent.com/lord26300/ncc-sanzioni-bot/main/pdf_templates/180-03_certificato_assicurativo_non_al_seguito.pdf",
@@ -2705,15 +2702,12 @@ PDF_MODEL_ALIASES = {
     "08505-QUARTA-COMPILATO": "085-08",
     "116-02-MAI": "116-02",
     "116-02-REVOCATA": "116-02",
-    "116-02-NON_RINNOVATA": "116-02",
     "116-02-NON_VALIDA": "116-02",
     "116-03-MAI": "116-03",
     "116-03-REVOCATA": "116-03",
-    "116-03-NON_RINNOVATA": "116-03",
     "116-03-NON_VALIDA": "116-03",
     "116-04-MAI": "116-04",
     "116-04-REVOCATA": "116-04",
-    "116-04-NON_RINNOVATA": "116-04",
     "116-04-NON_VALIDA": "116-04",
     "158-27-TAXI": "158-27",
     "158-27-BUS": "158-27",
@@ -2775,6 +2769,28 @@ PDF_MODELS.update({
     "180-01-C7": _pdf_url("180-01_c7_foglio_di_servizio_non_esibito.pdf"),
     "180-01-C8": _pdf_url("180-01_c8_foglio_di_servizio_non_esibito.pdf"),
     "180-10": _pdf_url("180-10_inottemperanza_invito_art180_c8.pdf"),
+
+    # Art. 116 comma 15/17 - template reali rimasti dopo cancellazione dei NON RINNOVATA
+    "116-02": _pdf_url("116-02_art116_c15_c17_prima_violazione_mai_conseguita.pdf"),
+    "116-02-MAI": _pdf_url("116-02_art116_c15_c17_prima_violazione_mai_conseguita.pdf"),
+    "116-02-REVOCATA": _pdf_url("116-02_art116_c15_c17_prima_violazione_patente_revocata.pdf"),
+    "116-02-NON_VALIDA": _pdf_url("116-02_art116_c15_c17_prima_violazione_non_valida_per_il_veicolo.pdf"),
+    "116-03": _pdf_url("116-03_art116_c15_c17_recidiva_biennale_mai_conseguita.pdf"),
+    "116-03-MAI": _pdf_url("116-03_art116_c15_c17_recidiva_biennale_mai_conseguita.pdf"),
+    "116-03-REVOCATA": _pdf_url("116-03_art116_c15_c17_recidiva_biennale_patente_revocata.pdf"),
+    "116-03-NON_VALIDA": _pdf_url("116-03_art116_c15_c17_recidiva_biennale_non_valida_per_il_veicolo.pdf"),
+    "116-04": _pdf_url("116-04_art116_c15_c17_reiterazione_penale_mai_conseguita.pdf"),
+    "116-04-MAI": _pdf_url("116-04_art116_c15_c17_reiterazione_penale_mai_conseguita.pdf"),
+    "116-04-REVOCATA": _pdf_url("116-04_art116_c15_c17_reiterazione_penale_patente_revocata.pdf"),
+    "116-04-NON_VALIDA": _pdf_url("116-04_art116_c15_c17_reiterazione_penale_non_vailda_per_il_veicolo.pdf"),
+    "116-06": _pdf_url("116-06_art116_senza_kb_cqc.pdf"),
+
+    # Art. 126 / 158 template specifici
+    "126-01": _pdf_url("126-01_art126_c11_kb_cqc_scaduto.pdf"),
+    "158-27": _pdf_url("158-27_art158_c2d_c5bis_stalli_taxi_bus.pdf"),
+    "158-27-TAXI": _pdf_url("158-27_art158_c2d_c5bis_stallo_taxi.pdf"),
+    "158-27-BUS": _pdf_url("158-27_art158_c2d_c5bis_stallo_bus.pdf"),
+    "158-27-NCC": _pdf_url("158-27_art158_c2d_c5bis_stallo_ncc.pdf"),
 })
 
 # Il codice generico 085-05/06/07/08 viene mantenuto, ma viene fatto puntare
@@ -2817,9 +2833,9 @@ for _code, _suffix in {
     VIOLATIONS.setdefault(_code, _clone_violation_record(base, _suffix))
 
 for _code, _base, _suffix in [
-    ("116-02-MAI", "116-02", "mai conseguita"), ("116-02-REVOCATA", "116-02", "patente revocata"), ("116-02-NON_RINNOVATA", "116-02", "non rinnovata/perdita requisiti"), ("116-02-NON_VALIDA", "116-02", "non valida per veicolo"),
-    ("116-03-MAI", "116-03", "mai conseguita - recidiva"), ("116-03-REVOCATA", "116-03", "patente revocata - recidiva"), ("116-03-NON_RINNOVATA", "116-03", "non più valida - recidiva"), ("116-03-NON_VALIDA", "116-03", "non valida per veicolo - recidiva"),
-    ("116-04-MAI", "116-04", "mai conseguita - penale"), ("116-04-REVOCATA", "116-04", "patente revocata - penale"), ("116-04-NON_RINNOVATA", "116-04", "non più valida - penale"), ("116-04-NON_VALIDA", "116-04", "non valida per veicolo - penale"),
+    ("116-02-MAI", "116-02", "mai conseguita"), ("116-02-REVOCATA", "116-02", "patente revocata"), ("116-02-NON_VALIDA", "116-02", "non valida per veicolo"),
+    ("116-03-MAI", "116-03", "mai conseguita - recidiva"), ("116-03-REVOCATA", "116-03", "patente revocata - recidiva"), ("116-03-NON_VALIDA", "116-03", "non valida per veicolo - recidiva"),
+    ("116-04-MAI", "116-04", "mai conseguita - penale"), ("116-04-REVOCATA", "116-04", "patente revocata - penale"), ("116-04-NON_VALIDA", "116-04", "non valida per veicolo - penale"),
     ("158-27-TAXI", "158-27", "stallo TAXI"), ("158-27-BUS", "158-27", "stallo BUS"), ("158-27-NCC", "158-27", "stallo NCC"),
 ]:
     VIOLATIONS.setdefault(_code, _clone_violation_record(_base, _suffix))
